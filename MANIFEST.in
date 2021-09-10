@@ -9,7 +9,7 @@ include install.json
 include ts*.json
 include yarn.lock
 
-graft rubin_rsp_jupyter_extensions/labextension
+graft rsp_jupyter_extensions/labextension
 
 # Javascript files
 graft src

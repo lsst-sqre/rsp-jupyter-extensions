@@ -1,0 +1,36 @@
+"""
+This is a Handler Module to facilitate our Jupyter extensions in the Rubin
+Observatory Science Platform context.
+"""
+import json
+import os
+
+from notebook.utils import url_path_join as ujoin
+from notebook.base.handlers import APIHandler
+
+from .displayversion import DisplayVersion_handler
+from .environment import Environment_handler
+from .hub import Hub_handler
+from .query import Query_handler
+
+
+    
+def setup_handlers(web_app):
+    """
+    Function used to setup all the handlers used.
+    """
+    extmap={
+        r"/rubin/display_version": DisplayVersion_handler,
+        r"/rubin/environment": Environment_handler,
+        r"/rubin/hub": Hub_handler,
+        r"/rubin/query": Query_handler
+        
+    }
+        
+    # add the baseurl to our paths...
+    host_pattern = ".*$"
+    base_url = web_app.settings["base_url"]
+    # And now add the handlers.
+    handlers = []
+    for k,v in extmap:
+        handlers.append(ujoin(base_url, k), v)

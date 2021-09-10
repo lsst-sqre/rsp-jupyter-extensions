@@ -1,7 +1,7 @@
 {
   "NotebookApp": {
     "nbserver_extensions": {
-      "rubin_rsp_jupyter_extensions": true
+      "rsp_jupyter_extensions": true
     }
   }
 }

@@ -1,12 +1,12 @@
-# rubin_rsp_jupyter_extensions
+# rsp_jupyter_extensions
 
-![Github Actions Status](https://github.com/lsst-sqre/rubin-rsp-jupyter-extensions/workflows/Build/badge.svg)
+![Github Actions Status](https://github.com/lsst-sqre/rsp-jupyter-extensions/workflows/Build/badge.svg)
 
 Jupyter Extensions for the RSP
 
 
-This extension is composed of a Python package named `rubin_rsp_jupyter_extensions`
-for the server extension and a NPM package named `rubin-rsp-jupyter-extensions`
+This extension is composed of a Python package named `rsp_jupyter_extensions`
+for the server extension and a NPM package named `rsp-jupyter-extensions`
 for the frontend extension.
 
 
@@ -19,7 +19,7 @@ for the frontend extension.
 To install the extension, execute:
 
 ```bash
-pip install rubin_rsp_jupyter_extensions
+pip install rsp_jupyter_extensions
 ```
 
 ## Uninstall
@@ -27,7 +27,7 @@ pip install rubin_rsp_jupyter_extensions
 To remove the extension, execute:
 
 ```bash
-pip uninstall rubin_rsp_jupyter_extensions
+pip uninstall rsp_jupyter_extensions
 ```
 
 
@@ -60,13 +60,13 @@ The `jlpm` command is JupyterLab's pinned version of
 
 ```bash
 # Clone the repo to your local environment
-# Change directory to the rubin_rsp_jupyter_extensions directory
+# Change directory to the rsp_jupyter_extensions directory
 # Install package in development mode
 pip install -e .
 # Link your development version of the extension with JupyterLab
 jupyter labextension develop . --overwrite
 # Server extension must be manually installed in develop mode
-jupyter server extension enable rubin_rsp_jupyter_extensions
+jupyter server extension enable rsp_jupyter_extensions
 # Rebuild extension Typescript source after making changes
 jlpm run build
 ```
@@ -92,10 +92,10 @@ jupyter lab build --minimize=False
 
 ```bash
 # Server extension must be manually disabled in develop mode
-jupyter server extension disable rubin_rsp_jupyter_extensions
-pip uninstall rubin_rsp_jupyter_extensions
+jupyter server extension disable rsp_jupyter_extensions
+pip uninstall rsp_jupyter_extensions
 ```
 
 In development mode, you will also need to remove the symlink created by `jupyter labextension develop`
 command. To find its location, you can run `jupyter labextension list` to figure out where the `labextensions`
-folder is located. Then you can remove the symlink named `rubin-rsp-jupyter-extensions` within that folder.
+folder is located. Then you can remove the symlink named `rsp-jupyter-extensions` within that folder.

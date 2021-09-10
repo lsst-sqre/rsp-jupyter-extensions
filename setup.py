@@ -1,5 +1,5 @@
 """
-rubin_rsp_jupyter_extensions setup
+rsp_jupyter_extensions setup
 """
 import json
 import sys
@@ -10,7 +10,7 @@ import setuptools
 HERE = Path(__file__).parent.resolve()
 
 # The name of the project
-name = "rubin_rsp_jupyter_extensions"
+name = "rsp_jupyter_extensions"
 
 lab_path = (HERE / name.replace("-", "_") / "labextension")
 
@@ -20,16 +20,16 @@ ensured_targets = [
     str(lab_path / "static/style.js")
 ]
 
-labext_name = "rubin-rsp-jupyter-extensions"
+labext_name = "rsp-jupyter-extensions"
 
 data_files_spec = [
     ("share/jupyter/labextensions/%s" % labext_name, str(lab_path.relative_to(HERE)), "**"),
     ("share/jupyter/labextensions/%s" % labext_name, str("."), "install.json"),
     ("etc/jupyter/jupyter_server_config.d",
-     "jupyter-config/server-config", "rubin_rsp_jupyter_extensions.json"),
+     "jupyter-config/server-config", "rsp_jupyter_extensions.json"),
     # For backward compatibility with notebook server
     ("etc/jupyter/jupyter_notebook_config.d",
-     "jupyter-config/nb-config", "rubin_rsp_jupyter_extensions.json"),
+     "jupyter-config/nb-config", "rsp_jupyter_extensions.json"),
 ]
 
 long_description = (HERE / "README.md").read_text()

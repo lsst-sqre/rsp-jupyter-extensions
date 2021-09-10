@@ -1,4 +1,4 @@
-# Making a new release of rubin_rsp_jupyter_extensions
+# Making a new release of rsp_jupyter_extensions
 
 The extension can be published to `PyPI` and `npm` using the [Jupyter Releaser](https://github.com/jupyter-server/jupyter_releaser).
 
