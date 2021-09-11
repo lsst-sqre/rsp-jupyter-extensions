@@ -2,7 +2,7 @@
 // Distributed under the terms of the MIT License.
 
 import {
-  Menu
+  Menu, Widget
 } from '@lumino/widgets';
 
 import {
@@ -29,10 +29,6 @@ import {
 import {
   PageConfig
 } from '@jupyterlab/coreutils';
-
-import {
-  Widget
-} from '@lumino/widgets';
 
 /**
  * The command IDs used by the plugin.
