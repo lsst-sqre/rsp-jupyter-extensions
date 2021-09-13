@@ -1,3 +1,9 @@
+import json
+import os
+
+from notebook.base.handlers import APIHandler
+
+
 class DisplayVersion_handler(APIHandler):
     """
     DisplayVersion Handler.  Return the JSON representation of our
@@ -6,18 +12,17 @@ class DisplayVersion_handler(APIHandler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.version_config={}
+        self.version_config = {}
         for i in ["JUPYTER_IMAGE", "IMAGE_DESCRIPTION", "IMAGE_DIGEST"]:
             self.version_config[i.lower()] = self._files_then_env(i)
         self.version_config["label"] = self._label_from_fields(
-            self.version_config)
+            self.version_config
+        )
 
     def get(self):
-        """
-        """
+        """ """
         self.log.info("Sending Display Version settings")
         self.finish(json.dumps(self.version_config))
-
 
     def _files_then_env(self, symbol):
         """Try to extract a symbol.  First use the path at which it should be
@@ -35,7 +40,6 @@ class DisplayVersion_handler(APIHandler):
             self.log.warning(f"Could not read from {fn}: {e}; trying env var.")
             val = os.getenv(symbol, "")
         return val
-
 
     def _label_from_fields(self, version_config):
         # Parse the image ref into fields we want to display; do the work
@@ -62,7 +66,5 @@ class DisplayVersion_handler(APIHandler):
             display_hash = f" [ {trunc_hash}... ] "
 
         # Then just concatenate them all together
-        label=f"{display_desc}{display_name}{display_hash}"
+        label = f"{display_desc}{display_name}{display_hash}"
         return label
-
-

@@ -9,7 +9,6 @@ import shutil
 import nbreport.templating as templ
 
 from nbreport.repo import ReportRepo
-from notebook.utils import url_path_join as ujoin
 from notebook.base.handlers import APIHandler
 from tempfile import TemporaryDirectory
 from urllib.parse import urlparse

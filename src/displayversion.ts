@@ -90,7 +90,7 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
     );
   }
 
-  console.log('RSP DisplayVersion extension: ...loaded')
+  console.log('RSP DisplayVersion extension: ... ' + endpoint + ' loaded')
 };
 
 /**

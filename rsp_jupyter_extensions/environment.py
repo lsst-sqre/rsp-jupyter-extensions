@@ -1,3 +1,9 @@
+import json
+import os
+
+from notebook.base.handlers import APIHandler
+
+
 class Environment_handler(APIHandler):
     """
     Environment Handler.  Return the JSON representation of our OS environment
@@ -10,8 +16,7 @@ class Environment_handler(APIHandler):
         self._refresh_env()
 
     def get(self):
-        """
-        """
+        """ """
         self.log.info("Sending Rubin settings")
         self.finish(self.dump())
 
@@ -39,5 +44,5 @@ class Environment_handler(APIHandler):
                 #  the current configmap, ..<date> points to various revisions,
                 #  and the files are symlinked to ..data/filename
                 continue
-            with open(fn,"r") as f:
-                self.env[fn]=f.read()
+            with open(fn, "r") as f:
+                self.env[fn] = f.read()
