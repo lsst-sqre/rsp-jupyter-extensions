@@ -30,13 +30,15 @@ import {
   PageConfig
 } from '@jupyterlab/coreutils';
 
+import * as token from "./tokens"
+
 /**
  * The command IDs used by the plugin.
  */
 export
 namespace CommandIDs {
-  export const rubinQueryAPI: string = 'rubinqueryapi';
-  export const rubinQuerySquash: string = 'rubinquerysquash';
+  export const rspQueryAPI: string = 'rspqueryapi';
+  export const rspQuerySquash: string = 'rspquerysquash';
 };
 
 /**
@@ -50,41 +52,43 @@ interface PathContainer {
 /**
  * Activate the extension.
  */
-function activateRubinQueryExtension(app: JupyterFrontEnd, mainMenu: IMainMenu, docManager: IDocumentManager): void {
+export function activateRSPQueryExtension(app: JupyterFrontEnd, mainMenu: IMainMenu, docManager: IDocumentManager): void {
 
-  console.log('Rubin query extension: activated')
+  console.log('rsp-queryextension: loading...')
 
   let svcManager = app.serviceManager;
 
-  app.commands.addCommand(CommandIDs.rubinQueryAPI, {
+  app.commands.addCommand(CommandIDs.rspQueryAPI, {
     label: 'Open from Query URL...',
     caption: 'Open notebook from supplied API query URL',
     execute: () => {
-      rubinQuery(app, docManager, svcManager, "api")
+      rspQuery(app, docManager, svcManager, "api")
     }
   });
-  app.commands.addCommand(CommandIDs.rubinQuerySquash, {
+  app.commands.addCommand(CommandIDs.rspQuerySquash, {
     label: 'Open from CI ID...',
     caption: 'Open notebook from supplied Squash CI ID',
     execute: () => {
-      rubinQuery(app, docManager, svcManager, "squash")
+      rspQuery(app, docManager, svcManager, "squash")
     }
   });
 
   // Add commands and menu itmes.
   const menu = new Menu({ commands: app.commands })
-  menu.addItem({ command: CommandIDs.rubinQueryAPI })
-  menu.addItem({ command: CommandIDs.rubinQuerySquash })
-  menu.title.label = "Rubin"
+  menu.addItem({ command: CommandIDs.rspQueryAPI })
+  menu.addItem({ command: CommandIDs.rspQuerySquash })
+  menu.title.label = "RSP"
   mainMenu.addMenu(menu, {
     rank: 420,
   });
+
+  console.log('rsp-queryextension: ...loaded')
 }
 
 class QueryHandler extends Widget {
   constructor(prompt: string) {
     super({ node: Private.createQueryNode(prompt) });
-    this.addClass('lsst-rubin')
+    this.addClass('rspQuery')
   }
 
   get inputNode(): HTMLInputElement {
@@ -107,6 +111,10 @@ function queryDialog(manager: IDocumentManager, prompt: string): Promise<string 
   }
   return showDialog(options).then(result => {
     console.log("Result from queryDialog: ", result)
+    if (!result) {
+      console.log("No result from queryDialog");
+      return null;
+    }
     if (!result.value) {
       console.log("No result.value from queryDialog");
       return null;
@@ -145,7 +153,7 @@ function apiRequest(url: string, init: RequestInit, settings: ServerConnection.I
     });
 }
 
-function rubinQuery(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager, qtype: string): void {
+function rspQuery(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager, qtype: string): void {
   let prompt = "Enter API Query URL"
   if (qtype == "squash") {
     prompt = "Enter Squash CI_ID"
@@ -180,17 +188,17 @@ function rubinQuery(app: JupyterFrontEnd, docManager: IDocumentManager, svcManag
 /**
  * Initialization data for the jupyterlab-lsstquery extension.
  */
-const RubinQueryExtension: JupyterFrontEndPlugin<void> = {
-  activate: activateRubinQueryExtension,
-  id: 'jupyter.extensions.jupyterlab-lsst-extension',
+const rspQueryExtension: JupyterFrontEndPlugin<void> = {
+  activate: activateRSPQueryExtension,
+  id: token.QUERY_ID,
   requires: [
     IMainMenu,
     IDocumentManager
   ],
-  autoStart: true,
+  autoStart: false,
 };
 
-export default RubinQueryExtension
+export default rspQueryExtension;
 
 namespace Private {
   /**

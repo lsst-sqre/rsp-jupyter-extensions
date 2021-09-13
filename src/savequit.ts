@@ -33,6 +33,7 @@ import {
   each
 } from '@lumino/algorithm';
 
+import * as token from "./tokens";
 
 /**
  * The command IDs used by the plugin.
@@ -49,9 +50,9 @@ namespace CommandIDs {
 /**
  * Activate the jupyterhub extension.
  */
-function activateRubinSavequitExtension(app: JupyterFrontEnd, mainMenu: IMainMenu, docManager: IDocumentManager): void {
+export function activateRSPSavequitExtension(app: JupyterFrontEnd, mainMenu: IMainMenu, docManager: IDocumentManager): void {
 
-  console.log('rubin-labextensions-savequit: loaded.');
+  console.log('rsp-savequit: loading...');
 
   let svcManager = app.serviceManager;
 
@@ -100,6 +101,8 @@ function activateRubinSavequitExtension(app: JupyterFrontEnd, mainMenu: IMainMen
   // Put it at the bottom of file menu
   let rank = 150;
   mainMenu.fileMenu.addGroup(menu, rank);
+
+  console.log('rsp-savequit: ...loaded.');
 }
 
 function hubDeleteRequest(app: JupyterFrontEnd): Promise<Response> {
@@ -176,17 +179,17 @@ function infoDialog(): Promise<void> {
 }
 
 /**
- * Initialization data for the jupyterlab_rubinhub extension.
+ * Initialization data for the rspSavequit extension.
  */
-const rubinSavequitExtension: JupyterFrontEndPlugin<void> = {
-  activate: activateRubinSavequitExtension,
-  id: 'jupyter.extensions.rubin.savequit',
+const rspSavequitExtension: JupyterFrontEndPlugin<void> = {
+  activate: activateRSPSavequitExtension,
+  id: token.SAVEQUIT_ID,
   requires: [
     IMainMenu,
     IDocumentManager
   ],
-  autoStart: true,
+  autoStart: false,
 };
 
-export default rubinSavequitExtension;
+export default rspSavequitExtension;
 

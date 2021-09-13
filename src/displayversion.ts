@@ -27,17 +27,14 @@ import {
 
 import DisplayLabVersion from "./DisplayLabVersion"
 
-/**
- * The command ID used by the plugin.
- */
-export const DISPLAYVERSION_PLUGIN_ID = 'rubin-extension:displayVersion';
+import * as token from "./tokens"
 
 /**
  * Activate the extension.
  */
-function activateDisplayVersionExtension(app: JupyterFrontEnd, statusBar: IStatusBar): void {
+export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusBar: IStatusBar): void {
 
-  console.log('Rubin DisplayVersion extension: activated')
+  console.log('RSP DisplayVersion extension: loading...')
 
   let svcManager = app.serviceManager;
 
@@ -56,7 +53,7 @@ function activateDisplayVersionExtension(app: JupyterFrontEnd, statusBar: IStatu
     );
 
     statusBar.registerStatusItem(
-      DISPLAYVERSION_PLUGIN_ID,
+      token.DISPLAYVERSION_ID,
       {
         item: displayVersionWidget,
         align: "left",
@@ -92,19 +89,21 @@ function activateDisplayVersionExtension(app: JupyterFrontEnd, statusBar: IStatu
       }
     );
   }
+
+  console.log('RSP DisplayVersion extension: ...loaded')
 };
 
 /**
  * Initialization data for the jupyterlab-lsstquery extension.
  */
-const displayVersionExtension: JupyterFrontEndPlugin<void> = {
-  activate: activateDisplayVersionExtension,
-  id: DISPLAYVERSION_PLUGIN_ID,
+const rspDisplayVersionExtension: JupyterFrontEndPlugin<void> = {
+  activate: activateRSPDisplayVersionExtension,
+  id: token.DISPLAYVERSION_ID,
   requires: [
     IStatusBar,
   ],
-  autoStart: true,
+  autoStart: false,
 };
 
-export default displayVersionExtension;
+export default rspDisplayVersionExtension;
 
