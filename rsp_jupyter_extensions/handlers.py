@@ -27,5 +27,5 @@ def setup_handlers(web_app):
     # And now add the handlers.
     handlers = []
     for path in extmap:
-        handlers.append(ujoin(base_url, path), extmap[path])
+        handlers.append((ujoin(base_url, path), extmap[path]))
     web_app.add_handlers(host_pattern, handlers)
