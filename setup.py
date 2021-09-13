@@ -23,7 +23,8 @@ ensured_targets = [
 labext_name = "rsp-jupyter-extensions"
 
 data_files_spec = [
-    ("share/jupyter/labextensions/%s" % labext_name, str(lab_path.relative_to(HERE)), "**"),
+    ("share/jupyter/labextensions/%s" %
+     labext_name, str(lab_path.relative_to(HERE)), "**"),
     ("share/jupyter/labextensions/%s" % labext_name, str("."), "install.json"),
     ("etc/jupyter/jupyter_server_config.d",
      "jupyter-config/server-config", "rsp_jupyter_extensions.json"),
@@ -49,19 +50,22 @@ setup_args = dict(
     long_description_content_type="text/markdown",
     packages=setuptools.find_packages(),
     install_requires=[
-        "jupyter_server>=1.6,<2"
+        "jupyter_server>=1.6,<2",
+        "nbreport",
+        "notebook",
+        "requests"
     ],
     zip_safe=False,
     include_package_data=True,
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     platforms="Linux, Mac OS X, Windows",
     keywords=["Jupyter", "JupyterLab", "JupyterLab3"],
     classifiers=[
         "License :: OSI Approved :: BSD License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
+        #        "Programming Language :: Python :: 3.6",
+        #        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Framework :: Jupyter",
@@ -82,12 +86,14 @@ try:
     post_develop = npm_builder(
         build_cmd="install:extension", source_dir="src", build_dir=lab_path
     )
-    setup_args["cmdclass"] = wrap_installers(post_develop=post_develop, ensured_targets=ensured_targets)
+    setup_args["cmdclass"] = wrap_installers(
+        post_develop=post_develop, ensured_targets=ensured_targets)
     setup_args["data_files"] = get_data_files(data_files_spec)
 except ImportError as e:
     import logging
     logging.basicConfig(format="%(levelname)s: %(message)s")
-    logging.warning("Build tool `jupyter-packaging` is missing. Install it with pip or conda.")
+    logging.warning(
+        "Build tool `jupyter-packaging` is missing. Install it with pip or conda.")
     if not ("--name" in sys.argv or "--version" in sys.argv):
         raise e
 

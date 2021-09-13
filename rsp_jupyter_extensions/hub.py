@@ -1,3 +1,10 @@
+import os
+from notebook.utils import url_path_join as ujoin
+import requests
+
+from notebook.base.handlers import APIHandler
+
+
 class Hub_handler(APIHandler):
     """
     Hub Handler.  Currently all we do is DELETE (to shut down a running Lab
