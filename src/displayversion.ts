@@ -10,11 +10,11 @@ import {
   PageConfig
 } from '@jupyterlab/coreutils';
 
-interface VersionResponse {
-  jupyter_image: string;
-  image_description: string;
-  image_digest: string;
-  label: string;
+interface EnvResponse {
+  IMAGE_DESCRIPTION?: string;
+  IMAGE_DIGEST?: string;
+  JUPYTER_IMAGE_SPEC?: string;
+  EXTERNAL_INSTANCE_URL?: string;
 }
 
 import {
@@ -38,17 +38,34 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
 
   let svcManager = app.serviceManager;
 
-  let endpoint = PageConfig.getBaseUrl() + "rubin/display_version"
+  let endpoint = PageConfig.getBaseUrl() + "rubin/environment"
   let init = {
     method: "GET"
   }
   let settings = svcManager.serverSettings
 
   apiRequest(endpoint, init, settings).then((res) => {
+    let image_description = (res.IMAGE_DESCRIPTION || "")
+    let image_digest = res.IMAGE_DIGEST
+    let image_spec = res.JUPYTER_IMAGE_SPEC
+    let instance_url = new URL(res.EXTERNAL_INSTANCE_URL || "")
+    let hostname = " " + instance_url.hostname
+    let digest_str = ""
+    if (image_digest) {
+      digest_str = " [" + image_digest.substring(0, 8) + "...]"
+    }
+    let imagename = ""
+    if (image_spec) {
+      let imagearr = image_spec.split("/");
+      imagename = " (" + imagearr[imagearr.length - 1] + ")"
+    }
+    let label = image_spec + digest_str + imagename + hostname
+
+
     const displayVersionWidget = new DisplayLabVersion(
       {
-        source: res.label,
-        title: res.image_description
+        source: label,
+        title: image_description
       }
     );
 
@@ -64,7 +81,7 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
   }
   );
 
-  function apiRequest(url: string, init: RequestInit, settings: ServerConnection.ISettings): Promise<VersionResponse> {
+  function apiRequest(url: string, init: RequestInit, settings: ServerConnection.ISettings): Promise<EnvResponse> {
     /**
     * Make a request to our endpoint to get a pointer to a templated
     *  notebook for a given query
@@ -90,7 +107,7 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
     );
   }
 
-  console.log('RSP DisplayVersion extension: ... ' + endpoint + ' loaded')
+  console.log('RSP DisplayVersion extension: ... loaded')
 };
 
 /**

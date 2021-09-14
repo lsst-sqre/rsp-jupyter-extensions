@@ -21,6 +21,9 @@
     "style/**/*.{css,js,eot,gif,html,jpg,json,png,svg,woff2,ttf}"
   ],
   "main": "lib/index.js",
+  "browser": {
+    "URL": "window.URL"
+  },
   "types": "lib/index.d.ts",
   "style": "style/index.css",
   "repository": {
