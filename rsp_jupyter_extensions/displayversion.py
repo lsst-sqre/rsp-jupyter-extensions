@@ -2,6 +2,7 @@ import json
 import os
 
 from notebook.base.handlers import APIHandler
+from typing import Dict
 
 
 class DisplayVersion_handler(APIHandler):
@@ -19,12 +20,12 @@ class DisplayVersion_handler(APIHandler):
             self.version_config
         )
 
-    def get(self):
+    def get(self) -> None:
         """ """
         self.log.info("Sending Display Version settings")
         self.finish(json.dumps(self.version_config))
 
-    def _files_then_env(self, symbol):
+    def _files_then_env(self, symbol) -> str:
         """Try to extract a symbol.  First use the path at which it should be
         mounted into the container.  If that doesn't exist or isn't
         readable, try the environment variable of the same name.  If
@@ -41,7 +42,7 @@ class DisplayVersion_handler(APIHandler):
             val = os.getenv(symbol, "")
         return val
 
-    def _label_from_fields(self, version_config):
+    def _label_from_fields(self, version_config: Dict[str, str]) -> str:
         # Parse the image ref into fields we want to display; do the work
         #  here and return an object with computed fields to our caller so
         #  the UI side can be very dumb.

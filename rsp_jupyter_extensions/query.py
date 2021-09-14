@@ -11,11 +11,13 @@ import nbreport.templating as templ
 from nbreport.repo import ReportRepo
 from notebook.base.handlers import APIHandler
 from tempfile import TemporaryDirectory
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
+
 
 # This defines a git repository for each known query_type.
 
-TEMPLATEMAP = {
+TEMPLATEMAP: Dict[str, Dict[str, Optional[str]]] = {
     "api": {
         "url": "https://github.com/lsst-sqre/lsst-apiquerytemplate",
         "branch": "JL3",
@@ -35,10 +37,10 @@ class Query_handler(APIHandler):
     """
 
     @property
-    def rubinquery(self):
+    def rubinquery(self) -> Dict[str, str]:
         return self.settings["rubinquery"]
 
-    def post(self):
+    def post(self) -> None:
         """
         POST a queryID and get back a prepopulated notebook.
         """
@@ -51,11 +53,13 @@ class Query_handler(APIHandler):
         result = self._substitute_query(query_type, query_id)
         self.finish(json.dumps(result))
 
-    def _substitute_query(self, query_type, query_id):
+    def _substitute_query(
+        self, query_type: str, query_id: str
+    ) -> Dict[str, Any]:
         # These are not from a RubinConfig() object; they belong to the
         #  user Python environment
-        top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX")
-        root = os.environ.get("HOME")
+        top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX") or ""
+        root = os.environ.get("HOME") or ""
         dir_name = self._get_dirname(query_type, query_id)
         fpath = "notebooks/queries/" + dir_name
         rpath = root + "/" + fpath
@@ -84,7 +88,9 @@ class Query_handler(APIHandler):
             retval["body"] = nb
         return retval
 
-    def _render_from_template(self, query_type, query_id, fpath):
+    def _render_from_template(
+        self, query_type: str, query_id: str, fpath: str
+    ) -> str:
         template_map = TEMPLATEMAP.get(query_type)
         if not template_map:
             raise ValueError(
@@ -118,7 +124,7 @@ class Query_handler(APIHandler):
                 nb = self._render_notebook(repo, extra_context)
         return nb
 
-    def _copy_assets(self, repo, fpath):
+    def _copy_assets(self, repo: ReportRepo, fpath: str) -> None:
         assets = repo.asset_paths
         rdir = repo.dirname
         for a in assets:
@@ -128,7 +134,9 @@ class Query_handler(APIHandler):
             os.makedirs(d_dir, exist_ok=True)
             shutil.copy2(a, d_dir)
 
-    def _render_notebook(self, repo, extra_context):
+    def _render_notebook(
+        self, repo: ReportRepo, extra_context: Dict[str, str]
+    ) -> str:
         context = templ.load_template_environment(
             repo.context_path, extra_context=extra_context
         )
@@ -136,7 +144,7 @@ class Query_handler(APIHandler):
         rendered_notebook = templ.render_notebook(nb, *context)
         return rendered_notebook
 
-    def _get_dirname(self, query_type, query_id):
+    def _get_dirname(self, query_type: str, query_id: str) -> str:
         self.log.debug(
             "Query Type: {} | Query ID: {}".format(query_id, query_type)
         )
@@ -152,7 +160,9 @@ class Query_handler(APIHandler):
         self.log.debug("Fname: {}".format(dir_name))
         return dir_name
 
-    def _get_extra_context(self, query_type, query_id):
+    def _get_extra_context(
+        self, query_type: str, query_id: str
+    ) -> Dict[str, str]:
         context = {}
         if query_type == "api":
             context = {"query_url": query_id}

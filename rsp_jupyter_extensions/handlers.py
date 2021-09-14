@@ -10,7 +10,7 @@ from .hub import Hub_handler
 from .query import Query_handler
 
 
-def setup_handlers(web_app):
+def setup_handlers(web_app) -> None:
     """
     Function used to setup all the handlers used.
     """

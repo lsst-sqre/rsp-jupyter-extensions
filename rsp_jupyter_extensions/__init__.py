@@ -2,10 +2,12 @@
 Python module to initialize Server Extension for retrieving Rubin Observatory
 settings.
 """
+
 from .handlers import setup_handlers
+from typing import List, Dict
 
 
-def _jupyter_server_extension_paths():
+def _jupyter_server_extension_paths() -> List[Dict[str, str]]:
     """
     Function to declare Jupyter Server Extension Paths.
     """
@@ -14,7 +16,7 @@ def _jupyter_server_extension_paths():
     return [{"module": "rsp_jupyter_extensions"}]
 
 
-def load_jupyter_server_extension(nbapp):
+def load_jupyter_server_extension(nbapp) -> None:
     """
     Function to load Jupyter Server Extension.
     """

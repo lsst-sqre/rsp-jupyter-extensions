@@ -12,13 +12,13 @@ class Hub_handler(APIHandler):
     """
 
     @property
-    def lsstquery(self):
+    def lsstquery(self) -> str:
         return self.settings["lsstquery"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def delete(self):
+    def delete(self) -> None:
         """
         Send a DELETE to the Hub API, which will result in this Lab
         instance being terminated (potentially, along with its namespace).

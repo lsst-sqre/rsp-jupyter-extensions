@@ -2,6 +2,7 @@ import json
 import os
 
 from notebook.base.handlers import APIHandler
+from typing import Dict
 
 
 class Environment_handler(APIHandler):
@@ -15,16 +16,16 @@ class Environment_handler(APIHandler):
         self.env = {}
         self._refresh_env()
 
-    def get(self):
+    def get(self) -> None:
         """ """
         self.log.info("Sending Rubin settings")
         self.finish(self.dump())
 
-    def dump(self):
+    def dump(self) -> str:
         self._refresh_env()
         return json.dumps(self.env, sort_keys=True, indent=4)
 
-    def _refresh_env(self):
+    def _refresh_env(self) -> None:
         # This is a little complex.  Some of the environment comes in as
         #  a ConfigMap.  This *could* be updated while we're running
         #  (and, for instance, maybe will be for token updates).  But the
@@ -38,6 +39,7 @@ class Environment_handler(APIHandler):
         #
         loc = "/opt/lsst/software/jupyterlab/environment"  # By convention.
         fns = os.listdir(path=loc)
+        ev = {}
         for fn in fns:
             if fn.startswith(".."):
                 # This is a configmap implementation detail--..data points to
@@ -45,4 +47,12 @@ class Environment_handler(APIHandler):
                 #  and the files are symlinked to ..data/filename
                 continue
             with open(os.path.join(loc, fn), "r") as f:
-                self.env[fn] = f.read()
+                ev[fn] = f.read()
+        ev.update(self._env_to_dict())
+        self.env.update(ev)
+
+    def _env_to_dict(self) -> Dict[str, str]:
+        ev = {}
+        for var in os.environ:
+            ev[var] = os.environ[var]
+        return ev
