@@ -44,5 +44,5 @@ class Environment_handler(APIHandler):
                 #  the current configmap, ..<date> points to various revisions,
                 #  and the files are symlinked to ..data/filename
                 continue
-            with open(fn, "r") as f:
+            with open(os.path.join(loc, fn), "r") as f:
                 self.env[fn] = f.read()
