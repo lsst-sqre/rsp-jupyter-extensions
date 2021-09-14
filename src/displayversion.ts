@@ -59,7 +59,7 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
       let imagearr = image_spec.split("/");
       imagename = " (" + imagearr[imagearr.length - 1] + ")"
     }
-    let label = image_spec + digest_str + imagename + hostname
+    let label = image_description + digest_str + imagename + hostname
 
 
     const displayVersionWidget = new DisplayLabVersion(
