@@ -3,6 +3,8 @@ import maproxy.proxyserver
 import maproxy.iomanager
 import tornado.netutil
 
+from typing import List, Any
+
 
 class Forwarder(maproxy.proxyserver.ProxyServer):
     """This creates a TCP proxy server running on a randomly-assigned
@@ -12,7 +14,7 @@ class Forwarder(maproxy.proxyserver.ProxyServer):
     _ioloop = None
     _thread = None
     _logger = None
-    _bind_addresses = []
+    _bind_addresses: List[Any] = []  # Fix this when we correct typing.
 
     def __init__(self, *args, **kwargs):
         self._logger = logging.getLogger(__name__)
