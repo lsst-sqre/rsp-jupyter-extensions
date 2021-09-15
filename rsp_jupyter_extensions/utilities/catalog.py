@@ -51,6 +51,7 @@ def _get_tap_url():
         tapurl = os.getenv("EXTERNAL_INSTANCE_URL") + (
             os.getenv("TAP_ROUTE") or "/api/tap"
         )
+    return tapurl
 
 
 def _get_auth():
