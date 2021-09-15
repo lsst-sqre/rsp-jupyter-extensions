@@ -103,8 +103,7 @@ except ImportError as e:
 
     logging.basicConfig(format="%(levelname)s: %(message)s")
     logging.warning(
-        "Build tool `jupyter-packaging` is missing. Install it with pip or"
-        + " conda."
+        "Build tool `jupyter-packaging` is missing. Install it with pip or" + " conda."
     )
     if not ("--name" in sys.argv or "--version" in sys.argv):
         raise e

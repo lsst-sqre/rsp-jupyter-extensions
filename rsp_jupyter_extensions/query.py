@@ -51,9 +51,7 @@ class Query_handler(APIHandler):
         result = self._substitute_query(query_type, query_id)
         self.finish(json.dumps(result))
 
-    def _substitute_query(
-        self, query_type: str, query_id: str
-    ) -> Dict[str, Any]:
+    def _substitute_query(self, query_type: str, query_id: str) -> Dict[str, Any]:
         # These are not from a RubinConfig() object; they belong to the
         #  user Python environment
         top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX") or ""
@@ -86,21 +84,15 @@ class Query_handler(APIHandler):
             retval["body"] = nb
         return retval
 
-    def _render_from_template(
-        self, query_type: str, query_id: str, fpath: str
-    ) -> str:
+    def _render_from_template(self, query_type: str, query_id: str, fpath: str) -> str:
         template_map = TEMPLATEMAP.get(query_type)
         if not template_map:
-            raise ValueError(
-                "No template for query type '{}'!".format(query_type)
-            )
+            raise ValueError("No template for query type '{}'!".format(query_type))
         template_url = template_map.get("url")
         branch = template_map.get("branch") or "master"
         subdir = template_map.get("subdir")
         if not template_url:
-            raise ValueError(
-                "No template URL for query type '{}'!".format(query_type)
-            )
+            raise ValueError("No template URL for query type '{}'!".format(query_type))
         repo = None
         nb = None
         extra_context = self._get_extra_context(query_type, query_id)
@@ -132,9 +124,7 @@ class Query_handler(APIHandler):
             os.makedirs(d_dir, exist_ok=True)
             shutil.copy2(a, d_dir)
 
-    def _render_notebook(
-        self, repo: ReportRepo, extra_context: Dict[str, str]
-    ) -> str:
+    def _render_notebook(self, repo: ReportRepo, extra_context: Dict[str, str]) -> str:
         context = templ.load_template_environment(
             repo.context_path, extra_context=extra_context
         )
@@ -143,9 +133,7 @@ class Query_handler(APIHandler):
         return rendered_notebook
 
     def _get_dirname(self, query_type: str, query_id: str) -> str:
-        self.log.debug(
-            "Query Type: {} | Query ID: {}".format(query_id, query_type)
-        )
+        self.log.debug("Query Type: {} | Query ID: {}".format(query_id, query_type))
         qn = query_id
         ul = urlparse(query_id)
         self.log.debug("Parsed Query ID: {}".format(ul))
@@ -158,9 +146,7 @@ class Query_handler(APIHandler):
         self.log.debug("Fname: {}".format(dir_name))
         return dir_name
 
-    def _get_extra_context(
-        self, query_type: str, query_id: str
-    ) -> Dict[str, str]:
+    def _get_extra_context(self, query_type: str, query_id: str) -> Dict[str, str]:
         context = {}
         if query_type == "api":
             context = {"query_url": query_id}
