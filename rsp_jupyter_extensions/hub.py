@@ -1,8 +1,8 @@
 import os
-from notebook.utils import url_path_join as ujoin
-import requests
 
+import requests
 from notebook.base.handlers import APIHandler
+from notebook.utils import url_path_join as ujoin
 
 
 class Hub_handler(APIHandler):

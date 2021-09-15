@@ -3,8 +3,9 @@ Python module to initialize Server Extension for retrieving Rubin Observatory
 settings.
 """
 
+from typing import Dict, List
+
 from .handlers import setup_handlers
-from typing import List, Dict
 
 
 def _jupyter_server_extension_paths() -> List[Dict[str, str]]:

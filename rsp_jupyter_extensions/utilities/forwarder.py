@@ -1,9 +1,9 @@
 import logging
-import maproxy.proxyserver
-import maproxy.iomanager
-import tornado.netutil
+from typing import Any, List
 
-from typing import List, Any
+import maproxy.iomanager
+import maproxy.proxyserver
+import tornado.netutil
 
 
 class Forwarder(maproxy.proxyserver.ProxyServer):

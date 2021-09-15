@@ -1,10 +1,11 @@
 """Utility functions for LSST JupyterLab notebook environment
 """
-import bokeh
 import os
 import urllib
-from kubernetes import client, config
 from pathlib import Path
+
+import bokeh
+from kubernetes import client, config
 
 
 def format_bytes(n):
@@ -79,9 +80,7 @@ def get_pod():
     config.load_incluster_config()
     api = client.CoreV1Api()
     namespace = "default"
-    with open(
-        "/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r"
-    ) as f:
+    with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
         namespace = f.readlines()[0]
     pod = api.read_namespaced_pod(get_hostname(), namespace)
     return pod

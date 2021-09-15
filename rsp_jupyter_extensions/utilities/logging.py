@@ -2,10 +2,10 @@
 
 __all__ = ["IPythonHandler", "forward_lsst_log"]
 
-import logging
-from IPython.display import HTML
-from IPython.display import display
 import html
+import logging
+
+from IPython.display import HTML, display
 
 try:
     import lsst.log as lsstLog
@@ -55,17 +55,12 @@ class IPythonHandler(logging.Handler):
 
     def emit(self, record: logging.LogRecord) -> None:
         name_color = "var(--jp-warn-color2)"
-        level_color = _level_colors.get(
-            record.levelname, _level_colors["DEFAULT"]
-        )
+        level_color = _level_colors.get(record.levelname, _level_colors["DEFAULT"])
         message = html.escape(record.getMessage())
         name_msg = f'<span style="color: {name_color}">{record.name}</span>'
-        level_msg = (
-            f'<span style="color: {level_color}">{record.levelname}</span>'
-        )
+        level_msg = f'<span style="color: {level_color}">{record.levelname}</span>'
         text = (
-            f'<pre style="{_pre_style}">{name_msg} {level_msg}: '
-            + f"{message}</pre>"
+            f'<pre style="{_pre_style}">{name_msg} {level_msg}: ' + f"{message}</pre>"
         )
         display(HTML(text))
 

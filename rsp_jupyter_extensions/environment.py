@@ -1,8 +1,8 @@
 import json
 import os
+from typing import Dict
 
 from notebook.base.handlers import APIHandler
-from typing import Dict
 
 
 class Environment_handler(APIHandler):

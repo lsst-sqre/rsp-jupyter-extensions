@@ -1,9 +1,11 @@
 import functools
-import requests
 import os
+import warnings
+
 import pyvo
 import pyvo.auth.authsession
-import warnings
+import requests
+
 from .utils import get_access_token
 
 
@@ -15,9 +17,7 @@ def deprecated(new_name=""):
 
         @functools.wraps(func)
         def new_func(*args, **kwargs):
-            warnings.simplefilter(
-                "always", DeprecationWarning
-            )  # turn off filter
+            warnings.simplefilter("always", DeprecationWarning)  # turn off filter
             if new_name:
                 warnings.warn(
                     f"Call to deprecated function {func.__name__}.  "
@@ -35,9 +35,7 @@ def deprecated(new_name=""):
                     category=DeprecationWarning,
                     stacklevel=2,
                 )
-            warnings.simplefilter(
-                "default", DeprecationWarning
-            )  # reset filter
+            warnings.simplefilter("default", DeprecationWarning)  # reset filter
             return func(*args, **kwargs)
 
         return new_func
