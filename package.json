@@ -80,7 +80,7 @@
   "jupyterlab": {
     "disabledExtensions": [
       "@jupyterlab/statusbar-extension:mode-switch",
-      "@jupyterlab/hub-extension:logout"
+      "@jupyterlab/hub:logout"
     ],      
     "discovery": {
         "server": {
