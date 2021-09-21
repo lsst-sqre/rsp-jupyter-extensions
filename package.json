@@ -77,7 +77,11 @@
     "style/index.js"
   ],
   "styleModule": "style/index.js",
-  "jupyterlab": { 
+  "jupyterlab": {
+    "disabledExtensions": [
+      "@jupyterlab/statusbar-extension:mode-switch",
+      "@jupyterlab/hub-extension:logout"
+    ],      
     "discovery": {
         "server": {
           "managers": [
