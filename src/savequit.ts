@@ -93,10 +93,10 @@ export function activateRSPSavequitExtension(app: JupyterFrontEnd, mainMenu: IMa
   // Add commands and menu itmes.
   let menu: Menu.IItemOptions[] =
     [
-      { command: CommandIDs.saveQuitLogout },
       { command: CommandIDs.saveQuit },
+      { command: CommandIDs.justQuit },
       { command: CommandIDs.quitLogout },
-      { command: CommandIDs.justQuit }
+      { command: CommandIDs.saveQuitLogout }
     ]
   // Put it at the bottom of file menu
   let rank = 150;
