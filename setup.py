@@ -60,6 +60,7 @@ setup_args = dict(
     packages=setuptools.find_packages(),
     install_requires=[
         "jupyter_server",
+        "nbconvert",
         "nbreport",
         "notebook",
     ],

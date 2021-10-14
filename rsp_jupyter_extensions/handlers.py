@@ -5,6 +5,7 @@ Observatory Science Platform context.
 from notebook.utils import url_path_join as ujoin
 
 from .environment import Environment_handler
+from .execution import Execution_handler
 from .hub import Hub_handler
 from .query import Query_handler
 
@@ -15,6 +16,7 @@ def setup_handlers(web_app) -> None:
     """
     extmap = {
         r"/rubin/environment": Environment_handler,
+        r"/rubin/execution": Execution_handler,
         r"/rubin/hub": Hub_handler,
         r"/rubin/query": Query_handler,
     }
