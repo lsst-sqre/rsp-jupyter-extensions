@@ -34,9 +34,12 @@ class Execution_handler(APIHandler):
         the resources will be a string in the key "resources" representing
         a JSON-encoded dict).
         """
+        print("In Execution_handler post")
         input_str = self.request.body.decode("utf-8")
+        print("Decoded input string")
         # Do The Deed
         output_str = self._execute_nb(input_str)
+        print("Build output string")
         self.finish(output_str)
 
     def _execute_nb(self, input_str: str) -> str:
@@ -54,14 +57,18 @@ class Execution_handler(APIHandler):
             resources = None
             nb_str = input_str
         nb = nbformat.reads(nb_str, 4)
+        print("Read notebook with nbformat")
         executor = nbconvert.preprocessors.ExecutePreprocessor()
+        print("Created executor")
         # Execute the notebook; updates nb/resources in place
         executor.preprocess(nb, resources=resources)
+        print("Executed notebook")
         # Re-export to a notebook
         exporter = nbconvert.exporters.NotebookExporter()
         (rendered, rendered_resources) = exporter.from_notebook_node(
             nb, resources=resources
         )
+        print("Re-exported to notebook")
         if has_resources:
             return json.dumps(
                 {"notebook": rendered, "resources": rendered_resources}
