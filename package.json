@@ -1,6 +1,6 @@
 {
   "name": "rsp-jupyter-extensions",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Jupyter Extensions for the RSP",
   "keywords": [
     "jupyter",
@@ -79,8 +79,7 @@
   "styleModule": "style/index.js",
   "jupyterlab": {
     "disabledExtensions": [
-      "@jupyterlab/statusbar-extension:mode-switch",
-      "jupyter.extensions.hub-extension"
+      "@jupyterlab/statusbar-extension:mode-switch"
     ],      
     "discovery": {
         "server": {
