@@ -1,6 +1,6 @@
 {
   "name": "rsp-jupyter-extensions",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Jupyter Extensions for the RSP",
   "keywords": [
     "jupyter",
