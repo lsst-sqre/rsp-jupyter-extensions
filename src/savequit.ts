@@ -77,7 +77,7 @@ export function activateRSPSavequitExtension(app: JupyterFrontEnd, mainMenu: IMa
     label: 'Save All, Exit, and Log Out',
     caption: 'Save open notebooks, destroy container, and log out',
     execute: () => {
-      saveAndQuit(app, docManager, svcManager, false)
+      saveAndQuit(app, docManager, svcManager, true)
     }
   });
 
