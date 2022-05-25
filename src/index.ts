@@ -19,10 +19,6 @@ import {
 } from "./displayversion"
 
 import {
-  activateRSPQueryExtension,
-} from "./query"
-
-import {
   activateRSPSavequitExtension,
 } from "./savequit"
 
@@ -33,9 +29,6 @@ function activateRSPExtension(app: JupyterFrontEnd, mainMenu: IMainMenu, docMana
   console.log('rsp-lab-extension: loading...');
   console.log('...activating displayversion extension...');
   activateRSPDisplayVersionExtension(app, statusBar);
-  console.log('...activated...')
-  console.log('...activating query extension...');
-  activateRSPQueryExtension(app, mainMenu, docManager);
   console.log('...activated...')
   console.log('...activating savequit extension...');
   activateRSPSavequitExtension(app, mainMenu, docManager);
