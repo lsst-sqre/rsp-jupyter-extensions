@@ -83,8 +83,7 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
 
   function apiRequest(url: string, init: RequestInit, settings: ServerConnection.ISettings): Promise<EnvResponse> {
     /**
-    * Make a request to our endpoint to get a pointer to a templated
-    *  notebook for a given query
+    * Make a request to our endpoint to get the version
     *
     * @param url - the path for the displayversion extension
     *
@@ -111,7 +110,7 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
 };
 
 /**
- * Initialization data for the jupyterlab-lsstquery extension.
+ * Initialization data for the RSPdisplayversionextension extension.
  */
 const rspDisplayVersionExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPDisplayVersionExtension,
