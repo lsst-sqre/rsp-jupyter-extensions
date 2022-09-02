@@ -1,0 +1,80 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Auto-generated Query Notebook for {{QUERYNAME}}"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "query_url=\"{{QUERYURL}}\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from lsst.rsp import retrieve_query\n",
+    "retrieved_job = retrieve_query(query_url)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "retrieved_job.wait()  # Defaults to 600 seconds"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,   
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "if retrieved_job.phase == \"COMPLETED\":\n",
+    "    results = retrieved_job.fetch_result()\n",
+    "    table = results.to_table()  # Put it into astropy table format\n",
+    "    if len(table) < 500:\n",
+    "        output = table.show_in_notebook()\n",
+    "    else:\n",
+    "        print(f\"Table is large ({len(table)} rows).  Not displaying as HTML\")\n",
+    "        output = \"Use 'print(table)' to display\"\n",
+    "else:\n",
+    "    print(f\"Job is in {retrieved_job.phase} phase: no results will be returned.\")\n",
+    "    output= \"No output.\"\n",
+    "output\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "LSST",
+   "language": "python",
+   "name": "lsst"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.10.5"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

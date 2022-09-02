@@ -8,12 +8,10 @@ import nbconvert
 import nbformat
 from notebook.base.handlers import APIHandler
 
-# This defines a git repository for each known query_type.
-
 
 class Execution_handler(APIHandler):
     """
-    RSP templated Query Handler.
+    RSP templated Execution Handler.
     """
 
     @property
