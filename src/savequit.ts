@@ -40,8 +40,9 @@ import * as token from "./tokens";
  */
 export
 namespace CommandIDs {
-  export const saveQuit: string = 'savequit:savequit';
   export const justQuit: string = 'justquit:justquit';
+  export const saveQuit: string = 'savequit:savequit';
+  export const saveLogout: string = 'savelogout:savelogout';
 };
 
 
@@ -56,27 +57,36 @@ export function activateRSPSavequitExtension(app: JupyterFrontEnd, mainMenu: IMa
 
   const { commands } = app;
 
-  commands.addCommand(CommandIDs.saveQuit, {
-    label: 'Save All and Exit',
-    caption: 'Save open notebooks and destroy container',
-    execute: () => {
-      saveAndQuit(app, docManager, svcManager)
-    }
-  });
-
   commands.addCommand(CommandIDs.justQuit, {
     label: 'Exit Without Saving',
     caption: 'Destroy container',
     execute: () => {
-      justQuit(app, docManager, svcManager)
+      justQuit(app, docManager, svcManager, false)
+    }
+  });
+
+  commands.addCommand(CommandIDs.saveQuit, {
+    label: 'Save All and Exit',
+    caption: 'Save open notebooks and destroy container',
+    execute: () => {
+      saveAndQuit(app, docManager, svcManager, false)
+    }
+  });
+
+  commands.addCommand(CommandIDs.saveLogout, {
+    label: 'Save All, Exit, and Log Out',
+    caption: 'Save open notebooks, destroy container, and log out',
+    execute: () => {
+      saveAndQuit(app, docManager, svcManager, true)
     }
   });
 
   // Add commands and menu itmes.
   let menu: Menu.IItemOptions[] =
     [
-      { command: CommandIDs.saveQuit },
       { command: CommandIDs.justQuit },
+      { command: CommandIDs.saveQuit },
+      { command: CommandIDs.saveLogout },
     ]
   // Put it at the bottom of file menu
   let rank = 150;
@@ -119,11 +129,11 @@ function saveAll(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager:
 }
 
 
-function saveAndQuit(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager): Promise<any> {
+function saveAndQuit(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager, logout: boolean): Promise<any> {
   infoDialog()
   const retval = Promise.resolve(saveAll(app, docManager, svcManager));
   retval.then((res) => {
-    return justQuit(app, docManager, svcManager)
+    return justQuit(app, docManager, svcManager, logout)
   });
   retval.catch((err) => {
     console.log("saveAll failed: ", err.message);
@@ -132,9 +142,12 @@ function saveAndQuit(app: JupyterFrontEnd, docManager: IDocumentManager, svcMana
   return retval
 }
 
-function justQuit(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager): Promise<any> {
+function justQuit(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager, logout: boolean): Promise<any> {
   infoDialog()
   let targetEndpoint = "/"
+  if (logout) {
+    targetEndpoint = "/logout"
+  }
   return Promise.resolve(hubDeleteRequest(app)
     .then(() => {
       console.log("Quit complete.")
