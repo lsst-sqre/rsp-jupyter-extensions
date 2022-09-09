@@ -37,7 +37,7 @@
   },
   {
    "cell_type": "code",
-   "execution_count": null,   
+   "execution_count": null,
    "metadata": {},
    "outputs": [],
    "source": [
@@ -53,6 +53,77 @@
     "    print(f\"Job is in {retrieved_job.phase} phase: no results will be returned.\")\n",
     "    output= \"No output.\"\n",
     "output\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import re\n",
+    "def extract_query(query):\n",
+    "    \"\"\"\n",
+    "    Yes, I know, don't parse XML/HTML with a RE.\n",
+    "    \n",
+    "    job.to_xml() produces XML that the standard Python xml parser cannot\n",
+    "    consume, because it uses namespaces without declaring them.\n",
+    "    \"\"\"\n",
+    "    # The only two fields we care about are QUERY and MAXREC\n",
+    "    lines=query.split('\\n')\n",
+    "    paramre_str = '<uws:parameter id=\\\"(?P<id>.*)\\\">(?P<val>.*)</uws:parameter>'\n",
+    "    paramre=re.compile(paramre_str)\n",
+    "    qdict = {}\n",
+    "    for l in lines:\n",
+    "        m=paramre.search(l)\n",
+    "        if m:\n",
+    "            md=m.groupdict()\n",
+    "            field=md.get(\"id\")\n",
+    "            val=md.get(\"val\")\n",
+    "            if field == \"QUERY\":\n",
+    "                qdict[\"QUERY\"] = val\n",
+    "            if field == \"MAXREC\":\n",
+    "                qdict[\"MAXREC\"] = val\n",
+    "    if \"QUERY\" not in qdict or not qdict[\"QUERY\"]:\n",
+    "        return ('', {})\n",
+    "    q=qdict[\"QUERY\"]\n",
+    "    return(q,qdict)\n",
+    "\n",
+    "query=retrieved_job.query\n",
+    "maxrec=None\n",
+    "if not query:\n",
+    "    import tempfile\n",
+    "    with tempfile.TemporaryFile() as f:\n",
+    "        retrieved_job.job.to_xml(f)\n",
+    "        f.seek(0)\n",
+    "        xmlstr=f.read().decode('utf-8')\n",
+    "        qtuple = extract_query(xmlstr)\n",
+    "        qstr=qtuple[0]\n",
+    "        qdict=qtuple[1]\n",
+    "        maxrec=qdict.get(\"MAXREC\")\n",
+    "        query=qstr"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "print(f\"Query string is \\\"{query}\\\", max records is {maxrec}.\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from pyvo.dal.tap import TAPQuery\n",
+    "editable_tap_query = None\n",
+    "tap_url = \"/\".join(query_url.split(\"/\")[:-2])\n",
+    "\n",
+    "# Create a new query by editing the \"query\" variable and then doing something like:\n",
+    "#  new_tap_query=TAPQuery(tap_url, query, mode=\"async\", maxrec=maxrec, session=retrieved_job._session)"
    ]
   }
  ],
