@@ -14,12 +14,7 @@ import { TextItem } from '@jupyterlab/statusbar';
 function DisplayLabVersionComponent(
   props: DisplayLabVersionComponent.IProps
 ): React.ReactElement<DisplayLabVersionComponent.IProps> {
-  return (
-    <TextItem
-      source={`${(props.source)}`}
-      title={`${(props.title)}`}
-    />
-  );
+  return <TextItem source={`${props.source}`} title={`${props.title}`} />;
 }
 
 /**
@@ -45,32 +40,32 @@ export class DisplayLabVersion extends VDomRenderer<VDomModel> {
    */
   constructor(props: DisplayLabVersionComponent.IProps) {
     super(new VDomModel());
-    this.props = props
+    this.props = props;
   }
 
   /**
    * Render the display Lab version widget.
    */
-  render() {
+  render(): JSX.Element | null {
     if (!this.props) {
       return null;
     }
-    return (<DisplayLabVersionComponent
-    source={this.props.source}
-    title={this.props.title}
-    />
+    return (
+      <DisplayLabVersionComponent
+        source={this.props.source}
+        title={this.props.title}
+      />
     );
   }
 
   /**
    * Dispose of the item.
    */
-  dispose() {
+  dispose(): void {
     super.dispose();
   }
-
 }
 
-export namespace DisplayLabVersion { } ;
+export namespace DisplayLabVersion {}
 
 export default DisplayLabVersion;

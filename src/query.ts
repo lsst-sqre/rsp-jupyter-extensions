@@ -1,65 +1,52 @@
 // Copyright (c) LSST DM/SQuaRE
 // Distributed under the terms of the MIT License.
 
-import {
-  Menu
-} from '@lumino/widgets';
+import { Menu } from '@lumino/widgets';
+
+import { showDialog, Dialog } from '@jupyterlab/apputils';
+
+import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import {
-  showDialog, Dialog
-} from '@jupyterlab/apputils';
-
-import {
-  IMainMenu
-} from '@jupyterlab/mainmenu';
-
-import {
-  JupyterFrontEnd, JupyterFrontEndPlugin
+  JupyterFrontEnd,
+  JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 
-import {
-  IDocumentManager
-} from '@jupyterlab/docmanager';
+import { IDocumentManager } from '@jupyterlab/docmanager';
 
+import { ServiceManager, ServerConnection } from '@jupyterlab/services';
 
-import {
-  ServiceManager, ServerConnection
-} from '@jupyterlab/services';
+import { PageConfig } from '@jupyterlab/coreutils';
 
-import {
-  PageConfig
-} from '@jupyterlab/coreutils';
+import { Widget } from '@lumino/widgets';
 
-import {
-  Widget
-} from '@lumino/widgets';
-
-import * as token from "./tokens";
+import * as token from './tokens';
 
 /**
  * The command IDs used by the plugin.
  */
-export
-namespace CommandIDs {
-  export const rubinquery: string = 'rubinquery';
-};
+export namespace CommandIDs {
+  export const rubinquery = 'rubinquery';
+}
 
 /**
  * Interface used by the extension
  */
-interface PathContainer {
+interface IPathContainer {
   path: string;
 }
-
 
 /**
  * Activate the extension.
  */
-export function activateRSPQueryExtension(app: JupyterFrontEnd, mainMenu: IMainMenu, docManager: IDocumentManager): void {
+export function activateRSPQueryExtension(
+  app: JupyterFrontEnd,
+  mainMenu: IMainMenu,
+  docManager: IDocumentManager
+): void {
+  console.log('rsp-query...loading');
 
-  console.log('rsp-query...loading')
-
-  let svcManager = app.serviceManager;
+  const svcManager = app.serviceManager;
 
   const { commands } = app;
 
@@ -67,26 +54,25 @@ export function activateRSPQueryExtension(app: JupyterFrontEnd, mainMenu: IMainM
     label: 'Open from portal query URL...',
     caption: 'Open notebook from supplied portal query URL',
     execute: () => {
-      rubinportalquery(app, docManager, svcManager)
+      rubinportalquery(app, docManager, svcManager);
     }
   });
 
   // Add commands and menu itmes.
-  let menu: Menu.IItemOptions =
-    { command: CommandIDs.rubinquery }
-  let rubinmenu = new Menu({
-    commands,
-  })
-  rubinmenu.title.label = "Rubin"
-  rubinmenu.insertItem(0, menu)
-  mainMenu.addMenu(rubinmenu)
-  console.log('rsp-query...loaded')
+  const menu: Menu.IItemOptions = { command: CommandIDs.rubinquery };
+  const rubinmenu = new Menu({
+    commands
+  });
+  rubinmenu.title.label = 'Rubin';
+  rubinmenu.insertItem(0, menu);
+  mainMenu.addMenu(rubinmenu);
+  console.log('rsp-query...loaded');
 }
 
 class QueryHandler extends Widget {
   constructor() {
     super({ node: Private.createQueryNode() });
-    this.addClass('rubin-qh')
+    this.addClass('rubin-qh');
   }
 
   get inputNode(): HTMLInputElement {
@@ -98,49 +84,59 @@ class QueryHandler extends Widget {
   }
 }
 
-
-
-function queryDialog(manager: IDocumentManager): Promise<string | {} | null> {
-  let options = {
+function queryDialog(
+  manager: IDocumentManager
+): Promise<string | (() => void) | null> {
+  const options = {
     title: 'Query Value',
     body: new QueryHandler(),
     focusNodeSelector: 'input',
     buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'CREATE' })]
-  }
+  };
   return showDialog(options).then(result => {
     if (!result) {
-      console.log("No result from queryDialog");
-      return new Promise((res, rej) => { })
+      console.log('No result from queryDialog');
+      return new Promise((res, rej) => {
+        /* Nothing */
+      });
     }
-    console.log("Result from queryDialog: ", result)
+    console.log('Result from queryDialog: ', result);
     if (!result.value) {
-      console.log("No result.value from queryDialog");
-      return new Promise((res, rej) => { })
+      console.log('No result.value from queryDialog');
+      return new Promise((res, rej) => {
+        /* Nothing */
+      });
     }
     if (result.button.label === 'CREATE') {
-      console.log("Got result ", result.value, " from queryDialog: CREATE")
+      console.log('Got result ', result.value, ' from queryDialog: CREATE');
       return Promise.resolve(result.value);
     }
-    console.log("Did not get queryDialog: CREATE")
-    return new Promise((res, rej) => { })
+    console.log('Did not get queryDialog: CREATE');
+    return new Promise((res, rej) => {
+      /* Nothing */
+    });
   });
 }
 
-function apiRequest(url: string, init: RequestInit, settings: ServerConnection.ISettings): Promise<PathContainer> {
+function apiRequest(
+  url: string,
+  init: RequestInit,
+  settings: ServerConnection.ISettings
+): Promise<IPathContainer> {
   /**
-  * Make a request to our endpoint to get a pointer to a templated
-  *  notebook for a given query
-  *
-  * @param url - the path for the query extension
-  *
-  * @param init - The POST + body for the extension
-  *
-  * @param settings - the settings for the current notebook server.
-  *
-  * @returns a Promise resolved with the JSON response
-  */
+   * Make a request to our endpoint to get a pointer to a templated
+   *  notebook for a given query
+   *
+   * @param url - the path for the query extension
+   *
+   * @param init - The POST + body for the extension
+   *
+   * @param settings - the settings for the current notebook server.
+   *
+   * @returns a Promise resolved with the JSON response
+   */
   // Fake out URL check in makeRequest
-  let newSettings = ServerConnection.makeSettings({
+  const newSettings = ServerConnection.makeSettings({
     baseUrl: settings.baseUrl,
     appUrl: settings.appUrl,
     wsUrl: settings.wsUrl,
@@ -150,42 +146,48 @@ function apiRequest(url: string, init: RequestInit, settings: ServerConnection.I
     Headers: settings.Headers,
     WebSocket: settings.WebSocket
   });
-  return ServerConnection.makeRequest(url, init, newSettings).then(
-    response => {
-      if (response.status !== 200) {
-        return response.json().then(data => {
-          throw new ServerConnection.ResponseError(response, data.message);
-        });
-      }
-      return response.json();
-    });
-}
-
-function rubinportalquery(app: JupyterFrontEnd, docManager: IDocumentManager, svcManager: ServiceManager): void {
-  queryDialog(docManager).then(url => {
-    console.log("Query URL is", url)
-    if (!url) {
-      console.log("Query URL was null")
-      return new Promise((res, rej) => { })
+  return ServerConnection.makeRequest(url, init, newSettings).then(response => {
+    if (response.status !== 200) {
+      return response.json().then(data => {
+        throw new ServerConnection.ResponseError(response, data.message);
+      });
     }
-    let body = JSON.stringify({
-      "type": "portal",
-      "value": url
-    })
-    let endpoint = PageConfig.getBaseUrl() + "rubin/query"
-    let init = {
-      method: "POST",
-      body: body
-    }
-    let settings = svcManager.serverSettings
-    apiRequest(endpoint, init, settings).then(function(res) {
-      let path = res.path
-      docManager.open(path)
-    });
-    return new Promise((res, rej) => { })
+    return response.json();
   });
 }
 
+function rubinportalquery(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  svcManager: ServiceManager
+): void {
+  queryDialog(docManager).then(url => {
+    console.log('Query URL is', url);
+    if (!url) {
+      console.log('Query URL was null');
+      return new Promise((res, rej) => {
+        /* Nothing */
+      });
+    }
+    const body = JSON.stringify({
+      type: 'portal',
+      value: url
+    });
+    const endpoint = PageConfig.getBaseUrl() + 'rubin/query';
+    const init = {
+      method: 'POST',
+      body: body
+    };
+    const settings = svcManager.serverSettings;
+    apiRequest(endpoint, init, settings).then(res => {
+      const path = res.path;
+      docManager.open(path);
+    });
+    return new Promise((res, rej) => {
+      /* Nothing */
+    });
+  });
+}
 
 /**
  * Initialization data for the jupyterlab-lsstquery extension.
@@ -193,11 +195,8 @@ function rubinportalquery(app: JupyterFrontEnd, docManager: IDocumentManager, sv
 const rspQueryExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPQueryExtension,
   id: token.QUERY_ID,
-  requires: [
-    IMainMenu,
-    IDocumentManager
-  ],
-  autoStart: false,
+  requires: [IMainMenu, IDocumentManager],
+  autoStart: false
 };
 
 export default rspQueryExtension;
@@ -207,12 +206,11 @@ namespace Private {
    * Create node for query handler.
    */
 
-  export
-    function createQueryNode(): HTMLElement {
-    let body = document.createElement('div');
-    let qidLabel = document.createElement('label');
+  export function createQueryNode(): HTMLElement {
+    const body = document.createElement('div');
+    const qidLabel = document.createElement('label');
     qidLabel.textContent = 'Enter Query Value';
-    let name = document.createElement('input');
+    const name = document.createElement('input');
     body.appendChild(qidLabel);
     body.appendChild(name);
     return body;
