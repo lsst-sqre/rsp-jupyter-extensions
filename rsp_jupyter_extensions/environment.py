@@ -38,7 +38,12 @@ class Environment_handler(APIHandler):
         #  we find where our environmental configmap is mounted.
         #
         loc = "/opt/lsst/software/jupyterlab/environment"  # By convention.
-        fns = os.listdir(path=loc)
+        try:
+            fns = os.listdir(path=loc)
+        except FileNotFoundError:
+            # We don't have a mounted environment configmap, so treat it
+            # as empty.
+            fns = []
         ev = {}
         for fn in fns:
             if fn.startswith(".."):

@@ -51,13 +51,26 @@ export function activateRSPDisplayVersionExtension(app: JupyterFrontEnd, statusB
     let instance_url = new URL(res.EXTERNAL_INSTANCE_URL || "")
     let hostname = " " + instance_url.hostname
     let digest_str = ""
-    if (image_digest) {
-      digest_str = " [" + image_digest.substring(0, 8) + "...]"
-    }
     let imagename = ""
     if (image_spec) {
+      /* First try to get digest out of image spec (nublado v3) */
       let imagearr = image_spec.split("/");
-      imagename = " (" + imagearr[imagearr.length - 1] + ")"
+      let pullname = imagearr[imagearr.length - 1]
+      let partsarr = pullname.split("@")
+      if (partsarr.length == 2) {
+        /* Split name and sha; "sha256:" is seven characters */
+        digest_str = " [" + partsarr[1].substring(7, 7 + 8) + "...]"
+        imagename = " (" + partsarr[0] + ")"
+      }
+      else {
+        /* Nothing to split; image name is the name we pulled by */
+        imagename = " (" + pullname + ")"
+      }
+      if (digest_str == "" && image_digest) {
+        /* No digest in spec?  Well, did we set IMAGE_DIGEST?
+           Yes, if we are nubladov2. */
+        digest_str = " [" + image_digest.substring(0, 8) + "...]"
+      }
     }
     let label = image_description + digest_str + imagename + hostname
 
