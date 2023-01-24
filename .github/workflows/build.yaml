@@ -83,7 +83,7 @@ jobs:
       with:
         python-version: '3.10'
         architecture: 'x64'
-    - uses: actions/download-artifact@v2
+    - uses: actions/download-artifact@v3
       with:
         name: myextension-sdist
     - name: Install and Test
