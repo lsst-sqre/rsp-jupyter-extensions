@@ -1,9 +1,6 @@
 [build-system]
 requires = ["jupyter_packaging",
-	 "jupyterlab~=3.6.3",
-	 "isort",
-	 "poetry",
-	 "black",
+	 "jupyterlab<4",
 	 "pre-commit"
 ]
 build-backend = "jupyter_packaging.build_api"
