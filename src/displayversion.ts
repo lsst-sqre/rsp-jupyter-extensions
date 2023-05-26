@@ -49,12 +49,12 @@ export function activateRSPDisplayVersionExtension(
     const image_spec = res.JUPYTER_IMAGE_SPEC;
     const instance_url = new URL(res.EXTERNAL_INSTANCE_URL || '');
     const hostname = ' ' + instance_url.hostname;
-    const container_size = res.CONTAINER_SIZE || ''
+    const container_size = res.CONTAINER_SIZE || '';
     let size = '';
-    if (container_size == '') {
-      size = ' (' + res.CPU_LIMIT + ' CPU, ' + res.MEM_LIMIT + ' B)'
+    if (container_size === '') {
+      size = ' (' + res.CPU_LIMIT + ' CPU, ' + res.MEM_LIMIT + ' B)';
     } else {
-      size = ' ' + container_size
+      size = ' ' + container_size;
     }
     let digest_str = '';
     let imagename = '';

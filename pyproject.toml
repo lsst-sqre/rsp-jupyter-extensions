@@ -1,7 +1,8 @@
 [build-system]
-requires = ["jupyter_packaging~=0.10,<2",
-	 "jupyterlab~=3.1",
+requires = ["jupyter_packaging",
+	 "jupyterlab~=3.6.3",
 	 "isort",
+	 "poetry",
 	 "black",
 	 "pre-commit"
 ]
