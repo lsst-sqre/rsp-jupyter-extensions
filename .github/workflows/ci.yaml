@@ -68,10 +68,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade setuptools wheel twine jupyter-packaging
+          pip install 'jupyterlab<4'
       - name: Build and publish
         env:
           TWINE_USERNAME: "__token__"
           TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
+          jlpm build:prod
           python setup.py sdist bdist_wheel --universal
           twine upload dist/*
