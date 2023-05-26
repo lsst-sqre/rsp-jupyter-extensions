@@ -13,6 +13,9 @@ interface IEnvResponse {
   IMAGE_DIGEST?: string;
   JUPYTER_IMAGE_SPEC?: string;
   EXTERNAL_INSTANCE_URL?: string;
+  CPU_LIMIT?: string;
+  MEM_LIMIT?: string;
+  CONTAINER_SIZE?: string;
 }
 
 import { ServerConnection } from '@jupyterlab/services';
@@ -46,6 +49,13 @@ export function activateRSPDisplayVersionExtension(
     const image_spec = res.JUPYTER_IMAGE_SPEC;
     const instance_url = new URL(res.EXTERNAL_INSTANCE_URL || '');
     const hostname = ' ' + instance_url.hostname;
+    const container_size = res.CONTAINER_SIZE || '';
+    let size = '';
+    if (container_size === '') {
+      size = ' (' + res.CPU_LIMIT + ' CPU, ' + res.MEM_LIMIT + ' B)';
+    } else {
+      size = ' ' + container_size;
+    }
     let digest_str = '';
     let imagename = '';
     if (image_spec) {
@@ -67,7 +77,7 @@ export function activateRSPDisplayVersionExtension(
         digest_str = ' [' + image_digest.substring(0, 8) + '...]';
       }
     }
-    const label = image_description + digest_str + imagename + hostname;
+    const label = image_description + digest_str + imagename + size + hostname;
 
     const displayVersionWidget = new DisplayLabVersion({
       source: label,

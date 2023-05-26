@@ -1,7 +1,8 @@
 [build-system]
-requires = ["jupyter_packaging~=0.10,<2",
-	 "jupyterlab~=3.1",
+requires = ["jupyter_packaging",
+	 "jupyterlab~=3.6.3",
 	 "isort",
+	 "poetry",
 	 "black",
 	 "pre-commit"
 ]
@@ -23,7 +24,7 @@ ignore = ["rsp_jupyter_extensions/labextension/**", "yarn.lock", ".*", "package-
 
 [tool.black]
 line-length = 79
-target-version = ['py38']
+target-version = ['py310']
 exclude = '''
 /(
     \.eggs
