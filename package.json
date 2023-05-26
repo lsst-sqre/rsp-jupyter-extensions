@@ -1,6 +1,6 @@
 {
   "name": "rsp-jupyter-extensions",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Jupyter Extensions for the RSP",
   "keywords": [
     "jupyter",
@@ -97,7 +97,7 @@
   "jupyter-releaser": {
     "hooks": {
       "before-build-npm": [
-        "python -m pip install jupyterlab~=3.3",
+        "python -m pip install 'jupyterlab<4'",
         "jlpm"
       ]
     }
