@@ -8,6 +8,8 @@ import nbconvert
 import nbformat
 from notebook.base.handlers import APIHandler
 
+NBFORMAT_VERSION = 4
+
 
 class Execution_handler(APIHandler):
     """
@@ -41,7 +43,12 @@ class Execution_handler(APIHandler):
         # We will try to decode it as if it were a resource-bearing document.
         #  If that fails, we will assume it to be a bare notebook string.
         #
-        # It will return JSON in the same format as it received it.
+        # It will return a string which is the JSON representation of
+        # an object with the keys "notebook", "resources", and "error"
+        #
+        # The notebook and resources are the results of execution as far as
+        # successfully completed, and "error" is either None (for success)
+        # or a CellExecutionError where execution failed.
         has_resources = False
         try:
             d = json.loads(input_str)
@@ -51,17 +58,43 @@ class Execution_handler(APIHandler):
         except Exception:
             resources = None
             nb_str = input_str
-        nb = nbformat.reads(nb_str, 4)
+        nb = nbformat.reads(nb_str, NBFORMAT_VERSION)
         executor = nbconvert.preprocessors.ExecutePreprocessor()
-        # Execute the notebook; updates nb/resources in place
-        executor.preprocess(nb, resources=resources)
-        # Re-export to a notebook
         exporter = nbconvert.exporters.NotebookExporter()
+
+        # FIXME new logic goes here
+
+        # cf https://github.com/jupyter/nbconvert/blob/\
+        #    a1fec27fec84514e83780d524766d9f74e4bb2e3/nbconvert/\
+        #    preprocessors/execute.py#L101
+
+        # So it looks like if preprocess errors out, executor.nb
+        # and executor.resources will be in their partially-completed state.
+        #
+        # FIXME that definitely needs testing.
+        try:
+            executor.preprocess(nb, resources=resources)
+        except nbconvert.preprocessors.CellExecutionError as exc:
+            # Try to put the partially rendered notebook back into exported
+            # nb format.  Will that work?
+            (rendered, rendered_resources) = exporter.from_notebook_node(
+                executor.nb, resources=executor.resources
+            )
+            return json.dumps(
+                {
+                    "notebook": rendered,
+                    "resources": rendered_resources,
+                    "error": exc,
+                }
+            )
+        # Run succeeded, so nb and resources have been updated in place
         (rendered, rendered_resources) = exporter.from_notebook_node(
             nb, resources=resources
         )
-        if has_resources:
-            return json.dumps(
-                {"notebook": rendered, "resources": rendered_resources}
-            )
-        return rendered
+        return json.dumps(
+            {
+                "notebook": rendered,
+                "resources": rendered_resources,
+                "error": None,
+            }
+        )

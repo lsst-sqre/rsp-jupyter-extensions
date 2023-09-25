@@ -12,7 +12,7 @@ for the frontend extension.
 
 ## Requirements
 
-* JupyterLab >= 3.0
+* JupyterLab >= 3.0, < 4.0
 
 ## Install
 
