@@ -2,7 +2,10 @@
 This is a Handler Module to facilitate our Jupyter extensions in the Rubin
 Observatory Science Platform context.
 """
-from notebook.utils import url_path_join as ujoin
+try:
+    from notebook.utils import url_path_join as ujoin
+except ImportError:
+    from jupyter_server.utils import url_path_join as ujoin
 
 from .environment import Environment_handler
 from .execution import Execution_handler

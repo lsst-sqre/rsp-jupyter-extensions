@@ -1,8 +1,14 @@
 import os
 
 import requests
-from notebook.base.handlers import APIHandler
-from notebook.utils import url_path_join as ujoin
+try:
+    from notebook.base.handlers import APIHandler
+except ImportError:
+    from notebook.app import NotebookBaseHandler as APIHandler
+try:
+    from notebook.utils import url_path_join as ujoin
+except ImportError:
+    from jupyter_server.utils import url_path_join as ujoin
 
 
 class Hub_handler(APIHandler):

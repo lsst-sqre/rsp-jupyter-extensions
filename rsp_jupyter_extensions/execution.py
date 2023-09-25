@@ -6,7 +6,11 @@ from typing import Dict
 
 import nbconvert
 import nbformat
-from notebook.base.handlers import APIHandler
+try:
+    from notebook.base.handlers import APIHandler
+except ImportError:
+    from notebook.app import NotebookBaseHandler as APIHandler
+from nbconvert.preprocessors import CellExecutionError
 
 NBFORMAT_VERSION = 4
 
@@ -62,29 +66,34 @@ class Execution_handler(APIHandler):
         executor = nbconvert.preprocessors.ExecutePreprocessor()
         exporter = nbconvert.exporters.NotebookExporter()
 
-        # FIXME new logic goes here
-
         # cf https://github.com/jupyter/nbconvert/blob/\
         #    a1fec27fec84514e83780d524766d9f74e4bb2e3/nbconvert/\
         #    preprocessors/execute.py#L101
-
-        # So it looks like if preprocess errors out, executor.nb
-        # and executor.resources will be in their partially-completed state.
         #
-        # FIXME that definitely needs testing.
+        # If preprocess errors out, executor.nb and executor.resources
+        # will be in their partially-completed state, so we don't need to
+        # bother with setting up the cell-by-cell execution context
+        # ourselves, just catch the error, and return the fields from the
+        # executor.
+        #
         try:
             executor.preprocess(nb, resources=resources)
-        except nbconvert.preprocessors.CellExecutionError as exc:
-            # Try to put the partially rendered notebook back into exported
-            # nb format.  Will that work?
+        except CellExecutionError as exc:
             (rendered, rendered_resources) = exporter.from_notebook_node(
                 executor.nb, resources=executor.resources
             )
+            # The Exception is not directly JSON-serializable, so we will
+            # just extract the fields from it and return those.
             return json.dumps(
                 {
                     "notebook": rendered,
                     "resources": rendered_resources,
-                    "error": exc,
+                    "error": {
+                        "traceback": exc.traceback,
+                        "ename": exc.ename,
+                        "evalue": exc.evalue,
+                        "err_msg": str(exc)
+                    }
                 }
             )
         # Run succeeded, so nb and resources have been updated in place

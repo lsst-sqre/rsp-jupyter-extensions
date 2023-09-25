@@ -7,7 +7,10 @@ from os.path import dirname, join
 from typing import Dict
 
 from jinja2 import Template
-from notebook.base.handlers import APIHandler
+try:
+    from notebook.base.handlers import APIHandler
+except ImportError:
+    from notebook.app import NotebookBaseHandler as APIHandler
 
 SUPPORTED_QUERY_TYPES = ["portal"]
 

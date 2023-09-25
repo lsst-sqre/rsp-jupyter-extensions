@@ -2,7 +2,10 @@ import json
 import os
 from typing import Dict
 
-from notebook.base.handlers import APIHandler
+try:
+    from notebook.base.handlers import APIHandler
+except ImportError:
+    from notebook.app import NotebookBaseHandler as APIHandler
 
 
 class Environment_handler(APIHandler):
