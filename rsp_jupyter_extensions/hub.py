@@ -1,6 +1,7 @@
 import os
 
 import requests
+
 try:
     from notebook.base.handlers import APIHandler
 except ImportError:

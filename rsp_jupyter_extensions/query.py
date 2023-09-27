@@ -7,6 +7,7 @@ from os.path import dirname, join
 from typing import Dict
 
 from jinja2 import Template
+
 try:
     from notebook.base.handlers import APIHandler
 except ImportError:

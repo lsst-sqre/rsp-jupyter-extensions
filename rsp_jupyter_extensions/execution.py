@@ -6,6 +6,7 @@ from typing import Dict
 
 import nbconvert
 import nbformat
+
 try:
     from notebook.base.handlers import APIHandler
 except ImportError:
@@ -92,8 +93,8 @@ class Execution_handler(APIHandler):
                         "traceback": exc.traceback,
                         "ename": exc.ename,
                         "evalue": exc.evalue,
-                        "err_msg": str(exc)
-                    }
+                        "err_msg": str(exc),
+                    },
                 }
             )
         # Run succeeded, so nb and resources have been updated in place
