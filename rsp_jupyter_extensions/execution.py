@@ -54,12 +54,10 @@ class Execution_handler(APIHandler):
         # The notebook and resources are the results of execution as far as
         # successfully completed, and "error" is either None (for success)
         # or a CellExecutionError where execution failed.
-        has_resources = False
         try:
             d = json.loads(input_str)
             resources = d["resources"]
             nb_str = d["notebook"]
-            has_resources = True
         except Exception:
             resources = None
             nb_str = input_str
