@@ -110,6 +110,3 @@ dmypy.json
 
 # OSX files
 .DS_Store
-
-# Package lock?  May want to remove this
-package-lock.json

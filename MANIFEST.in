@@ -9,6 +9,8 @@ include install.json
 include ts*.json
 include yarn.lock
 
+include tox.ini
+
 graft rsp_jupyter_extensions/labextension
 
 # Javascript files
