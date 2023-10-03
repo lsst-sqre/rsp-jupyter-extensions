@@ -7,7 +7,11 @@ from os.path import dirname, join
 from typing import Dict
 
 from jinja2 import Template
-from notebook.base.handlers import APIHandler
+
+try:
+    from notebook.base.handlers import APIHandler
+except ImportError:
+    from notebook.app import NotebookBaseHandler as APIHandler
 
 SUPPORTED_QUERY_TYPES = ["portal"]
 
@@ -82,7 +86,7 @@ class Query_handler(APIHandler):
             QUERYURL=url,
         )
         r_qdir = join("notebooks", "queries")
-        qdir = join(os.getenv("HOME"), r_qdir)
+        qdir = join(os.getenv("HOME", ""), r_qdir)
         os.makedirs(qdir, exist_ok=True)
         fname = f"portal_{q_id}.ipynb"
         r_fpath = join(r_qdir, fname)
@@ -94,7 +98,9 @@ class Query_handler(APIHandler):
             "filename": fname,
             "path": r_fpath,
             "url": join(
-                os.environ.get("JUPYTERHUB_SERVICE_PREFIX"), "tree", r_fpath
+                os.environ.get("JUPYTERHUB_SERVICE_PREFIX", ""),
+                "tree",
+                r_fpath,
             ),
             "body": nb,
         }

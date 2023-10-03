@@ -6,7 +6,14 @@ from typing import Dict
 
 import nbconvert
 import nbformat
-from notebook.base.handlers import APIHandler
+
+try:
+    from notebook.base.handlers import APIHandler
+except ImportError:
+    from notebook.app import NotebookBaseHandler as APIHandler
+from nbconvert.preprocessors import CellExecutionError
+
+NBFORMAT_VERSION = 4
 
 
 class Execution_handler(APIHandler):
@@ -41,27 +48,61 @@ class Execution_handler(APIHandler):
         # We will try to decode it as if it were a resource-bearing document.
         #  If that fails, we will assume it to be a bare notebook string.
         #
-        # It will return JSON in the same format as it received it.
-        has_resources = False
+        # It will return a string which is the JSON representation of
+        # an object with the keys "notebook", "resources", and "error"
+        #
+        # The notebook and resources are the results of execution as far as
+        # successfully completed, and "error" is either None (for success)
+        # or a CellExecutionError where execution failed.
         try:
             d = json.loads(input_str)
             resources = d["resources"]
             nb_str = d["notebook"]
-            has_resources = True
         except Exception:
             resources = None
             nb_str = input_str
-        nb = nbformat.reads(nb_str, 4)
+        nb = nbformat.reads(nb_str, NBFORMAT_VERSION)
         executor = nbconvert.preprocessors.ExecutePreprocessor()
-        # Execute the notebook; updates nb/resources in place
-        executor.preprocess(nb, resources=resources)
-        # Re-export to a notebook
         exporter = nbconvert.exporters.NotebookExporter()
+
+        # cf https://github.com/jupyter/nbconvert/blob/\
+        #    a1fec27fec84514e83780d524766d9f74e4bb2e3/nbconvert/\
+        #    preprocessors/execute.py#L101
+        #
+        # If preprocess errors out, executor.nb and executor.resources
+        # will be in their partially-completed state, so we don't need to
+        # bother with setting up the cell-by-cell execution context
+        # ourselves, just catch the error, and return the fields from the
+        # executor.
+        #
+        try:
+            executor.preprocess(nb, resources=resources)
+        except CellExecutionError as exc:
+            (rendered, rendered_resources) = exporter.from_notebook_node(
+                executor.nb, resources=executor.resources
+            )
+            # The Exception is not directly JSON-serializable, so we will
+            # just extract the fields from it and return those.
+            return json.dumps(
+                {
+                    "notebook": rendered,
+                    "resources": rendered_resources,
+                    "error": {
+                        "traceback": exc.traceback,
+                        "ename": exc.ename,
+                        "evalue": exc.evalue,
+                        "err_msg": str(exc),
+                    },
+                }
+            )
+        # Run succeeded, so nb and resources have been updated in place
         (rendered, rendered_resources) = exporter.from_notebook_node(
             nb, resources=resources
         )
-        if has_resources:
-            return json.dumps(
-                {"notebook": rendered, "resources": rendered_resources}
-            )
-        return rendered
+        return json.dumps(
+            {
+                "notebook": rendered,
+                "resources": rendered_resources,
+                "error": None,
+            }
+        )
