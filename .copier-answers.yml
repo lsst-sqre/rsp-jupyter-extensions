@@ -1,0 +1,19 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v4.2.1
+_src_path: https://github.com/jupyterlab/extension-template
+author_email: athornton@lsst.org
+author_name: Adam Thornton
+data_format: string
+file_extension: ''
+has_binder: false
+has_settings: false
+kind: server
+labextension_name: rsp-jupyter-extensions
+mimetype: ''
+mimetype_name: ''
+project_short_description: Jupyter Extensions for the Rubin Science Platform
+python_name: rsp_jupyter_extensions
+repository: 'https://github.com/lsst-sqre/rsp-jupyter-extensions '
+test: true
+viewer_name: ''
+
