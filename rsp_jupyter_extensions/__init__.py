@@ -1,25 +1,61 @@
-"""
-Python module to initialize Server Extension for retrieving Rubin Observatory
-settings.
-"""
+from .handlers.environment import Environment_handler
+from .handlers.execution import Execution_handler
+from .handlers.hub import Hub_handler
+from .handlers.query import Query_handler
 
-from typing import Dict, List
+from jupyter_server.utils import url_path_join as ujoin
 
-from .handlers import setup_handlers
+try:
+    from ._version import __version__
+except ImportError:
+    # Fallback when using the package in dev mode without installing
+    # in editable mode with pip. It is highly recommended to install
+    # the package from a stable release or in editable mode: https://pip.pypa.io/en/stable/topics/local-project-installs/#editable-installs
+    import warnings
+
+    warnings.warn("Importing 'rsp_jupyter_extensions' outside a proper installation.")
+    __version__ = "dev"
 
 
-def _jupyter_server_extension_paths() -> List[Dict[str, str]]:
-    """
-    Function to declare Jupyter Server Extension Paths.
-    """
-    # This comprehension actually works, but black can't handle it!
-    # return [ {"module": f"rsp_jupyter_extensions.{ext}"} for ext in exts ]
+def _jupyter_labextension_paths():
+    return [{"src": "labextension", "dest": "rsp-jupyter-extensions"}]
+
+
+def _jupyter_server_extension_points() -> list[dict[str, str]]:
     return [{"module": "rsp_jupyter_extensions"}]
 
 
-def load_jupyter_server_extension(nbapp) -> None:
+def _setup_handlers(server_app) -> None:
+    """Sets up the route handlers to call the appropriate functionality."""
+    web_app = server_app.web_app
+    extmap = {
+        r"/rubin/environment": Environment_handler,
+        r"/rubin/execution": Execution_handler,
+        r"/rubin/hub": Hub_handler,
+        r"/rubin/query": Query_handler,
+    }
+
+    # add the baseurl to our paths...
+    host_pattern = ".*$"
+    base_url = web_app.settings["base_url"]
+    # And now add the handlers.
+    handlers = [(ujoin(base_url, x), extmap[x]) for x in extmap]
+    server_app.log.info(f"RJE Handlers: {handlers}")
+    web_app.add_handlers(host_pattern, handlers)
+
+
+def _load_jupyter_server_extension(server_app) -> None:
+    """Registers the API handler to receive HTTP requests from the frontend extension.
+
+    Parameters
+    ----------
+    server_app: jupyterlab.labapp.LabApp
+        JupyterLab application instance
     """
-    Function to load Jupyter Server Extension.
-    """
-    nbapp.log.info("Loading RSP server extensions.")
-    setup_handlers(nbapp.web_app)
+    _setup_handlers(server_app)
+    name = "rsp_jupyter_extensions"
+    server_app.log.info(f"Registered {name} server extension")
+
+
+# For backward compatibility with notebook server - useful for JupyterHub
+load_jupyter_server_extension = _load_jupyter_server_extension

@@ -6,12 +6,10 @@ import os
 from os.path import dirname, join
 from typing import Dict
 
+import tornado
 from jinja2 import Template
 
-try:
-    from notebook.base.handlers import APIHandler
-except ImportError:
-    from notebook.app import NotebookBaseHandler as APIHandler
+from jupyter_server.base.handlers import JupyterHandler
 
 SUPPORTED_QUERY_TYPES = ["portal"]
 
@@ -24,7 +22,7 @@ class UnimplementedQueryResolutionError(Exception):
     pass
 
 
-class Query_handler(APIHandler):
+class Query_handler(JupyterHandler):
     """
     RSP templated Query Handler.
     """
@@ -33,6 +31,7 @@ class Query_handler(APIHandler):
     def rubinquery(self) -> Dict[str, str]:
         return self.settings["rubinquery"]
 
+    @tornado.web.authenticated
     def post(self) -> None:
         """POST receives the query type and the query value as a JSON
         object containing "type" and "value" keys.  Each is a string.
@@ -57,11 +56,9 @@ class Query_handler(APIHandler):
         q_type = input_document["type"]
         q_value = input_document["value"]
         if q_type not in SUPPORTED_QUERY_TYPES:
-            raise UnsupportedQueryTypeError(
-                f"{q_type} is not a supported query type"
-            )
+            raise UnsupportedQueryTypeError(f"{q_type} is not a supported query type")
         q_fn = self._create_query(q_type, q_value)
-        self.finish(q_fn)
+        self.write(q_fn)
 
     def _create_query(self, q_type: str, q_value: str) -> str:
         dir: str = join(dirname(__file__), "templates")

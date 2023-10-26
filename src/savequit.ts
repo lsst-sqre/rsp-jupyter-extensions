@@ -96,7 +96,7 @@ function hubDeleteRequest(app: JupyterFrontEnd): Promise<Response> {
 function saveAll(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager
+  svcManager: ServiceManager.IManager
 ): Promise<any> {
   const promises: Promise<any>[] = [];
   each(app.shell.widgets('main'), widget => {
@@ -122,7 +122,7 @@ function saveAll(
 function saveAndQuit(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager,
+  svcManager: ServiceManager.IManager,
   logout: boolean
 ): Promise<any> {
   infoDialog();
@@ -140,7 +140,7 @@ function saveAndQuit(
 function justQuit(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager,
+  svcManager: ServiceManager.IManager,
   logout: boolean
 ): Promise<any> {
   infoDialog();

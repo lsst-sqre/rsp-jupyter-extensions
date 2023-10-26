@@ -159,7 +159,7 @@ function apiRequest(
 function rubinportalquery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager
+  svcManager: ServiceManager.IManager
 ): void {
   queryDialog(docManager).then(url => {
     console.log('Query URL is', url);

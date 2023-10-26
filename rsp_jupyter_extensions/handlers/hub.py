@@ -1,21 +1,16 @@
 import os
 
 import requests
+import tornado
 
-try:
-    from notebook.base.handlers import APIHandler
-except ImportError:
-    from notebook.app import NotebookBaseHandler as APIHandler
-try:
-    from notebook.utils import url_path_join as ujoin
-except ImportError:
-    from jupyter_server.utils import url_path_join as ujoin
+from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.utils import url_path_join as ujoin
 
 
-class Hub_handler(APIHandler):
+class Hub_handler(JupyterHandler):
     """
     Hub Handler.  Currently all we do is DELETE (to shut down a running Lab
-    instance) but we can extend this to do anything in the Hub REST API.
+    instance) but we could extend this to do anything in the Hub REST API.
     """
 
     @property
@@ -25,6 +20,7 @@ class Hub_handler(APIHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @tornado.web.authenticated
     def delete(self) -> None:
         """
         Send a DELETE to the Hub API, which will result in this Lab

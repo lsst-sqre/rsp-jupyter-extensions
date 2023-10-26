@@ -2,13 +2,12 @@ import json
 import os
 from typing import Dict
 
-try:
-    from notebook.base.handlers import APIHandler
-except ImportError:
-    from notebook.app import NotebookBaseHandler as APIHandler
+import tornado
+
+from jupyter_server.base.handlers import JupyterHandler
 
 
-class Environment_handler(APIHandler):
+class Environment_handler(JupyterHandler):
     """
     Environment Handler.  Return the JSON representation of our OS environment
     settings.
@@ -19,10 +18,11 @@ class Environment_handler(APIHandler):
         self.env = {}
         self._refresh_env()
 
+    @tornado.web.authenticated
     def get(self) -> None:
         """ """
         self.log.info("Sending Rubin settings")
-        self.finish(self.dump())
+        self.write(self.dump())
 
     def dump(self) -> str:
         self._refresh_env()

@@ -6,17 +6,15 @@ from typing import Dict
 
 import nbconvert
 import nbformat
+import tornado
 
-try:
-    from notebook.base.handlers import APIHandler
-except ImportError:
-    from notebook.app import NotebookBaseHandler as APIHandler
+from jupyter_server.base.handlers import JupyterHandler
 from nbconvert.preprocessors import CellExecutionError
 
 NBFORMAT_VERSION = 4
 
 
-class Execution_handler(APIHandler):
+class Execution_handler(JupyterHandler):
     """
     RSP templated Execution Handler.
     """
@@ -25,6 +23,7 @@ class Execution_handler(APIHandler):
     def rubinexecution(self) -> Dict[str, str]:
         return self.settings["rubinexecution"]
 
+    @tornado.web.authenticated
     def post(self) -> None:
         """
         POST the contents of a notebook and get back the rendered,
@@ -42,7 +41,7 @@ class Execution_handler(APIHandler):
         input_str = self.request.body.decode("utf-8")
         # Do The Deed
         output_str = self._execute_nb(input_str)
-        self.finish(output_str)
+        self.write(output_str)
 
     def _execute_nb(self, input_str: str) -> str:
         # We will try to decode it as if it were a resource-bearing document.
