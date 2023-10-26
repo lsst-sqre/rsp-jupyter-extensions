@@ -17,7 +17,7 @@ test('should emit an activation console message', async ({ page }) => {
 
   expect(
     logs.filter(
-      s => s === 'JupyterLab extension rsp-jupyter-extensions is activated!'
+      s => s === '...loaded rsp-lab-extension.'
     )
   ).toHaveLength(1);
 });
