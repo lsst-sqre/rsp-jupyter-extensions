@@ -15,9 +15,7 @@ test('should emit an activation console message', async ({ page }) => {
 
   await page.goto();
 
-  expect(
-    logs.filter(
-      s => s === '...loaded rsp-lab-extension.'
-    )
-  ).toHaveLength(1);
+  expect(logs.filter(s => s === '...loaded rsp-lab-extension.')).toHaveLength(
+    1
+  );
 });
