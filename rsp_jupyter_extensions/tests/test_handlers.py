@@ -1,11 +1,13 @@
 import json
+import os
 
 
-async def test_get_example(jp_fetch):
+async def test_environment(jp_fetch):
     # When
-    response = await jp_fetch("rsp-jupyter-extensions", "get-example")
+    os.environ["TEST_KEY"] = "test_value"
+    response = await jp_fetch("rubin", "environment")
 
     # Then
     assert response.code == 200
     payload = json.loads(response.body)
-    assert payload == {"data": "This is /rsp-jupyter-extensions/get-example endpoint!"}
+    assert payload["TEST_KEY"] == "test_value"
