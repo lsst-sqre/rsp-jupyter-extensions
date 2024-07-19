@@ -5,47 +5,11 @@ import json
 import os
 from pathlib import Path
 
+from ._rspclient import RSPClient
+
 import tornado
 
 from jupyter_server.base.handlers import JupyterHandler
-
-from jinja2 import Template
-
-PORTAL_QUERY_TEMPLATE = """
-{
- "cells": [
-  { "cell_type": "markdown",
-    "metadata": {},
-    "source": [
-    "### This notebook was rendered using `query_url` = {{QUERY_URL}}"
-    ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "from lsst.rsp import retrieve_query\\n",
-    "query_url = \\\"{{QUERY_URL}}\\\"\\n",
-    "query_data = retrieve_query(query_url)\\n"
-   ]
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "LSST",
-   "language": "python",
-   "name": "lsst"
-  },
-  "language_info": {
-   "name": ""
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
-}
-"""
 
 
 class UnsupportedQueryTypeError(Exception):
@@ -60,6 +24,10 @@ class Query_handler(JupyterHandler):
     """
     RSP templated Query Handler.
     """
+
+    def initialize(self) -> None:
+        super().initialize()
+        self._client = RSPClient(base_path="times-square/api/v1/")
 
     @property
     def rubinquery(self) -> dict[str, str]:
@@ -96,8 +64,7 @@ class Query_handler(JupyterHandler):
         # The value should be a URL
         url = q_value
         q_id = q_value.split("/")[-1]  # Last component is a unique query ID
-        nb_tpl = Template(PORTAL_QUERY_TEMPLATE)
-        nb = nb_tpl.render(QUERY_URL=url)
+        nb = self._get_portal_query_notebook(url)
         r_qdir = Path("notebooks") / "queries"
         qdir = Path(os.getenv("HOME", "")) / r_qdir
         qdir.mkdir(parents=True, exist_ok=True)
@@ -117,3 +84,29 @@ class Query_handler(JupyterHandler):
             "body": nb,
         }
         return json.dumps(retval)
+
+    def _get_portal_query_notebook(self, url: str) -> str:
+        """Ask times-square for a rendered notebook."""
+
+        # These are all constant for this kind of query
+        org = "lsst-sqre"
+        repo = "nublado-seeds"
+        directory = "portal"
+        notebook = "query"
+
+        # Since we know the path we don't have to crawl the base github
+        # response
+        nb_url = f"github/{org}/{repo}/{directory}/{notebook}"
+
+        # The only parameter we have is query_url, which is the Portal query
+        # URL
+        params = {"query_url": url}
+
+        # Get the endpoint for the rendered URL
+        obj = self._client.get(nb_url).json()
+        rendered_url = obj["rendered_url"]
+
+        # Retrieve that URL and return the textual response, which is the
+        # string representing the rendered notebook "in unicode", which I
+        # think means, "a string represented in the default encoding".
+        return self._client.get(rendered_url, params=params).text
