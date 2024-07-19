@@ -1,9 +1,8 @@
 """Synchronous RSP Client for use in server extension handlers."""
 
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin
 import requests
-from lsst.rsp import get_access_token
-from lsst.rsp.utils import get_runtime_mounts_dir
+import lsst.rsp
 
 
 class RSPClient(requests.Session):
@@ -15,9 +14,13 @@ class RSPClient(requests.Session):
     def __init__(self, *args, **kwargs) -> None:
         base_path = kwargs.pop("base_path", None)
         super().__init__(*args, **kwargs)
-        token = get_access_token()
+        token = lsst.rsp.get_access_token()
         instance_url = (
-            (get_runtime_mounts_dir() / "environment" / "EXTERNAL_INSTANCE_URL")
+            (
+                lsst.rsp.utils.get_runtime_mounts_dir()
+                / "environment"
+                / "EXTERNAL_INSTANCE_URL"
+            )
             .read_text()
             .strip()
         )
@@ -32,9 +35,9 @@ class RSPClient(requests.Session):
         else:
             # Canonicalize base_path
             if base_path[0] == "/":
-                base_path=base_path[1:]
+                base_path = base_path[1:]
             if base_path[-1] != "/":
-                base_path+="/"
+                base_path += "/"
             self.base_url = urljoin(instance_url, base_path)
 
     def request(self, method, url, *args, **kwargs) -> requests.Response:
