@@ -130,6 +130,6 @@ class GetQueryHandler(JupyterHandler):
             )
         q_id = components[-1]
         base_url = self.request.host
-        q_url = str(urljoin(base_url, "/api/tap/async", q_id))
+        q_url = str(urljoin(base_url, f"/api/tap/async/{q_id}"))
         q_fn = self._create_portal_query(q_url)
         self.write(q_fn)
