@@ -1,7 +1,7 @@
-from .handlers.environment import Environment_handler
-from .handlers.execution import Execution_handler
-from .handlers.hub import Hub_handler
-from .handlers.query import Query_handler
+from .handlers.environment import EnvironmentHandler
+from .handlers.execution import ExecutionHandler
+from .handlers.hub import HubHandler
+from .handlers.query import PostQueryHandler, GetQueryHandler
 
 from jupyter_server.utils import url_path_join as ujoin
 
@@ -29,10 +29,11 @@ def _setup_handlers(server_app) -> None:
     """Sets up the route handlers to call the appropriate functionality."""
     web_app = server_app.web_app
     extmap = {
-        r"/rubin/environment": Environment_handler,
-        r"/rubin/execution": Execution_handler,
-        r"/rubin/hub": Hub_handler,
-        r"/rubin/query": Query_handler,
+        r"/rubin/environment": EnvironmentHandler,
+        r"/rubin/execution": ExecutionHandler,
+        r"/rubin/hub": HubHandler,
+        r"/rubin/query": PostQueryHandler,
+        r"/rubin/portal_query/(.*)": GetQueryHandler,
     }
 
     # add the baseurl to our paths...
