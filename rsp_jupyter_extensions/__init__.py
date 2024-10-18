@@ -1,5 +1,6 @@
 from .handlers.environment import Environment_handler
 from .handlers.execution import Execution_handler
+from .handlers.ghostwriter import Ghostwriter_handler
 from .handlers.hub import Hub_handler
 from .handlers.query import Query_handler
 
@@ -31,6 +32,7 @@ def _setup_handlers(server_app) -> None:
     extmap = {
         r"/rubin/environment": Environment_handler,
         r"/rubin/execution": Execution_handler,
+        r"/rubin/ghostwriter": Ghostwriter_handler,
         r"/rubin/hub": Hub_handler,
         r"/rubin/query": Query_handler,
     }
