@@ -14,7 +14,7 @@ from nbconvert.preprocessors import CellExecutionError
 NBFORMAT_VERSION = 4
 
 
-class Execution_handler(JupyterHandler):
+class ExecutionHandler(JupyterHandler):
     """
     RSP templated Execution Handler.
     """

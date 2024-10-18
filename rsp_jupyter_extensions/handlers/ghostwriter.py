@@ -3,7 +3,7 @@ started a new lab."""
 from jupyter_server.base.handlers import JupyterHandler
 
 
-class Ghostwriter_handler(JupyterHandler):
+class GhostwriterHandler(JupyterHandler):
     """
     Ghostwriter handler.  Used to handle the case where Ghostwriter runs
     ensure_lab and no lab is running: the original redirection is

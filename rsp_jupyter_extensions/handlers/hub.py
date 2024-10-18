@@ -7,7 +7,7 @@ from jupyter_server.base.handlers import JupyterHandler
 from jupyter_server.utils import url_path_join as ujoin
 
 
-class Hub_handler(JupyterHandler):
+class HubHandler(JupyterHandler):
     """
     Hub Handler.  Currently all we do is DELETE (to shut down a running Lab
     instance) but we could extend this to do anything in the Hub REST API.
