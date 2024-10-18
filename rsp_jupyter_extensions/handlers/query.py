@@ -20,7 +20,7 @@ class UnimplementedQueryResolutionError(Exception):
     pass
 
 
-class Query_handler(JupyterHandler):
+class QueryHandler(JupyterHandler):
     """
     RSP templated Query Handler.
     """

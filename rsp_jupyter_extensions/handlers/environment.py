@@ -7,7 +7,7 @@ import tornado
 from jupyter_server.base.handlers import JupyterHandler
 
 
-class Environment_handler(JupyterHandler):
+class EnvironmentHandler(JupyterHandler):
     """
     Environment Handler.  Return the JSON representation of our OS environment
     settings.
