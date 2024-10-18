@@ -34,10 +34,10 @@ class GhostwriterHandler(JupyterHandler):
             return bad_route
         idx = len(stem) + pos - 1
         redir = path[idx:]
-        if redir.startswith(stem):
-            # This is gonna be a redirect loop.
-            return bad_route
-        if not redir or redir == "/":
-            # Rather than landing us at the root of the RSP instance.
+        if not redir or redir == "/" or redir.startswith(stem):
+            self.log.warning(
+                f"Request for bad redirection '{redir}';"
+                f" returning '{bad_route}' instead"
+            )
             return bad_route
         return redir
