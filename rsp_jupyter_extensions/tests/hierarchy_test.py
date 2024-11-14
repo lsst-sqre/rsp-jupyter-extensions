@@ -21,12 +21,14 @@ def test_hierarchy(tmp_path: Path) -> None:
         "hello.py": {
             "action": "copy",
             "dest": ANY,
+            "disposition": "prompt",
             "parent": None,
             "src": ANY,
         },
         "hello.txt": {
             "action": "copy",
             "dest": ANY,
+            "disposition": "prompt",
             "parent": None,
             "src": ANY,
         },
@@ -34,12 +36,14 @@ def test_hierarchy(tmp_path: Path) -> None:
             "hello.py": {
                 "action": "copy",
                 "dest": ANY,
+                "disposition": "prompt",
                 "parent": "/subdir",
                 "src": ANY,
             },
             "hello.txt": {
                 "action": "copy",
                 "dest": ANY,
+                "disposition": "prompt",
                 "parent": "/subdir",
                 "src": ANY,
             },
@@ -47,12 +51,14 @@ def test_hierarchy(tmp_path: Path) -> None:
                 "hello.py": {
                     "action": "copy",
                     "dest": ANY,
+                    "disposition": "prompt",
                     "parent": "/subdir/subsubdir",
                     "src": ANY,
                 },
                 "hello.txt": {
                     "action": "copy",
                     "dest": ANY,
+                    "disposition": "prompt",
                     "parent": "/subdir/subsubdir",
                     "src": ANY,
                 },
@@ -65,6 +71,7 @@ def test_hierarchy(tmp_path: Path) -> None:
         "hello": {
             "action": "copy",
             "dest": ANY,
+            "disposition": "prompt",
             "parent": None,
             "src": ANY,
         },
@@ -72,6 +79,7 @@ def test_hierarchy(tmp_path: Path) -> None:
             "hello": {
                 "action": "copy",
                 "dest": ANY,
+                "disposition": "prompt",
                 "parent": "/subdir",
                 "src": ANY,
             },
@@ -79,6 +87,7 @@ def test_hierarchy(tmp_path: Path) -> None:
                 "hello": {
                     "action": "copy",
                     "dest": ANY,
+                    "disposition": "prompt",
                     "parent": "/subdir/subsubdir",
                     "src": ANY,
                 },
@@ -90,29 +99,32 @@ def test_hierarchy(tmp_path: Path) -> None:
         root=tmp_path,
         suffix=".txt",
         action="fetch",
-        xform_src=lambda x: "foo",
+        xform_src=lambda x: f"https://example.com/foo/{Path(x.name)}",
         xform_dest=lambda x: "bar",
     )
     assert h3 == {
         "hello": {
             "action": "fetch",
             "dest": "bar",
+            "disposition": "prompt",
             "parent": None,
-            "src": "foo",
+            "src": "https://example.com/foo/hello.txt",
         },
         "subdir": {
             "hello": {
                 "action": "fetch",
                 "dest": "bar",
+                "disposition": "prompt",
                 "parent": "/subdir",
-                "src": "foo",
+                "src": "https://example.com/foo/hello.txt",
             },
             "subsubdir": {
                 "hello": {
                     "action": "fetch",
                     "dest": "bar",
+                    "disposition": "prompt",
                     "parent": "/subdir/subsubdir",
-                    "src": "foo",
+                    "src": "https://example.com/foo/hello.txt",
                 },
             },
         },
