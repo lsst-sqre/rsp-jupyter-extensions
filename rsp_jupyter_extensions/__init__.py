@@ -3,6 +3,7 @@ from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
 from .handlers.hub import HubHandler
 from .handlers.query import QueryHandler
+from .handlers.tutorials import TutorialsMenuHandler
 
 from jupyter_server.utils import url_path_join as ujoin
 
@@ -35,6 +36,7 @@ def _setup_handlers(server_app) -> None:
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
         r"/rubin/query": QueryHandler,
+        r"/rubin/tutorials": TutorialsMenuHandler,
     }
 
     # add the baseurl to our paths...
