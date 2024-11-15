@@ -1,13 +1,20 @@
 """Test construction of representation of tree for tutorial notebooks."""
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from unittest.mock import ANY
 
 import pytest
 
-from rsp_jupyter_extensions.models.tutorials import Actions, Hierarchy, HierarchyEntry
 import rsp_jupyter_extensions.handlers.tutorials as t
+from rsp_jupyter_extensions.models.tutorials import (
+    Actions,
+    Hierarchy,
+    HierarchyEntry,
+    HierarchyError,
+)
 
 
 def test_basic_hierarchy(tmp_path: Path) -> None:
@@ -16,11 +23,14 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     Create three different views of the same filesystem, and roundtrip each
     one through serialization and back.
     """
-
     # Set up test files
     (tmp_path / "subdir").mkdir()
     (tmp_path / "subdir" / "subsubdir").mkdir()
-    for p in (tmp_path, tmp_path / "subdir", tmp_path / "subdir" / "subsubdir"):
+    for p in (
+        tmp_path,
+        tmp_path / "subdir",
+        tmp_path / "subdir" / "subsubdir",
+    ):
         (p / "hello.txt").write_text("Hello, world!\n")
         (p / "hello.py").write_text("print('Hello, world!')\n")
 
@@ -186,8 +196,8 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
 
 def test_ignore_symlinks(tmp_path: Path) -> None:
     """We should just skip any symlinks we find, as a cheesy way of not having
-    to deal with loops."""
-
+    to deal with loops.
+    """
     os.symlink(__file__, tmp_path / "me")
     os.symlink(Path(__file__).parent, tmp_path / "here")
     (tmp_path / "real_file").write_text("Hello, world!\n")
@@ -212,54 +222,64 @@ def test_ignore_symlinks(tmp_path: Path) -> None:
 
 
 def test_bad_construction() -> None:
+    """Demonstrate that Hierarchy construction fails as it should."""
+
+    @dataclass
+    class TestInput:
+        """Convenience class for constructor testing."""
+
+        name: str
+        value: dict[str, Any]
+        match: str
+
     inp = [
-        {"name": "missing_toplevel", "value": {}, "error": KeyError, "match": ""},
-        {
-            "name": "extra_fields",
-            "value": {"entries": None, "subhierarchies": None, "extra_field": True},
-            "error": ValueError,
-            "match": "Unknown fields",
-        },
-        {
-            "name": "malformed_entry",
-            "value": {
+        TestInput(name="missing_toplevel", value={}, match=""),
+        TestInput(
+            name="extra_fields",
+            value={
+                "entries": None,
+                "subhierarchies": None,
+                "extra_field": True,
+            },
+            match="Unknown fields",
+        ),
+        TestInput(
+            name="malformed_entry",
+            value={
                 "entries": {"foo": "bar"},
                 "subhierarchies": None,
             },
-            "error": ValueError,
-            "match": "not a dict",
-        },
+            match="not a dict",
+        ),
     ]
 
     for tst in inp:
-        with pytest.raises(tst["error"], match=tst["match"]):
-            _ = Hierarchy.from_primitive(tst["value"])
+        with pytest.raises(HierarchyError, match=tst.match):
+            _ = Hierarchy.from_primitive(tst.value)
 
     inp = [
-        {"name": "missing_toplevel", "value": {}, "error": KeyError, "match": ""},
-        {
-            "name": "malformed_entry",
-            "value": {
+        TestInput(name="missing_toplevel", value={}, match=""),
+        TestInput(
+            name="malformed_entry",
+            value={
                 "action": 4,
             },
-            "error": ValueError,
-            "match": "not a string",
-        },
-        {
-            "name": "malformed_parent_entry",
-            "value": {
+            match="not a string",
+        ),
+        TestInput(
+            name="malformed_parent_entry",
+            value={
                 "action": "a",
                 "disposition": "b",
                 "src": "c",
                 "dest": "d",
                 "parent": 4,
             },
-            "error": ValueError,
-            "match": "neither a string",
-        },
-        {
-            "name": "extra_fields",
-            "value": {
+            match="neither a string",
+        ),
+        TestInput(
+            name="extra_fields",
+            value={
                 "action": "a",
                 "disposition": "b",
                 "src": "c",
@@ -267,35 +287,32 @@ def test_bad_construction() -> None:
                 "parent": None,
                 "extra_field": True,
             },
-            "error": ValueError,
-            "match": "Unknown keys",
-        },
-        {
-            "name": "bad_action",
-            "value": {
+            match="Unknown keys",
+        ),
+        TestInput(
+            name="bad_action",
+            value={
                 "action": "a",
                 "disposition": "b",
                 "src": "c",
                 "dest": "d",
                 "parent": None,
             },
-            "error": ValueError,
-            "match": r"'action'=(.*): not in",
-        },
-        {
-            "name": "bad_disposition",
-            "value": {
+            match=r"'action'=(.*): not in",
+        ),
+        TestInput(
+            name="bad_disposition",
+            value={
                 "action": "copy",
                 "disposition": "b",
                 "src": "c",
                 "dest": "d",
                 "parent": None,
             },
-            "error": ValueError,
-            "match": r"'disposition'=(.*): not in",
-        },
+            match=r"'disposition'=(.*): not in",
+        ),
     ]
 
     for tst in inp:
-        with pytest.raises(tst["error"], match=tst["match"]):
-            _ = HierarchyEntry.from_primitive(tst["value"])
+        with pytest.raises(HierarchyError, match=tst.match):
+            _ = HierarchyEntry.from_primitive(tst.value)

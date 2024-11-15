@@ -1,36 +1,34 @@
-"""
-This is a Handler Module to provide an endpoint for templated queries.
-"""
+"""Handler Module to provide an endpoint for templated TAP queries."""
+
 import json
 import os
 from pathlib import Path
 
-from ._rspclient import RSPClient
-
 import tornado
-
 from jupyter_server.base.handlers import JupyterHandler
+
+from ._rspclient import RSPClient
 
 
 class UnsupportedQueryTypeError(Exception):
-    pass
+    """Unsupported query type."""
 
 
 class UnimplementedQueryResolutionError(Exception):
-    pass
+    """Query not implemented."""
 
 
 class QueryHandler(JupyterHandler):
-    """
-    RSP templated Query Handler.
-    """
+    """RSP templated Query Handler."""
 
     def initialize(self) -> None:
+        """Get a client to talk to Portal API."""
         super().initialize()
         self._client = RSPClient(base_path="times-square/api/v1/")
 
     @property
     def rubinquery(self) -> dict[str, str]:
+        """Rubin query parms."""
         return self.settings["rubinquery"]
 
     @tornado.web.authenticated
@@ -56,7 +54,9 @@ class QueryHandler(JupyterHandler):
         q_type = input_document["type"]
         q_value = input_document["value"]
         if q_type != "portal":
-            raise UnsupportedQueryTypeError(f"{q_type} is not a supported query type")
+            raise UnsupportedQueryTypeError(
+                f"{q_type} is not a supported query type"
+            )
         q_fn = self._create_portal_query(q_value)
         self.write(q_fn)
 
@@ -87,7 +87,6 @@ class QueryHandler(JupyterHandler):
 
     def _get_portal_query_notebook(self, url: str) -> str:
         """Ask times-square for a rendered notebook."""
-
         # These are all constant for this kind of query
         org = "lsst-sqre"
         repo = "nublado-seeds"

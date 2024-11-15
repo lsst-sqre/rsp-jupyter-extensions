@@ -37,6 +37,7 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-jupyter[server]>=0.6.0",
+    "ruff",
     "types-requests",
 ]
 
@@ -90,3 +91,6 @@ before-build-python = ["jlpm clean:all"]
 
 [tool.check-wheel-contents]
 ignore = ["W002"]
+
+[tool.ruff]
+extend = "ruff-shared.toml"

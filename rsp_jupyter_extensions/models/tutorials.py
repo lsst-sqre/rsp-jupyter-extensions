@@ -1,24 +1,32 @@
 """Models for the tutorial extensions."""
+
 from __future__ import annotations
 
 from enum import StrEnum, auto
 from pathlib import Path
 from typing import Annotated, Any, Self
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel, Field, model_validator
 
-from urllib.parse import urlparse, urlunparse
-
 
 class Actions(StrEnum):
+    """Allowable transformations for file movement."""
+
     COPY = auto()
     FETCH = auto()
 
 
 class Dispositions(StrEnum):
+    """Allowable choices for file conflict."""
+
     PROMPT = auto()
     OVERWRITE = auto()
     ABORT = auto()
+
+
+class HierarchyError(Exception):
+    """Class to indicate something went wrong with Hierarchy construction."""
 
 
 class HierarchyEntry(BaseModel):
@@ -53,30 +61,40 @@ class HierarchyEntry(BaseModel):
             try:
                 _ = urlparse(str(self.src))
             except Exception as exc:
-                raise ValueError("For action 'fetch', 'src' must be a URL") from exc
+                raise HierarchyError(
+                    "For action 'fetch', 'src' must be a URL"
+                ) from exc
         if self.action == Actions.COPY:
             if not isinstance(self.src, Path):
-                raise ValueError("For action 'copy', 'src' must be a Path")
+                raise HierarchyError("For action 'copy', 'src' must be a Path")
         return self
 
     @classmethod
     def from_primitive(cls, inp: dict[str, Any]) -> Self:
         """Convert from interchange format to Pydantic model type.
 
-        Do model and type validation along the way."""
-
+        Do model and type validation along the way.
+        """
         validated: dict[str, str] = {}
         for field in ("action", "disposition", "src", "dest"):
-            val = inp.pop(field)
+            try:
+                val = inp.pop(field)
+            except KeyError:
+                raise HierarchyError(f"'{field}' is not in {inp}") from None
             if not isinstance(val, str):
-                raise ValueError(f"'{field}' is {val}, not a string")
+                raise HierarchyError(f"'{field}' is {val}, not a string")
             validated[field] = val
-        parent = inp.pop("parent")
+        try:
+            parent = inp.pop("parent")
+        except KeyError:
+            raise HierarchyError(f"'parent' is not in {inp}") from None
         if parent is not None and not isinstance(parent, str):
-            raise ValueError(f"'parent' is {parent}, neither a string nor None")
+            raise HierarchyError(
+                f"'parent' is {parent}, neither a string nor None"
+            )
         kl = list(inp.keys())
         if kl:
-            raise ValueError(f"Unknown keys {kl}")
+            raise HierarchyError(f"Unknown keys {kl}")
         o_src: str | Path | None = None
         if validated["action"] == Actions.FETCH:
             o_act = Actions.FETCH
@@ -85,13 +103,13 @@ class HierarchyEntry(BaseModel):
             o_act = Actions.COPY
             o_src = Path(validated["src"])
         else:
-            raise ValueError(
+            raise HierarchyError(
                 f"'action'={validated['action']}: not in "
                 f"{[str(x) for x in list(Actions)]}"
             )
         disps = [str(x) for x in list(Dispositions)]
         if validated["disposition"] not in disps:
-            raise ValueError(
+            raise HierarchyError(
                 f"'disposition'={validated['disposition']}: not in {disps}"
             )
         o_dis = Dispositions[(validated["disposition"].upper())]
@@ -118,7 +136,8 @@ class Hierarchy(BaseModel):
     """Pydantic validated version of tree structure."""
 
     entries: Annotated[
-        dict[str, HierarchyEntry] | None, Field(title="Transformable file entries")
+        dict[str, HierarchyEntry] | None,
+        Field(title="Transformable file entries"),
     ] = None
     subhierarchies: Annotated[
         dict[str, Self] | None, Field(title="Transformable sub-hierarchies")
@@ -127,25 +146,31 @@ class Hierarchy(BaseModel):
     @classmethod
     def from_primitive(cls, inp: dict[str, Any]) -> Self:
         """Create from JSON-serialized input."""
-        entries = inp.pop("entries")
-        subhierarchies = inp.pop("subhierarchies")
+        try:
+            entries = inp.pop("entries")
+        except KeyError:
+            raise HierarchyError(f"'entries' is not in {inp}") from None
+        try:
+            subhierarchies = inp.pop("subhierarchies")
+        except KeyError:
+            raise HierarchyError(f"'subhierarchies' is not in {inp}") from None
         kl = list(inp.keys())
         if kl:
-            raise ValueError(f"Unknown fields {kl}")
+            raise HierarchyError(f"Unknown fields {kl}")
         ret = cls()
         if entries:
             ret.entries = {}
             for entry in entries:
                 val = entries[entry]
                 if not isinstance(val, dict):
-                    raise ValueError(f"'{entry}' -> '{val}' is not a dict")
+                    raise HierarchyError(f"'{entry}' -> '{val}' is not a dict")
                 ret.entries[entry] = HierarchyEntry.from_primitive(val)
         if subhierarchies:
             ret.subhierarchies = {}
             for subh in subhierarchies:
                 val = subhierarchies[subh]
                 if not isinstance(val, dict):
-                    raise ValueError(f"'{subh}' -> '{val}' is not a dict")
+                    raise HierarchyError(f"'{subh}' -> '{val}' is not a dict")
                 ret.subhierarchies[subh] = cls.from_primitive(val)
         return ret
 
@@ -160,7 +185,9 @@ class Hierarchy(BaseModel):
         if self.subhierarchies:
             h["subhierarchies"] = {}
             for subh in self.subhierarchies:
-                h["subhierarchies"][subh] = self.subhierarchies[subh].to_primitive()
+                h["subhierarchies"][subh] = self.subhierarchies[
+                    subh
+                ].to_primitive()
         else:
             h["subhierarchies"] = None
         return h
