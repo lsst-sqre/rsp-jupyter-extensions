@@ -1,5 +1,8 @@
 """Ghostwriter handler, used for redirection bank shots once you've
 started a new lab."""
+
+from typing import Any
+
 from jupyter_server.base.handlers import JupyterHandler
 
 
@@ -16,10 +19,10 @@ class GhostwriterHandler(JupyterHandler):
     it is.
     """
 
-    def prepare(self) -> None:
+    async def prepare(self, *, _redirect_to_login: Any = ...) -> None:
         self.redirect(self._peel_route())
 
-    def _peel_route(self) -> None:
+    def _peel_route(self) -> str:
         """Return the stuff after '/rubin/ghostwriter' as the top-level
         path.  This will send the requestor back to the original location,
         where this time, the running_lab check will succeed and they will

@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import ANY
 
+from rsp_jupyter_extensions.models.tutorials import Actions
 import rsp_jupyter_extensions.handlers.tutorials as t
 
 
@@ -98,9 +99,9 @@ def test_hierarchy(tmp_path: Path) -> None:
     h3 = t._build_hierarchy(
         root=tmp_path,
         suffix=".txt",
-        action="fetch",
-        xform_src=lambda x: f"https://example.com/foo/{Path(x.name)}",
-        xform_dest=lambda x: "bar",
+        action=Actions.FETCH,
+        xform_src=lambda x: f"https://example.com/foo/{Path(Path(x).name)}",
+        xform_dest=lambda x: Path("bar"),
     )
     assert h3 == {
         "hello": {

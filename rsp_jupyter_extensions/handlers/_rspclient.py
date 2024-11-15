@@ -2,7 +2,7 @@
 
 from urllib.parse import urljoin
 import requests
-import lsst.rsp
+import lsst.rsp  # type:ignore
 
 
 class RSPClient(requests.Session):
