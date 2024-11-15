@@ -1,14 +1,21 @@
 """Test construction of representation of tree for tutorial notebooks."""
 
+import os
 from pathlib import Path
 from unittest.mock import ANY
 
-from rsp_jupyter_extensions.models.tutorials import Actions
+import pytest
+
+from rsp_jupyter_extensions.models.tutorials import Actions, Hierarchy, HierarchyEntry
 import rsp_jupyter_extensions.handlers.tutorials as t
 
 
-def test_hierarchy(tmp_path: Path) -> None:
-    """Test _build_hierarchy(), which underpins the tutorial extension."""
+def test_basic_hierarchy(tmp_path: Path) -> None:
+    """Test _build_hierarchy(), which underpins the tutorial extension.
+
+    Create three different views of the same filesystem, and roundtrip each
+    one through serialization and back.
+    """
 
     # Set up test files
     (tmp_path / "subdir").mkdir()
@@ -18,83 +25,112 @@ def test_hierarchy(tmp_path: Path) -> None:
         (p / "hello.py").write_text("print('Hello, world!')\n")
 
     h1 = t._build_hierarchy(root=tmp_path)
-    assert h1 == {
-        "hello.py": {
-            "action": "copy",
-            "dest": ANY,
-            "disposition": "prompt",
-            "parent": None,
-            "src": ANY,
-        },
-        "hello.txt": {
-            "action": "copy",
-            "dest": ANY,
-            "disposition": "prompt",
-            "parent": None,
-            "src": ANY,
-        },
-        "subdir": {
+    h1_p = h1.to_primitive()
+    assert h1_p == {
+        "entries": {
             "hello.py": {
                 "action": "copy",
-                "dest": ANY,
                 "disposition": "prompt",
-                "parent": "/subdir",
+                "parent": None,
                 "src": ANY,
+                "dest": ANY,
             },
             "hello.txt": {
                 "action": "copy",
-                "dest": ANY,
                 "disposition": "prompt",
-                "parent": "/subdir",
+                "parent": None,
                 "src": ANY,
-            },
-            "subsubdir": {
-                "hello.py": {
-                    "action": "copy",
-                    "dest": ANY,
-                    "disposition": "prompt",
-                    "parent": "/subdir/subsubdir",
-                    "src": ANY,
-                },
-                "hello.txt": {
-                    "action": "copy",
-                    "dest": ANY,
-                    "disposition": "prompt",
-                    "parent": "/subdir/subsubdir",
-                    "src": ANY,
-                },
+                "dest": ANY,
             },
         },
+        "subhierarchies": {
+            "subdir": {
+                "entries": {
+                    "hello.py": {
+                        "action": "copy",
+                        "disposition": "prompt",
+                        "parent": "/subdir",
+                        "src": ANY,
+                        "dest": ANY,
+                    },
+                    "hello.txt": {
+                        "action": "copy",
+                        "disposition": "prompt",
+                        "parent": "/subdir",
+                        "src": ANY,
+                        "dest": ANY,
+                    },
+                },
+                "subhierarchies": {
+                    "subsubdir": {
+                        "entries": {
+                            "hello.py": {
+                                "action": "copy",
+                                "disposition": "prompt",
+                                "parent": "/subdir/subsubdir",
+                                "src": ANY,
+                                "dest": ANY,
+                            },
+                            "hello.txt": {
+                                "action": "copy",
+                                "disposition": "prompt",
+                                "parent": "/subdir/subsubdir",
+                                "src": ANY,
+                                "dest": ANY,
+                            },
+                        },
+                        "subhierarchies": None,
+                    }
+                },
+            }
+        },
     }
+    h1_a = Hierarchy.from_primitive(h1_p)
+    assert h1 == h1_a
 
     h2 = t._build_hierarchy(root=tmp_path, suffix=".py")
-    assert h2 == {
-        "hello": {
-            "action": "copy",
-            "dest": ANY,
-            "disposition": "prompt",
-            "parent": None,
-            "src": ANY,
-        },
-        "subdir": {
+    h2_p = h2.to_primitive()
+
+    assert h2_p == {
+        "entries": {
             "hello": {
                 "action": "copy",
-                "dest": ANY,
                 "disposition": "prompt",
-                "parent": "/subdir",
+                "parent": None,
                 "src": ANY,
-            },
-            "subsubdir": {
-                "hello": {
-                    "action": "copy",
-                    "dest": ANY,
-                    "disposition": "prompt",
-                    "parent": "/subdir/subsubdir",
-                    "src": ANY,
+                "dest": ANY,
+            }
+        },
+        "subhierarchies": {
+            "subdir": {
+                "entries": {
+                    "hello": {
+                        "action": "copy",
+                        "disposition": "prompt",
+                        "parent": "/subdir",
+                        "src": ANY,
+                        "dest": ANY,
+                    }
                 },
-            },
+                "subhierarchies": {
+                    "subsubdir": {
+                        "entries": {
+                            "hello": {
+                                "action": "copy",
+                                "disposition": "prompt",
+                                "parent": "/subdir/subsubdir",
+                                "src": ANY,
+                                "dest": ANY,
+                            }
+                        },
+                        "subhierarchies": None,
+                    }
+                },
+            }
         },
     }
+    h2_a = Hierarchy.from_primitive(h2_p)
+    assert h2 == h2_a
 
     h3 = t._build_hierarchy(
         root=tmp_path,
@@ -103,30 +139,163 @@ def test_hierarchy(tmp_path: Path) -> None:
         xform_src=lambda x: f"https://example.com/foo/{Path(Path(x).name)}",
         xform_dest=lambda x: Path("bar"),
     )
-    assert h3 == {
-        "hello": {
-            "action": "fetch",
-            "dest": "bar",
-            "disposition": "prompt",
-            "parent": None,
-            "src": "https://example.com/foo/hello.txt",
-        },
-        "subdir": {
+    h3_p = h3.to_primitive()
+
+    assert h3_p == {
+        "entries": {
             "hello": {
                 "action": "fetch",
-                "dest": "bar",
                 "disposition": "prompt",
-                "parent": "/subdir",
+                "parent": None,
                 "src": "https://example.com/foo/hello.txt",
-            },
-            "subsubdir": {
-                "hello": {
-                    "action": "fetch",
-                    "dest": "bar",
-                    "disposition": "prompt",
-                    "parent": "/subdir/subsubdir",
-                    "src": "https://example.com/foo/hello.txt",
+                "dest": "bar",
+            }
+        },
+        "subhierarchies": {
+            "subdir": {
+                "entries": {
+                    "hello": {
+                        "action": "fetch",
+                        "disposition": "prompt",
+                        "parent": "/subdir",
+                        "src": "https://example.com/foo/hello.txt",
+                        "dest": "bar",
+                    }
                 },
-            },
+                "subhierarchies": {
+                    "subsubdir": {
+                        "entries": {
+                            "hello": {
+                                "action": "fetch",
+                                "disposition": "prompt",
+                                "parent": "/subdir/subsubdir",
+                                "src": "https://example.com/foo/hello.txt",
+                                "dest": "bar",
+                            }
+                        },
+                        "subhierarchies": None,
+                    }
+                },
+            }
         },
     }
+
+    h3_a = Hierarchy.from_primitive(h3_p)
+    assert h3 == h3_a
+
+
+def test_ignore_symlinks(tmp_path: Path) -> None:
+    """We should just skip any symlinks we find, as a cheesy way of not having
+    to deal with loops."""
+
+    os.symlink(__file__, tmp_path / "me")
+    os.symlink(Path(__file__).parent, tmp_path / "here")
+    (tmp_path / "real_file").write_text("Hello, world!\n")
+
+    assert (tmp_path / "me").is_symlink()
+    assert (tmp_path / "here").is_symlink()
+
+    h = t._build_hierarchy(tmp_path)
+    h_p = h.to_primitive()
+    assert h_p == {
+        "entries": {
+            "real_file": {
+                "action": "copy",
+                "disposition": "prompt",
+                "parent": None,
+                "src": ANY,
+                "dest": ANY,
+            }
+        },
+        "subhierarchies": None,
+    }
+
+
+def test_bad_construction() -> None:
+    inp = [
+        {"name": "missing_toplevel", "value": {}, "error": KeyError, "match": ""},
+        {
+            "name": "extra_fields",
+            "value": {"entries": None, "subhierarchies": None, "extra_field": True},
+            "error": ValueError,
+            "match": "Unknown fields",
+        },
+        {
+            "name": "malformed_entry",
+            "value": {
+                "entries": {"foo": "bar"},
+                "subhierarchies": None,
+            },
+            "error": ValueError,
+            "match": "not a dict",
+        },
+    ]
+
+    for tst in inp:
+        with pytest.raises(tst["error"], match=tst["match"]):
+            _ = Hierarchy.from_primitive(tst["value"])
+
+    inp = [
+        {"name": "missing_toplevel", "value": {}, "error": KeyError, "match": ""},
+        {
+            "name": "malformed_entry",
+            "value": {
+                "action": 4,
+            },
+            "error": ValueError,
+            "match": "not a string",
+        },
+        {
+            "name": "malformed_parent_entry",
+            "value": {
+                "action": "a",
+                "disposition": "b",
+                "src": "c",
+                "dest": "d",
+                "parent": 4,
+            },
+            "error": ValueError,
+            "match": "neither a string",
+        },
+        {
+            "name": "extra_fields",
+            "value": {
+                "action": "a",
+                "disposition": "b",
+                "src": "c",
+                "dest": "d",
+                "parent": None,
+                "extra_field": True,
+            },
+            "error": ValueError,
+            "match": "Unknown keys",
+        },
+        {
+            "name": "bad_action",
+            "value": {
+                "action": "a",
+                "disposition": "b",
+                "src": "c",
+                "dest": "d",
+                "parent": None,
+            },
+            "error": ValueError,
+            "match": r"'action'=(.*): not in",
+        },
+        {
+            "name": "bad_disposition",
+            "value": {
+                "action": "copy",
+                "disposition": "b",
+                "src": "c",
+                "dest": "d",
+                "parent": None,
+            },
+            "error": ValueError,
+            "match": r"'disposition'=(.*): not in",
+        },
+    ]
+
+    for tst in inp:
+        with pytest.raises(tst["error"], match=tst["match"]):
+            _ = HierarchyEntry.from_primitive(tst["value"])

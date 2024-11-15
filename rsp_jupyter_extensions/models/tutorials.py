@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Self, Union
+from typing import Annotated, Any, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -60,7 +60,7 @@ class HierarchyEntry(BaseModel):
         return self
 
     @classmethod
-    def from_primitive(cls, inp: PrimitiveHierarchyEntry) -> Self:
+    def from_primitive(cls, inp: dict[str, Any]) -> Self:
         """Convert from interchange format to Pydantic model type.
 
         Do model and type validation along the way."""
@@ -70,6 +70,7 @@ class HierarchyEntry(BaseModel):
             val = inp.pop(field)
             if not isinstance(val, str):
                 raise ValueError(f"'{field}' is {val}, not a string")
+            validated[field] = val
         parent = inp.pop("parent")
         if parent is not None and not isinstance(parent, str):
             raise ValueError(f"'parent' is {parent}, neither a string nor None")
@@ -89,11 +90,11 @@ class HierarchyEntry(BaseModel):
                 f"{[str(x) for x in list(Actions)]}"
             )
         disps = [str(x) for x in list(Dispositions)]
-        if inp["disposition"] not in disps:
+        if validated["disposition"] not in disps:
             raise ValueError(
                 f"'disposition'={validated['disposition']}: not in {disps}"
             )
-        o_dis = Dispositions[(inp["disposition"].upper())]
+        o_dis = Dispositions[(validated["disposition"].upper())]
         return cls(
             action=o_act,
             disposition=o_dis,
@@ -102,20 +103,64 @@ class HierarchyEntry(BaseModel):
             dest=Path(validated["dest"]),
         )
 
-    def to_primitive(self) -> PrimitiveHierarchyEntry:
+    def to_primitive(self) -> dict[str, str | None]:
         """Return a representation suitable for JSON-decoding in TypeScript."""
         return {
-            "action": self.action,
-            "disposition": self.disposition,
+            "action": self.action.value,
+            "disposition": self.disposition.value,
             "parent": str(self.parent) if self.parent else None,
             "src": str(self.src),
             "dest": str(self.dest),
         }
 
 
-# https://stephantul.github.io/python/mypy/types/2024/02/05/hierarchy/
-# This one is the interchange type version.
+class Hierarchy(BaseModel):
+    """Pydantic validated version of tree structure."""
 
-type Hierarchy = dict[str, Union[str | "Hierarchy" | None]]
-type HierarchyModel = dict[str, Union[str | "HierarchyModel" | None]]
-type PrimitiveHierarchyEntry = dict[str, str | None]
+    entries: Annotated[
+        dict[str, HierarchyEntry] | None, Field(title="Transformable file entries")
+    ] = None
+    subhierarchies: Annotated[
+        dict[str, Self] | None, Field(title="Transformable sub-hierarchies")
+    ] = None
+
+    @classmethod
+    def from_primitive(cls, inp: dict[str, Any]) -> Self:
+        """Create from JSON-serialized input."""
+        entries = inp.pop("entries")
+        subhierarchies = inp.pop("subhierarchies")
+        kl = list(inp.keys())
+        if kl:
+            raise ValueError(f"Unknown fields {kl}")
+        ret = cls()
+        if entries:
+            ret.entries = {}
+            for entry in entries:
+                val = entries[entry]
+                if not isinstance(val, dict):
+                    raise ValueError(f"'{entry}' -> '{val}' is not a dict")
+                ret.entries[entry] = HierarchyEntry.from_primitive(val)
+        if subhierarchies:
+            ret.subhierarchies = {}
+            for subh in subhierarchies:
+                val = subhierarchies[subh]
+                if not isinstance(val, dict):
+                    raise ValueError(f"'{subh}' -> '{val}' is not a dict")
+                ret.subhierarchies[subh] = cls.from_primitive(val)
+        return ret
+
+    def to_primitive(self) -> dict[str, Any]:
+        h: dict[str, Any] = {}
+        if self.entries:
+            h["entries"] = {}
+            for entry in self.entries:
+                h["entries"][entry] = self.entries[entry].to_primitive()
+        else:
+            h["entries"] = None
+        if self.subhierarchies:
+            h["subhierarchies"] = {}
+            for subh in self.subhierarchies:
+                h["subhierarchies"][subh] = self.subhierarchies[subh].to_primitive()
+        else:
+            h["subhierarchies"] = None
+        return h
