@@ -45,9 +45,13 @@ class HierarchyEntry(BaseModel):
     thus must be constructed from primitive types.
     """
 
+    menu_name: Annotated[str, Field(title="Menu item name")]
     action: Annotated[Actions, Field(title="Transformation action")]
     disposition: Annotated[Dispositions, Field(title="Disposition action")]
     parent: Annotated[Path | None, Field(title="Menu parent")] = None
+    menu_path: Annotated[Path | None, Field(title="Menu item full path")] = (
+        None
+    )
     src: Annotated[
         Path | str,
         Field(
@@ -77,6 +81,23 @@ class HierarchyEntry(BaseModel):
                 raise HierarchyError("For action 'copy', 'src' must be a Path")
         return self
 
+    @model_validator(mode="after")
+    def check_menu_path(self) -> Self:
+        e_parent = self.parent if self.parent else Path("/")
+        if self.menu_path is None:
+            self.menu_path = e_parent / self.menu_name
+        if not str(self.menu_path).startswith(str(e_parent)):
+            raise HierarchyError(
+                f"Menu path '{self.menu_path!s}' must start with "
+                f"'{e_parent!s}'"
+            )
+        if not str(self.menu_path).endswith(f"/{self.menu_name}"):
+            raise HierarchyError(
+                f"Menu path '{self.menu_path}' must end with "
+                f"'/{self.menu_name}'"
+            )
+        return self
+
     @classmethod
     def from_primitive(cls, inp: dict[str, Any]) -> Self:
         """Convert from interchange format to Pydantic model type.
@@ -86,7 +107,7 @@ class HierarchyEntry(BaseModel):
         mut: dict[str, Any] = {}
         mut.update(inp)
         validated: dict[str, str] = {}
-        for field in ("action", "disposition", "src", "dest"):
+        for field in ("menu_name", "action", "disposition", "src", "dest"):
             try:
                 val = mut.pop(field)
             except KeyError:
@@ -94,13 +115,20 @@ class HierarchyEntry(BaseModel):
             if not isinstance(val, str):
                 raise HierarchyError(f"'{field}' is {val}, not a string")
             validated[field] = val
-        try:
-            parent = mut.pop("parent")
-        except KeyError:
-            raise HierarchyError(f"'parent' is not in {mut}") from None
-        if parent is not None and not isinstance(parent, str):
-            raise HierarchyError(
-                f"'parent' is {parent}, neither a string nor None"
+        for field in ("parent", "menu_path"):
+            try:
+                val = mut.pop(field)
+            except KeyError:
+                raise HierarchyError(f"'{field}' is not in {mut}") from None
+            if not (val is None or isinstance(val, str)):
+                raise HierarchyError(
+                    f"'{field}' is {val}, neither a string nor None"
+                )
+            validated[field] = val
+        if validated["menu_path"] is None:
+            str_parent = validated["parent"] if validated["parent"] else "/"
+            validated["menu_path"] = str(
+                Path(str_parent) / validated["menu_name"]
             )
         kl = list(mut.keys())
         if kl:
@@ -124,19 +152,28 @@ class HierarchyEntry(BaseModel):
             )
         o_dis = Dispositions[(validated["disposition"].upper())]
         return cls(
+            menu_name=validated["menu_name"],
             action=o_act,
             disposition=o_dis,
-            parent=Path(parent) if parent else None,
+            parent=Path(validated["parent"]) if validated["parent"] else None,
+            menu_path=Path(validated["menu_path"]),
             src=o_src,
             dest=Path(validated["dest"]),
         )
 
     def to_primitive(self) -> dict[str, str | None]:
         """Return a representation suitable for JSON-decoding in TypeScript."""
+        if self.menu_path:
+            menu_path = str(self.menu_path)
+        else:
+            e_parent = self.parent if self.parent else Path("/")
+            menu_path = str(e_parent / self.menu_name)
         return {
+            "menu_name": self.menu_name,
             "action": self.action.value,
             "disposition": self.disposition.value,
             "parent": str(self.parent) if self.parent else None,
+            "menu_path": menu_path,
             "src": str(self.src),
             "dest": str(self.dest),
         }

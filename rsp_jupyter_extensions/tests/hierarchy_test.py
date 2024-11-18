@@ -39,16 +39,20 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     assert h1_p == {
         "entries": {
             "hello.py": {
+                "menu_name": "hello.py",
                 "action": "copy",
                 "disposition": "prompt",
                 "parent": None,
+                "menu_path": "/hello.py",
                 "src": ANY,
                 "dest": ANY,
             },
             "hello.txt": {
+                "menu_name": "hello.txt",
                 "action": "copy",
                 "disposition": "prompt",
                 "parent": None,
+                "menu_path": "/hello.txt",
                 "src": ANY,
                 "dest": ANY,
             },
@@ -57,16 +61,20 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
             "subdir": {
                 "entries": {
                     "hello.py": {
+                        "menu_name": "hello.py",
                         "action": "copy",
                         "disposition": "prompt",
                         "parent": "/subdir",
+                        "menu_path": "/subdir/hello.py",
                         "src": ANY,
                         "dest": ANY,
                     },
                     "hello.txt": {
+                        "menu_name": "hello.txt",
                         "action": "copy",
                         "disposition": "prompt",
                         "parent": "/subdir",
+                        "menu_path": "/subdir/hello.txt",
                         "src": ANY,
                         "dest": ANY,
                     },
@@ -75,16 +83,20 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
                     "subsubdir": {
                         "entries": {
                             "hello.py": {
+                                "menu_name": "hello.py",
                                 "action": "copy",
                                 "disposition": "prompt",
                                 "parent": "/subdir/subsubdir",
+                                "menu_path": "/subdir/subsubdir/hello.py",
                                 "src": ANY,
                                 "dest": ANY,
                             },
                             "hello.txt": {
+                                "menu_name": "hello.txt",
                                 "action": "copy",
                                 "disposition": "prompt",
                                 "parent": "/subdir/subsubdir",
+                                "menu_path": "/subdir/subsubdir/hello.txt",
                                 "src": ANY,
                                 "dest": ANY,
                             },
@@ -104,9 +116,11 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     assert h2_p == {
         "entries": {
             "hello": {
+                "menu_name": "hello",
                 "action": "copy",
                 "disposition": "prompt",
                 "parent": None,
+                "menu_path": "/hello",
                 "src": ANY,
                 "dest": ANY,
             }
@@ -115,9 +129,11 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
             "subdir": {
                 "entries": {
                     "hello": {
+                        "menu_name": "hello",
                         "action": "copy",
                         "disposition": "prompt",
                         "parent": "/subdir",
+                        "menu_path": "/subdir/hello",
                         "src": ANY,
                         "dest": ANY,
                     }
@@ -126,9 +142,11 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
                     "subsubdir": {
                         "entries": {
                             "hello": {
+                                "menu_name": "hello",
                                 "action": "copy",
                                 "disposition": "prompt",
                                 "parent": "/subdir/subsubdir",
+                                "menu_path": "/subdir/subsubdir/hello",
                                 "src": ANY,
                                 "dest": ANY,
                             }
@@ -154,9 +172,11 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     assert h3_p == {
         "entries": {
             "hello": {
+                "menu_name": "hello",
                 "action": "fetch",
                 "disposition": "prompt",
                 "parent": None,
+                "menu_path": "/hello",
                 "src": "https://example.com/foo/hello.txt",
                 "dest": "bar",
             }
@@ -165,9 +185,11 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
             "subdir": {
                 "entries": {
                     "hello": {
+                        "menu_name": "hello",
                         "action": "fetch",
                         "disposition": "prompt",
                         "parent": "/subdir",
+                        "menu_path": "/subdir/hello",
                         "src": "https://example.com/foo/hello.txt",
                         "dest": "bar",
                     }
@@ -176,9 +198,11 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
                     "subsubdir": {
                         "entries": {
                             "hello": {
+                                "menu_name": "hello",
                                 "action": "fetch",
                                 "disposition": "prompt",
                                 "parent": "/subdir/subsubdir",
+                                "menu_path": "/subdir/subsubdir/hello",
                                 "src": "https://example.com/foo/hello.txt",
                                 "dest": "bar",
                             }
@@ -210,9 +234,11 @@ def test_ignore_symlinks(tmp_path: Path) -> None:
     assert h_p == {
         "entries": {
             "real_file": {
+                "menu_name": "real_file",
                 "action": "copy",
                 "disposition": "prompt",
                 "parent": None,
+                "menu_path": "/real_file",
                 "src": ANY,
                 "dest": ANY,
             }
@@ -262,13 +288,14 @@ def test_bad_construction() -> None:
         TestInput(
             name="malformed_entry",
             value={
-                "action": 4,
+                "menu_name": 4,
             },
             match="not a string",
         ),
         TestInput(
             name="malformed_parent_entry",
             value={
+                "menu_name": "foo",
                 "action": "a",
                 "disposition": "b",
                 "src": "c",
@@ -280,11 +307,13 @@ def test_bad_construction() -> None:
         TestInput(
             name="extra_fields",
             value={
+                "menu_name": "foo",
                 "action": "a",
                 "disposition": "b",
                 "src": "c",
                 "dest": "d",
                 "parent": None,
+                "menu_path": "/foo",
                 "extra_field": True,
             },
             match="Unknown keys",
@@ -292,24 +321,54 @@ def test_bad_construction() -> None:
         TestInput(
             name="bad_action",
             value={
+                "menu_name": "foo",
                 "action": "a",
                 "disposition": "b",
                 "src": "c",
                 "dest": "d",
                 "parent": None,
+                "menu_path": "/foo",
             },
             match=r"'action'=(.*): not in",
         ),
         TestInput(
             name="bad_disposition",
             value={
+                "menu_name": "foo",
                 "action": "copy",
                 "disposition": "b",
                 "src": "c",
                 "dest": "d",
                 "parent": None,
+                "menu_path": "/foo",
             },
             match=r"'disposition'=(.*): not in",
+        ),
+        TestInput(
+            name="bad_menu_path_start",
+            value={
+                "menu_name": "foo",
+                "action": "copy",
+                "disposition": "abort",
+                "src": "c",
+                "dest": "d",
+                "parent": None,
+                "menu_path": "bar/foo",
+            },
+            match="must start with",
+        ),
+        TestInput(
+            name="bad_menu_path_start",
+            value={
+                "menu_name": "foo",
+                "action": "copy",
+                "disposition": "overwrite",
+                "src": "c",
+                "dest": "d",
+                "parent": None,
+                "menu_path": "/foobar",
+            },
+            match="must end with",
         ),
     ]
 

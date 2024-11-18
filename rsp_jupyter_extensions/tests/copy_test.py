@@ -26,9 +26,11 @@ def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (srcdir / "hello.txt").write_text(contents)
 
     inp = {
+        "menu_name": "hello.txt",
         "action": "copy",
         "disposition": "prompt",
         "parent": None,
+        "menu_path": "/hello.txt",
         "src": f"{srcdir!s}/hello.txt",
         "dest": f"{destdir!s}/hello.txt",
     }
@@ -69,9 +71,11 @@ def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_bad_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test handling of bad inputs and environments."""
     inp = {
+        "menu_name": "hello.txt",
         "action": "copy",
         "disposition": "prompt",
         "parent": None,
+        "menu_path": "/hello.txt",
         "src": "/in/hello.txt",
         "dest": f"{tmp_path}/home/irian/hello.txt",
     }

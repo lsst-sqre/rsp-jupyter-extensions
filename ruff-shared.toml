@@ -108,10 +108,14 @@ select = ["ALL"]
 ]
 
 "rsp_jupyter_extensions/handlers/_rspclient.py" = [
-    "ANN001",  # Superclass request() is not well typed.
-    "ANN002",
-    "ANN003",
-    "PGH003",
+    "ANN001",  # Superclass request() is not well typed
+    "ANN002",  # Superclass request() is not well typed
+    "ANN003",  # Superclass request() is not well typed
+    "PGH003",  # Superclass request() is not well typed
+]
+
+"rsp_jupyter_extensions/models/tutorials.py" = [
+    "C901",  # Model validation *is* complicated
 ]
 
 # These are too useful as attributes or methods to allow the conflict with the
