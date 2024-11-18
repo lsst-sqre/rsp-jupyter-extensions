@@ -5,11 +5,11 @@ from typing import Any
 
 import requests
 import tornado
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join as ujoin
 
 
-class HubHandler(JupyterHandler):
+class HubHandler(APIHandler):
     """
     Hub Handler.  Currently all we do is DELETE (to shut down a running Lab
     instance) but we could extend this to do anything in the Hub REST API.

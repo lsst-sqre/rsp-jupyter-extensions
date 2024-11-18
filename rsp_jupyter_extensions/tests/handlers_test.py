@@ -1,15 +1,16 @@
 """Test that environment works."""
 
 import json
-import os
 from collections.abc import Callable
 
 import pytest
 
 
-async def test_environment(jp_fetch: Callable) -> None:
+async def test_environment(
+    jp_fetch: Callable, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # When
-    os.environ["TEST_KEY"] = "test_value"
+    monkeypatch.setenv("TEST_KEY", "test_value")
     response = await jp_fetch("rubin", "environment")
 
     # Then

@@ -16,6 +16,10 @@ class GhostwriterHandler(JupyterHandler):
 
     All of this can happen in prepare(), because we don't care what method
     it is.
+
+    Note that this endpoint is *not* an APIHandler, because we're not
+    handing back a JSON document; this is an endpoint for the browser to
+    use to receive a redirection.
     """
 
     def prepare(self) -> None:  # type: ignore[override]

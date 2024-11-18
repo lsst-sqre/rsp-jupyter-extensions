@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import tornado
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 
 from ._rspclient import RSPClient
 
@@ -18,7 +18,7 @@ class UnimplementedQueryResolutionError(Exception):
     """Query not implemented."""
 
 
-class QueryHandler(JupyterHandler):
+class QueryHandler(APIHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:

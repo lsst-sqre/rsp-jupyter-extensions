@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Any
 
 import tornado
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 
 
-class EnvironmentHandler(JupyterHandler):
+class EnvironmentHandler(APIHandler):
     """
     Environment Handler.  Return the JSON representation of our OS environment
     settings.

@@ -5,13 +5,13 @@ import json
 import nbconvert
 import nbformat
 import tornado
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 from nbconvert.preprocessors import CellExecutionError
 
 NBFORMAT_VERSION = 4
 
 
-class ExecutionHandler(JupyterHandler):
+class ExecutionHandler(APIHandler):
     """RSP templated Execution Handler."""
 
     @property

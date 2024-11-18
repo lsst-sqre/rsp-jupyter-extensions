@@ -29,6 +29,14 @@ class HierarchyError(Exception):
     """Class to indicate something went wrong with Hierarchy construction."""
 
 
+class TagError(Exception):
+    """Class to indicate something went wrong with the image tag."""
+
+
+class UserEnvironmentError(Exception):
+    """Class to indicate something went wrong with user environment."""
+
+
 class HierarchyEntry(BaseModel):
     """A single entry representing a transformable object.
 
@@ -75,24 +83,26 @@ class HierarchyEntry(BaseModel):
 
         Do model and type validation along the way.
         """
+        mut: dict[str, Any] = {}
+        mut.update(inp)
         validated: dict[str, str] = {}
         for field in ("action", "disposition", "src", "dest"):
             try:
-                val = inp.pop(field)
+                val = mut.pop(field)
             except KeyError:
-                raise HierarchyError(f"'{field}' is not in {inp}") from None
+                raise HierarchyError(f"'{field}' is not in {mut}") from None
             if not isinstance(val, str):
                 raise HierarchyError(f"'{field}' is {val}, not a string")
             validated[field] = val
         try:
-            parent = inp.pop("parent")
+            parent = mut.pop("parent")
         except KeyError:
-            raise HierarchyError(f"'parent' is not in {inp}") from None
+            raise HierarchyError(f"'parent' is not in {mut}") from None
         if parent is not None and not isinstance(parent, str):
             raise HierarchyError(
                 f"'parent' is {parent}, neither a string nor None"
             )
-        kl = list(inp.keys())
+        kl = list(mut.keys())
         if kl:
             raise HierarchyError(f"Unknown keys {kl}")
         o_src: str | Path | None = None
@@ -146,15 +156,17 @@ class Hierarchy(BaseModel):
     @classmethod
     def from_primitive(cls, inp: dict[str, Any]) -> Self:
         """Create from JSON-serialized input."""
+        mut: dict[str, Any] = {}
+        mut.update(inp)
         try:
-            entries = inp.pop("entries")
+            entries = mut.pop("entries")
         except KeyError:
-            raise HierarchyError(f"'entries' is not in {inp}") from None
+            raise HierarchyError(f"'entries' is not in {mut}") from None
         try:
-            subhierarchies = inp.pop("subhierarchies")
+            subhierarchies = mut.pop("subhierarchies")
         except KeyError:
-            raise HierarchyError(f"'subhierarchies' is not in {inp}") from None
-        kl = list(inp.keys())
+            raise HierarchyError(f"'subhierarchies' is not in {mut}") from None
+        kl = list(mut.keys())
         if kl:
             raise HierarchyError(f"Unknown fields {kl}")
         ret = cls()
