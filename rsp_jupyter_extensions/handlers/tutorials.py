@@ -71,7 +71,6 @@ def _build_hierarchy(
             continue  # Done with directory.
         # It's a file.
         nm = entry.name
-        e_parent = parent if parent else Path("/")
         if suffix:
             if not nm.endswith(suffix):
                 continue
@@ -81,7 +80,6 @@ def _build_hierarchy(
             action=action,
             disposition=Dispositions.PROMPT,
             parent=parent,
-            menu_path=e_parent / nm,
             src=xform_src(entry),
             dest=xform_dest(entry),
         )

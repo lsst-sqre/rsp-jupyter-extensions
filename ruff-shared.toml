@@ -114,10 +114,6 @@ select = ["ALL"]
     "PGH003",  # Superclass request() is not well typed
 ]
 
-"rsp_jupyter_extensions/models/tutorials.py" = [
-    "C901",  # Model validation *is* complicated
-]
-
 # These are too useful as attributes or methods to allow the conflict with the
 # built-in to rule out their use.
 [lint.flake8-builtins]

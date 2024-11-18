@@ -48,10 +48,7 @@ class HierarchyEntry(BaseModel):
     menu_name: Annotated[str, Field(title="Menu item name")]
     action: Annotated[Actions, Field(title="Transformation action")]
     disposition: Annotated[Dispositions, Field(title="Disposition action")]
-    parent: Annotated[Path | None, Field(title="Menu parent")] = None
-    menu_path: Annotated[Path | None, Field(title="Menu item full path")] = (
-        None
-    )
+    parent: Annotated[Path, Field(title="Menu parent")] = Path("/")
     src: Annotated[
         Path | str,
         Field(
@@ -67,6 +64,10 @@ class HierarchyEntry(BaseModel):
         ),
     ]
 
+    @property
+    def menu_path(self) -> Path:
+        return self.parent / self.menu_name
+
     @model_validator(mode="after")
     def check_src_type(self) -> Self:
         if self.action == Actions.FETCH:
@@ -81,22 +82,41 @@ class HierarchyEntry(BaseModel):
                 raise HierarchyError("For action 'copy', 'src' must be a Path")
         return self
 
-    @model_validator(mode="after")
-    def check_menu_path(self) -> Self:
-        e_parent = self.parent if self.parent else Path("/")
-        if self.menu_path is None:
-            self.menu_path = e_parent / self.menu_name
-        if not str(self.menu_path).startswith(str(e_parent)):
+    @staticmethod
+    def _validate_fields(mut: dict[str, Any]) -> dict[str, str]:
+        validated: dict[str, str] = {}
+        for field in (
+            "menu_name",
+            "action",
+            "disposition",
+            "parent",
+            "src",
+            "dest",
+        ):
+            try:
+                val = mut.pop(field)
+            except KeyError:
+                raise HierarchyError(f"'{field}' is not in {mut}") from None
+            if not isinstance(val, str):
+                raise HierarchyError(f"'{field}' is {val}, not a string")
+            validated[field] = val
+        # Make sure that menu_path is correct
+        calc_path = str(Path(validated["parent"]) / validated["menu_name"])
+        mval = mut.pop("menu_path", None)
+        if mval is None:
+            mval = calc_path
+        if not isinstance(mval, str):
+            raise HierarchyError(f"'{field}' is {mval}, not a string")
+        if mval != calc_path:
             raise HierarchyError(
-                f"Menu path '{self.menu_path!s}' must start with "
-                f"'{e_parent!s}'"
+                f"'menu_path' is '{mval}', but should be '{calc_path}'"
             )
-        if not str(self.menu_path).endswith(f"/{self.menu_name}"):
-            raise HierarchyError(
-                f"Menu path '{self.menu_path}' must end with "
-                f"'/{self.menu_name}'"
-            )
-        return self
+        validated["menu_path"] = calc_path
+        # And now make sure we have no extraneous fields.
+        kl = list(mut.keys())
+        if kl:
+            raise HierarchyError(f"Unknown fields {kl}")
+        return validated
 
     @classmethod
     def from_primitive(cls, inp: dict[str, Any]) -> Self:
@@ -106,33 +126,7 @@ class HierarchyEntry(BaseModel):
         """
         mut: dict[str, Any] = {}
         mut.update(inp)
-        validated: dict[str, str] = {}
-        for field in ("menu_name", "action", "disposition", "src", "dest"):
-            try:
-                val = mut.pop(field)
-            except KeyError:
-                raise HierarchyError(f"'{field}' is not in {mut}") from None
-            if not isinstance(val, str):
-                raise HierarchyError(f"'{field}' is {val}, not a string")
-            validated[field] = val
-        for field in ("parent", "menu_path"):
-            try:
-                val = mut.pop(field)
-            except KeyError:
-                raise HierarchyError(f"'{field}' is not in {mut}") from None
-            if not (val is None or isinstance(val, str)):
-                raise HierarchyError(
-                    f"'{field}' is {val}, neither a string nor None"
-                )
-            validated[field] = val
-        if validated["menu_path"] is None:
-            str_parent = validated["parent"] if validated["parent"] else "/"
-            validated["menu_path"] = str(
-                Path(str_parent) / validated["menu_name"]
-            )
-        kl = list(mut.keys())
-        if kl:
-            raise HierarchyError(f"Unknown keys {kl}")
+        validated = cls._validate_fields(mut)
         o_src: str | Path | None = None
         if validated["action"] == Actions.FETCH:
             o_act = Actions.FETCH
@@ -155,25 +149,19 @@ class HierarchyEntry(BaseModel):
             menu_name=validated["menu_name"],
             action=o_act,
             disposition=o_dis,
-            parent=Path(validated["parent"]) if validated["parent"] else None,
-            menu_path=Path(validated["menu_path"]),
+            parent=Path(validated["parent"]),
             src=o_src,
             dest=Path(validated["dest"]),
         )
 
     def to_primitive(self) -> dict[str, str | None]:
         """Return a representation suitable for JSON-decoding in TypeScript."""
-        if self.menu_path:
-            menu_path = str(self.menu_path)
-        else:
-            e_parent = self.parent if self.parent else Path("/")
-            menu_path = str(e_parent / self.menu_name)
         return {
             "menu_name": self.menu_name,
             "action": self.action.value,
             "disposition": self.disposition.value,
-            "parent": str(self.parent) if self.parent else None,
-            "menu_path": menu_path,
+            "parent": str(self.parent),
+            "menu_path": str(self.menu_path),
             "src": str(self.src),
             "dest": str(self.dest),
         }
