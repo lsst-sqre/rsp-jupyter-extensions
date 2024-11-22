@@ -15,6 +15,8 @@ import { activateRSPQueryExtension } from './query';
 
 import { activateRSPSavequitExtension } from './savequit';
 
+import { activateRSPTutorialsExtension } from './tutorials';
+
 import * as token from './tokens';
 
 function activateRSPExtension(
@@ -27,11 +29,14 @@ function activateRSPExtension(
   console.log('...activating displayversion extension...');
   activateRSPDisplayVersionExtension(app, statusBar);
   console.log('...activated...');
+  console.log('...activating query extension...');
+  activateRSPQueryExtension(app, mainMenu, docManager);
+  console.log('...activated...');
   console.log('...activating savequit extension...');
   activateRSPSavequitExtension(app, mainMenu, docManager);
   console.log('...activated...');
-  console.log('...activating query extension...');
-  activateRSPQueryExtension(app, mainMenu, docManager);
+  console.log('...activating tutorials extension...');
+  activateRSPTutorialsExtension(app, mainMenu);
   console.log('...activated...');
   console.log('...loaded rsp-lab-extension.');
 }
