@@ -10,19 +10,12 @@ import { PageConfig } from '@jupyterlab/coreutils';
 
 import { ServerConnection } from '@jupyterlab/services';
 
-import { CommandRegistry } from '@lumino/commands';
-
 import { Menu } from '@lumino/widgets';
 
 //import { ServiceManager, ServerConnection } from '@jupyterlab/services';
 import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import * as token from './tokens';
-
-export namespace CommandIDs {
-  export const rubintutorials = 'rubintutorials';
-  export const rubintutorialsnull = 'rubintutorialsnull'
-}
 
 enum Actions {
     COPY="copy",
@@ -71,10 +64,14 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
     entries: { [name: string]: TutorialsEntry } | null = null;
     subhierarchies: { [name: string]: TutorialsHierarchy } | null = null;
 
-    constructor(inp: ITutorialsHierarchyResponse) {
-        console.log(`Building hierarchy`)
+    constructor(inp: ITutorialsHierarchyResponse, name: string|null = null) {
+        if (name == null) {
+            name="<unnamed>"
+        }
+        console.log(`Building hierarchy ${name}`)
         if (inp.entries != null ) {
             for (const entry in inp.entries) {
+                console.log(`${name} -> entry ${entry}`)
                 const e_obj = inp.entries[entry]
                 if (e_obj == null) {
                     console.log(`skipping null entry ${entry}`)
@@ -89,23 +86,27 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
 
         }
         if (inp.subhierarchies != null) {
-            if (inp.subhierarchies == null) {
-                console.log("WTF, man, inp.subhierarchies is null");
-            } else {
-                for (const subh in inp.subhierarchies) {
-                    const s_obj=inp.subhierarchies[subh];
-                    if (s_obj == null) {
-                     console.log(`skipping null subhierarchy ${subh}`)
-                     continue
-                    }
-                    if (this.subhierarchies == null) {
-                         this.subhierarchies = {}
-                     }
-                    console.log(`adding new subhierarchy ${subh}`)
-                    this.subhierarchies[subh] = new TutorialsHierarchy(s_obj)
+            const sublist = Object.keys(inp.subhierarchies)
+            console.log(`Subhierarchies: ${sublist}`)
+            for (const subh of sublist) {
+                if (inp.subhierarchies == null) {
+                    console.log(`Somehow, subhierarchies is null at ${name}`)
+                    continue;
                 }
+                console.log(`${name} -> subhierarchy ${subh}`)
+                const s_obj=inp.subhierarchies[subh];
+                if (s_obj == null) {
+                    console.log(`skipping null subhierarchy ${subh}`)
+                    continue
+                }
+                if (this.subhierarchies == null) {
+                    this.subhierarchies = {}
+                }
+                console.log(`recurse: new subhierarchy of ${name} ${subh}`)
+                this.subhierarchies[subh] = new TutorialsHierarchy(s_obj, subh)
             }
         }
+        console.log(`hierarchy ${name} built`)
     }
 }
 
@@ -138,6 +139,8 @@ function apiGetTutorialsHierarchy(
         console.log(`Response: ${JSON.stringify(data, undefined, 2)}`)
         const h_i = data as ITutorialsHierarchyResponse
         const tut = new TutorialsHierarchy(h_i)
+        console.log(`Created TutorialsHierary from response`)
+        console.log("==============================")
         return tut
       }))
     })
@@ -162,50 +165,59 @@ export function activateRSPTutorialsExtension(
     const settings = svcManager.serverSettings;
 
     function buildTutorialsMenu(
+        name: string,
         hierarchy: ITutorialsHierarchyResponse,
         parentmenu: Menu | null
     ): void {
         const { commands } = app;
-
+        console.log(`building tutorials menu for ${name}`)
         if (parentmenu == null) {
             // Set up submenu
-            const tutorialsmenu = new Menu({commands})
+            var tutorialsmenu = new Menu({commands})
             tutorialsmenu.title.label = 'Tutorials'
             parentmenu = tutorialsmenu
+            console.log(`set up top level Tutorials menu`)
+            mainMenu.addMenu(tutorialsmenu)
+        } else {
+            console.log(`supplied parent menu=${parentmenu.title.label}`)
         }
-        console.log(`building tutorials menu, parent=${parentmenu.title.caption}`)
+        const parent=parentmenu.title.label
+        console.log(`building tutorials menu ${name}, parent=${parent}`)
 
         if (hierarchy.subhierarchies != null) {
             // Recursively add submenus
-            for (const subh in hierarchy.subhierarchies) {
-                const s_obj = hierarchy.subhierarchies[subh]
+            for ( const subh in hierarchy.subhierarchies) {
+                var s_obj = hierarchy.subhierarchies[subh]
                 // Skip null or empty entries
                 if (s_obj == null) {
+                    console.log(`skipping empty hierarchy ${subh}`)
                     continue
                 }
                 if ((s_obj.entries == null) && (s_obj.subhierarchies == null)) {
+                    console.log(`Skipping hierarchy ${subh} with no entries or subhierarchies`)
                     continue
                 }
-                console.log(`adding submenu ${subh}, parent ${parentmenu.title.label}`)
+                console.log(`adding submenu ${subh} to ${parent}`)
                 const smenu = new Menu({commands})
                 smenu.title.label = subh
                 parentmenu.addItem({submenu: smenu, type: "submenu"})
                 console.log(`recurse: hierarchy ${subh}`)
                 // Now recurse down new menu/subhierarchy
-                buildTutorialsMenu(
-                    hierarchy=s_obj,
-                    parentmenu=smenu
-                )
+                buildTutorialsMenu(subh,s_obj,smenu)
+                console.log(`recursion done; emerged from ${subh}`)
             }
         }
+        console.log(`done with subhierarchies for ${name}`)
+
         if (hierarchy.entries != null) {
+            parentmenu.addItem({type: "separator"})
             for (const entry in hierarchy.entries) {
-                const entry_obj=hierarchy.entries[entry]
-                console.log(`adding entry ${JSON.stringify(entry_obj, undefined, 2)}`)
-                const postcommandregistry = new CommandRegistry()
-                postcommandregistry.addCommand(
-                    CommandIDs.rubintutorials, {
-                        caption: entry,
+                var entry_obj=hierarchy.entries[entry]
+                const cmdId=`${entry_obj.parent}/${entry_obj.menu_name}`
+                console.log(`creating command ${cmdId}`)
+                commands.addCommand(
+                    cmdId, {
+                        label: entry,
                         execute: () => {
                             apiPostTutorialsEntry(
                                 settings,
@@ -214,21 +226,23 @@ export function activateRSPTutorialsExtension(
                         }
                     }
                 )
-
+                console.log(`adding item ${cmdId} to ${parent}`)
                 parentmenu.addItem({
-                    command: CommandIDs.rubintutorials,
-                    // caption: entry,
+                    command: cmdId,
                     type: "command",
                 })
             }
         }
+        console.log(`done with entries for ${name} ; ${parentmenu.title.label}`)
 
+
+        console.log(`done with ${name}`)
     }
 
     apiGetTutorialsHierarchy(settings).then(res => {
         if (res) {
             const o_res = res as TutorialsHierarchy
-            buildTutorialsMenu(o_res,null)
+            buildTutorialsMenu("root", o_res,null)
         }
     })
 

@@ -42,9 +42,14 @@ class EnvironmentHandler(APIHandler):
         #  the OS environment but also by overriding any values with what
         #  we find where our environmental configmap is mounted.
         #
-        loc = "/opt/lsst/software/jupyterlab/environment"  # By convention.
+        loc = Path(
+            os.getenv(
+                "ENVIRONMENT_CONFIGMAP",
+                "/opt/lsst/software/jupyterlab/environment",
+            )
+        )
         try:
-            fns = os.listdir(path=loc)
+            fns = [x.name for x in list(loc.iterdir())]
         except FileNotFoundError:
             # We don't have a mounted environment configmap, so treat it
             # as empty.
