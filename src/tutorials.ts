@@ -6,7 +6,11 @@ import {
     JupyterFrontEndPlugin
   } from '@jupyterlab/application';
 
+import { showDialog, Dialog } from '@jupyterlab/apputils';
+
 import { PageConfig } from '@jupyterlab/coreutils';
+
+import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { ServerConnection } from '@jupyterlab/services';
 
@@ -116,10 +120,6 @@ function apiGetTutorialsHierarchy(
     /**
      * Make a request to our endpoint to get the tutorial hierarchy
      *
-     * @param url - the path for the displayversion extension
-     *
-     * @param init - The GET for the extension
-     *
      * @param settings - the settings for the current notebook server
      *
      * @returns a Promise resolved with the JSON response
@@ -148,17 +148,100 @@ function apiGetTutorialsHierarchy(
 
 function apiPostTutorialsEntry(
     settings: ServerConnection.ISettings,
+    docManager: IDocumentManager,
     entry: TutorialsEntry
-): Promise<void> {
+): void {
+    /**
+     * Make a request to our endpoint to copy a file into place and open it
+     *
+     * @param settings - the settings for the current notebook server
+     *
+     * @param entry - the entry corresponding to the file to work with
+     *
+     * @returns a Promise resolved with the JSON response
+     */
+    // Fake out URL check in makeRequest
+    console.log('Sending POST to tutorials endpoint')
+    ServerConnection.makeRequest(
+        PageConfig.getBaseUrl() + 'rubin/tutorials',
+        { method: 'POST',
+            body: JSON.stringify(entry)
+         },
+        settings
+    ).then(response => {
+        if (response.status == 409) {
+            // File exists; prompt user
+            overwriteDialog(docManager).then(verb => {
+                console.log(`Dialog result was ${verb}`)
+                if (verb != "OVERWRITE") {
+                    // Don't do the thing!
+                    return
+                }
+                const newEntryModel = {
+                    menu_name: entry.menu_name,
+                    action: entry.action,
+                    disposition: Dispositions.OVERWRITE,
+                    parent: entry.parent,
+                    src: entry.src,
+                    dest: entry.dest
+                } as ITutorialsEntryResponse
+                const newEntry = new TutorialsEntry(newEntryModel)
+                // Resubmit response with request to overwrite file.
+                apiPostTutorialsEntry(settings, docManager, newEntry)
+                return
+            })
+        }
+        if (response.status == 307) {
+            // File got copied.
+            console.log(`Opening file ${entry.dest}`)
+            docManager.openOrReveal(entry.dest)
+        } else {
+            console.log(`Unexpected response status ${response.status}`)
+        }
+        return
+    })
+}
 
-    return new Promise((res, rej) => {
+function overwriteDialog(
+    manager: IDocumentManager
+  ): Promise<string | {} | (() => void) | null> {
+      const options = {
+      title: 'Target file exists',
+      body: 'Overwrite file?',
+      buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'OVERWRITE' })]
+    };
+    console.log('Showing overwrite dialog')
+    return showDialog(options).then(result => {
+      if (!result) {
+        console.log('No result from queryDialog');
+        return new Promise((res, rej) => {
+          /* Nothing */
+        });
+      }
+      console.log('Result from queryDialog: ', result);
+      if (!result.value) {
+        console.log('No result.value from queryDialog');
+        return new Promise((res, rej) => {
+          /* Nothing */
+        });
+      }
+      if (result.button.label === 'OVERWRITE') {
+        console.log('Got result ', result.value, ' from overwriteDialog: OVERWRITE');
+        return Promise.resolve(result.value);
+      }
+      console.log('Did not get overwriteDialog: OVERWRITE');
+      return new Promise((res, rej) => {
         /* Nothing */
       });
-}
+    });
+  }
+
+
 
 export function activateRSPTutorialsExtension(
   app: JupyterFrontEnd,
-  mainMenu: IMainMenu
+  mainMenu: IMainMenu,
+  docManager: IDocumentManager
 ): void {
     console.log('rsp-tutorials: loading...');
     const svcManager = app.serviceManager;
@@ -221,6 +304,7 @@ export function activateRSPTutorialsExtension(
                         execute: () => {
                             apiPostTutorialsEntry(
                                 settings,
+                                docManager,
                                 entry_obj,
                             )
                         }
@@ -234,7 +318,6 @@ export function activateRSPTutorialsExtension(
             }
         }
         console.log(`done with entries for ${name} ; ${parentmenu.title.label}`)
-
 
         console.log(`done with ${name}`)
     }
@@ -255,7 +338,7 @@ export function activateRSPTutorialsExtension(
 const rspTutorialsExtension: JupyterFrontEndPlugin<void> = {
     activate: activateRSPTutorialsExtension,
     id: token.TUTORIALS_ID,
-    requires: [IMainMenu],
+    requires: [IMainMenu, IDocumentManager],
     autoStart: false
   };
 

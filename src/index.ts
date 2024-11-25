@@ -36,7 +36,7 @@ function activateRSPExtension(
   activateRSPSavequitExtension(app, mainMenu, docManager);
   console.log('...activated...');
   console.log('...activating tutorials extension...');
-  activateRSPTutorialsExtension(app, mainMenu);
+  activateRSPTutorialsExtension(app, mainMenu, docManager);
   console.log('...activated...');
   console.log('...loaded rsp-lab-extension.');
 }
