@@ -161,7 +161,7 @@ function apiPostTutorialsEntry(
      * @returns a Promise resolved with the JSON response
      */
     // Fake out URL check in makeRequest
-    console.log('Sending POST to tutorials endpoint')
+    console.log(`Sending POST to tutorials endpoint with data ${JSON.stringify(entry,undefined,2)}`)
     ServerConnection.makeRequest(
         PageConfig.getBaseUrl() + 'rubin/tutorials',
         { method: 'POST',
@@ -171,7 +171,7 @@ function apiPostTutorialsEntry(
     ).then(response => {
         if (response.status == 409) {
             // File exists; prompt user
-            overwriteDialog(docManager).then(verb => {
+            overwriteDialog(entry.dest, docManager).then(verb => {
                 console.log(`Dialog result was ${verb}`)
                 if (verb != "OVERWRITE") {
                     // Don't do the thing!
@@ -191,7 +191,7 @@ function apiPostTutorialsEntry(
                 return
             })
         }
-        if (response.status == 307) {
+        if ((response.status == 307) || (response.status == 200)) {
             // File got copied.
             console.log(`Opening file ${entry.dest}`)
             docManager.openOrReveal(entry.dest)
@@ -203,11 +203,12 @@ function apiPostTutorialsEntry(
 }
 
 function overwriteDialog(
+    dest: string,
     manager: IDocumentManager
-  ): Promise<string | {} | (() => void) | null> {
+  ): Promise<any> {
       const options = {
-      title: 'Target file exists',
-      body: 'Overwrite file?',
+      title: `Target file exists`,
+      body: `Overwrite file '${dest}' ?`,
       buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'OVERWRITE' })]
     };
     console.log('Showing overwrite dialog')
@@ -218,16 +219,16 @@ function overwriteDialog(
           /* Nothing */
         });
       }
-      console.log('Result from queryDialog: ', result);
-      if (!result.value) {
-        console.log('No result.value from queryDialog');
+      console.log('Result from overwriteDialog: ', result);
+      if (!result.button) {
+        console.log('No result.button from overwriteDialog');
         return new Promise((res, rej) => {
           /* Nothing */
         });
       }
       if (result.button.label === 'OVERWRITE') {
-        console.log('Got result ', result.value, ' from overwriteDialog: OVERWRITE');
-        return Promise.resolve(result.value);
+        console.log('Got result ', result.button.label, ' from overwriteDialog: OVERWRITE');
+        return Promise.resolve(result.button.label);
       }
       console.log('Did not get overwriteDialog: OVERWRITE');
       return new Promise((res, rej) => {
@@ -252,10 +253,10 @@ export function activateRSPTutorialsExtension(
         hierarchy: ITutorialsHierarchyResponse,
         parentmenu: Menu | null
     ): void {
-        const { commands } = app;
         console.log(`building tutorials menu for ${name}`)
         if (parentmenu == null) {
             // Set up submenu
+            let { commands } = app;
             var tutorialsmenu = new Menu({commands})
             tutorialsmenu.title.label = 'Tutorials'
             parentmenu = tutorialsmenu
@@ -281,6 +282,7 @@ export function activateRSPTutorialsExtension(
                     continue
                 }
                 console.log(`adding submenu ${subh} to ${parent}`)
+                let { commands } = app;
                 const smenu = new Menu({commands})
                 smenu.title.label = subh
                 parentmenu.addItem({submenu: smenu, type: "submenu"})
@@ -295,9 +297,10 @@ export function activateRSPTutorialsExtension(
         if (hierarchy.entries != null) {
             parentmenu.addItem({type: "separator"})
             for (const entry in hierarchy.entries) {
-                var entry_obj=hierarchy.entries[entry]
+                let { commands } = app;
+                let entry_obj=hierarchy.entries[entry]
                 const cmdId=`${entry_obj.parent}/${entry_obj.menu_name}`
-                console.log(`creating command ${cmdId}`)
+                console.log(`creating command ${cmdId} for entry ${JSON.stringify(entry, undefined, 2)}`)
                 commands.addCommand(
                     cmdId, {
                         label: entry,

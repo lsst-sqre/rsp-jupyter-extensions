@@ -214,17 +214,19 @@ class Hierarchy(BaseModel):
     def to_primitive(self) -> dict[str, Any]:
         h: dict[str, Any] = {}
         if self.entries:
-            h["entries"] = {}
             for entry in self.entries:
+                if "entries" not in h or h["entries"] is None:
+                    h["entries"] = {}
                 h["entries"][entry] = self.entries[entry].to_primitive()
-        else:
+        if "entries" not in h:
             h["entries"] = None
         if self.subhierarchies:
-            h["subhierarchies"] = {}
             for subh in self.subhierarchies:
+                if "subhierarchies" not in h or h["subhierarchies"] is None:
+                    h["subhierarchies"] = {}
                 h["subhierarchies"][subh] = self.subhierarchies[
                     subh
                 ].to_primitive()
-        else:
+        if "subhierarchies" not in h:
             h["subhierarchies"] = None
         return h

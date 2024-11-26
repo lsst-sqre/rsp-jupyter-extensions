@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from rsp_jupyter_extensions.handlers.tutorials import _copy_and_redir
+from rsp_jupyter_extensions.handlers.tutorials import _copy_and_guide
 from rsp_jupyter_extensions.models.tutorials import (
     HierarchyError,
     UserEnvironmentError,
@@ -17,7 +17,6 @@ def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     homedir = tmp_path / "home" / "irian"
     homedir.mkdir(parents=True)
     monkeypatch.setenv("HOME", str(homedir))
-    monkeypatch.setenv("USER", "irian")
     srcdir = tmp_path / "src"
     destdir = homedir / "dest"
     srcdir.mkdir()
@@ -40,21 +39,21 @@ def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not outf.exists()
     assert not outf.parent.exists()
 
-    cr = _copy_and_redir(inp)
-    assert cr.status_code == 307
-    assert cr.redirect == "/nb/user/irian/lab/tree/dest/hello.txt"
+    cr = _copy_and_guide(inp)
+    assert cr.status_code == 200
+    assert cr.dest == "dest/hello.txt"
     assert outf.exists()
     assert outf.read_text() == contents
 
-    cr = _copy_and_redir(inp)
+    cr = _copy_and_guide(inp)
     assert cr.status_code == 409
-    assert cr.redirect is None
+    assert cr.dest is None
 
     inp["disposition"] = "abort"
 
-    cr = _copy_and_redir(inp)
+    cr = _copy_and_guide(inp)
     assert cr.status_code == 204
-    assert cr.redirect is None
+    assert cr.dest is None
 
     new_contents = "Greetings, globe!\n"
 
@@ -62,9 +61,9 @@ def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     inp["disposition"] = "overwrite"
 
-    cr = _copy_and_redir(inp)
-    assert cr.status_code == 307
-    assert cr.redirect == "/nb/user/irian/lab/tree/dest/hello.txt"
+    cr = _copy_and_guide(inp)
+    assert cr.status_code == 200
+    assert cr.dest == "dest/hello.txt"
     assert outf.read_text() == new_contents
 
 
@@ -80,16 +79,14 @@ def test_bad_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "dest": f"{tmp_path}/home/irian/hello.txt",
     }
 
-    monkeypatch.delenv("USER")
     monkeypatch.delenv("HOME")
-    with pytest.raises(UserEnvironmentError, match="username"):
-        _ = _copy_and_redir(inp)
-    monkeypatch.setenv("USER", "irian")
-    with pytest.raises(UserEnvironmentError, match="homedir for 'irian'"):
-        _ = _copy_and_redir(inp)
+    with pytest.raises(
+        UserEnvironmentError, match="home directory is not set"
+    ):
+        _ = _copy_and_guide(inp)
     monkeypatch.setenv("HOME", "/nowhere")
     with pytest.raises(
         HierarchyError,
         match="/home/irian/hello.txt' is not contained by '/nowhere'",
     ):
-        _ = _copy_and_redir(inp)
+        _ = _copy_and_guide(inp)
