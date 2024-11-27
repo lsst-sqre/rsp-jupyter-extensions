@@ -114,6 +114,10 @@ select = ["ALL"]
     "PGH003",  # Superclass request() is not well typed
 ]
 
+"rsp_jupyter_extensions/tests/support/fakehome/git/tutorial-notebooks/*" = [
+    "T201",    # Notebooks can use print()
+]
+
 # These are too useful as attributes or methods to allow the conflict with the
 # built-in to rule out their use.
 [lint.flake8-builtins]

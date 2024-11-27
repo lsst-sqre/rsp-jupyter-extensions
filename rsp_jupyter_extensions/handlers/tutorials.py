@@ -173,7 +173,6 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
     stash = homedir / ".cache" / "tutorials.json"
     if not stash.is_file():
         return None
-    stash.parent.mkdir(exist_ok=True)
     mod = datetime.datetime.fromtimestamp(
         stash.stat().st_mtime, tz=datetime.UTC
     )
@@ -374,9 +373,9 @@ class TutorialsMenuHandler(APIHandler):
         )
         # And write a stash
         homedir = _get_homedir()
-        (homedir / ".cache" / "tutorials.json").write_text(
-            json.dumps(self.tutorials.to_primitive())
-        )
+        stash = homedir / ".cache" / "tutorials.json"
+        stash.parent.mkdir(exist_ok=True)
+        stash.write_text(json.dumps(self.tutorials.to_primitive()))
 
     @tornado.web.authenticated
     def get(self) -> None:
