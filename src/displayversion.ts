@@ -92,22 +92,22 @@ export function activateRSPDisplayVersionExtension(
     });
   });
 
+  /**
+   * Make a request to our endpoint to get the version
+   *
+   * @param url - the path for the displayversion extension
+   *
+   * @param init - The GET for the extension
+   *
+   * @param settings - the settings for the current notebook server
+   *
+   * @returns a Promise resolved with the JSON response
+   */
   function apiRequest(
     url: string,
     init: RequestInit,
     settings: ServerConnection.ISettings
   ): Promise<IEnvResponse> {
-    /**
-     * Make a request to our endpoint to get the version
-     *
-     * @param url - the path for the displayversion extension
-     *
-     * @param init - The GET for the extension
-     *
-     * @param settings - the settings for the current notebook server
-     *
-     * @returns a Promise resolved with the JSON response
-     */
     // Fake out URL check in makeRequest
     return ServerConnection.makeRequest(url, init, settings).then(response => {
       if (response.status !== 200) {

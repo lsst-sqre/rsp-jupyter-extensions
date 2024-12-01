@@ -1,5 +1,7 @@
 """Ghostwriter handler, used for redirection bank shots once you've
-started a new lab."""
+started a new lab.
+"""
+
 from jupyter_server.base.handlers import JupyterHandler
 
 
@@ -14,19 +16,27 @@ class GhostwriterHandler(JupyterHandler):
 
     All of this can happen in prepare(), because we don't care what method
     it is.
+
+    Note that this endpoint is *not* an APIHandler, because we're not
+    handing back a JSON document; this is an endpoint for the browser to
+    use to receive a redirection.
     """
 
-    def prepare(self) -> None:
+    def prepare(self) -> None:  # type: ignore[override]
+        # We want to treat this as synchronous.
         self.redirect(self._peel_route())
 
-    def _peel_route(self) -> None:
+    def _peel_route(self) -> str:
         """Return the stuff after '/rubin/ghostwriter' as the top-level
         path.  This will send the requestor back to the original location,
         where this time, the running_lab check will succeed and they will
-        wind up where they should."""
+        wind up where they should.
+        """
         bad_route = "/nb"  # In case of failure, dump to lab?  I guess?
         path = self.request.path
-        self.log.info(f"Ghostwriter method '{self.request.method}'," f" path '{path}'")
+        self.log.info(
+            f"Ghostwriter method '{self.request.method}'," f" path '{path}'"
+        )
         stem = "/rubin/ghostwriter/"
         pos = path.find(stem)
         if pos == -1:

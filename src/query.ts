@@ -118,23 +118,23 @@ function queryDialog(
   });
 }
 
+/**
+ * Make a request to our endpoint to get a pointer to a templated
+ *  notebook for a given query
+ *
+ * @param url - the path for the query extension
+ *
+ * @param init - The POST + body for the extension
+ *
+ * @param settings - the settings for the current notebook server.
+ *
+ * @returns a Promise resolved with the JSON response
+ */
 function apiRequest(
   url: string,
   init: RequestInit,
   settings: ServerConnection.ISettings
 ): Promise<IPathContainer> {
-  /**
-   * Make a request to our endpoint to get a pointer to a templated
-   *  notebook for a given query
-   *
-   * @param url - the path for the query extension
-   *
-   * @param init - The POST + body for the extension
-   *
-   * @param settings - the settings for the current notebook server.
-   *
-   * @returns a Promise resolved with the JSON response
-   */
   // Fake out URL check in makeRequest
   const newSettings = ServerConnection.makeSettings({
     baseUrl: settings.baseUrl,
