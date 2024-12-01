@@ -1,8 +1,6 @@
 /**
  * Namespace for everything
  */
-/*import { Token } from '@lumino/coreutils';*/
-
 export const NS = 'rsp-jupyterlab';
 
 export const PLUGIN_ID = `${NS}:plugin`;

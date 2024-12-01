@@ -373,9 +373,9 @@ class TutorialsMenuHandler(APIHandler):
         )
         # And write a stash
         homedir = _get_homedir()
-        stash = homedir / ".cache" / "tutorials.json"
-        stash.parent.mkdir(exist_ok=True)
-        stash.write_text(json.dumps(self.tutorials.to_primitive()))
+        stashfile = homedir / ".cache" / "tutorials.json"
+        stashfile.parent.mkdir(exist_ok=True)
+        stashfile.write_text(json.dumps(self.tutorials.to_primitive()))
 
     @tornado.web.authenticated
     def get(self) -> None:

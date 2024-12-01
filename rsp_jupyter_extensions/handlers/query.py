@@ -28,7 +28,7 @@ class QueryHandler(APIHandler):
 
     @property
     def rubinquery(self) -> dict[str, str]:
-        """Rubin query parms."""
+        """Rubin query params."""
         return self.settings["rubinquery"]
 
     @tornado.web.authenticated

@@ -140,27 +140,29 @@ function apiGetTutorialsHierarchy(
       console.log(`Response: ${JSON.stringify(data, undefined, 2)}`);
       const h_i = data as ITutorialsHierarchyResponse;
       const tut = new TutorialsHierarchy(h_i);
-      console.log('Created TutorialsHierary from response');
+      console.log('Created TutorialsHierarchy from response');
       console.log('==============================');
       return tut;
     });
   });
 }
 
+/**
+ * Make a request to our endpoint to copy a file into place and open it
+ *
+ * @param settings - the settings for the current notebook server
+ *
+ * @param docManager - the application document manager
+ *
+ * @param entry - the entry corresponding to the file to work with
+ *
+ * @returns a Promise resolved with the JSON response
+ */
 function apiPostTutorialsEntry(
   settings: ServerConnection.ISettings,
   docManager: IDocumentManager,
   entry: TutorialsEntry
 ): void {
-  /**
-   * Make a request to our endpoint to copy a file into place and open it
-   *
-   * @param settings - the settings for the current notebook server
-   *
-   * @param entry - the entry corresponding to the file to work with
-   *
-   * @returns a Promise resolved with the JSON response
-   */
   // Fake out URL check in makeRequest
   console.log(
     `Sending POST to tutorials endpoint with data ${JSON.stringify(
@@ -207,43 +209,44 @@ function apiPostTutorialsEntry(
   });
 }
 
-function overwriteDialog(
+interface IDialogResult {
+  button?: {
+    label: string;
+  };
+}
+
+async function overwriteDialog(
   dest: string,
   manager: IDocumentManager
-): Promise<any> {
-  const options = {
+): Promise<string | void> {
+  const dialogOptions = {
     title: 'Target file exists',
     body: `Overwrite file '${dest}' ?`,
     buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'OVERWRITE' })]
   };
-  console.log('Showing overwrite dialog');
-  return showDialog(options).then(result => {
+
+  try {
+    console.log('Showing overwrite dialog');
+    const result: IDialogResult = await showDialog(dialogOptions);
     if (!result) {
       console.log('No result from queryDialog');
-      return new Promise((res, rej) => {
-        /* Nothing */
-      });
+      return;
     }
     console.log('Result from overwriteDialog: ', result);
     if (!result.button) {
       console.log('No result.button from overwriteDialog');
-      return new Promise((res, rej) => {
-        /* Nothing */
-      });
+      return;
     }
     if (result.button.label === 'OVERWRITE') {
-      console.log(
-        'Got result ',
-        result.button.label,
-        ' from overwriteDialog: OVERWRITE'
-      );
-      return Promise.resolve(result.button.label);
+      console.log(`Got result ${result.button.label} from overwriteDialog`);
+      return result.button.label;
     }
     console.log('Did not get overwriteDialog: OVERWRITE');
-    return new Promise((res, rej) => {
-      /* Nothing */
-    });
-  });
+    return;
+  } catch (error) {
+    console.error(`Error showing overwrite dialog ${error}`);
+    throw new Error(`Failed to show overwrite dialog: ${error}`);
+  }
 }
 
 export function activateRSPTutorialsExtension(
