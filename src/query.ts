@@ -20,7 +20,10 @@ import { PageConfig } from '@jupyterlab/coreutils';
 
 import { Widget } from '@lumino/widgets';
 
+import { LogLevels, logMessage } from './logger';
+
 import * as token from './tokens';
+import { IEnvResponse } from './environment';
 
 /**
  * The command IDs used by the plugin.
@@ -42,9 +45,10 @@ interface IPathContainer {
 export function activateRSPQueryExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
-  docManager: IDocumentManager
+  docManager: IDocumentManager,
+  env: IEnvResponse
 ): void {
-  console.log('rsp-query...loading');
+  logMessage(LogLevels.INFO, null, 'rsp-query...loading');
 
   const svcManager = app.serviceManager;
 
@@ -54,7 +58,7 @@ export function activateRSPQueryExtension(
     label: 'Open from portal query URL...',
     caption: 'Open notebook from supplied portal query URL',
     execute: () => {
-      rubinportalquery(app, docManager, svcManager);
+      rubinportalquery(app, docManager, svcManager, env);
     }
   });
 
@@ -66,7 +70,7 @@ export function activateRSPQueryExtension(
   rubinmenu.title.label = 'Rubin';
   rubinmenu.insertItem(0, menu);
   mainMenu.addMenu(rubinmenu);
-  console.log('rsp-query...loaded');
+  logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
 }
 
 class QueryHandler extends Widget {
@@ -85,7 +89,8 @@ class QueryHandler extends Widget {
 }
 
 function queryDialog(
-  manager: IDocumentManager
+  manager: IDocumentManager,
+  env: IEnvResponse
 ): Promise<string | (() => void) | null> {
   const options = {
     title: 'Query Value',
@@ -95,23 +100,27 @@ function queryDialog(
   };
   return showDialog(options).then(result => {
     if (!result) {
-      console.log('No result from queryDialog');
+      logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
       return new Promise((res, rej) => {
         /* Nothing */
       });
     }
-    console.log('Result from queryDialog: ', result);
+    logMessage(LogLevels.DEBUG, env, `Result from queryDialog: ${result}`);
     if (!result.value) {
-      console.log('No result.value from queryDialog');
+      logMessage(LogLevels.DEBUG, env, 'No result.value from queryDialog');
       return new Promise((res, rej) => {
         /* Nothing */
       });
     }
     if (result.button.label === 'CREATE') {
-      console.log('Got result ', result.value, ' from queryDialog: CREATE');
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `Got result ${result.value} from queryDialog: CREATE`
+      );
       return Promise.resolve(result.value);
     }
-    console.log('Did not get queryDialog: CREATE');
+    logMessage(LogLevels.DEBUG, env, 'Did not get queryDialog: CREATE');
     return new Promise((res, rej) => {
       /* Nothing */
     });
@@ -159,12 +168,13 @@ function apiRequest(
 function rubinportalquery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager
+  svcManager: ServiceManager.IManager,
+  env: IEnvResponse
 ): void {
-  queryDialog(docManager).then(url => {
-    console.log('Query URL is', url);
+  queryDialog(docManager, env).then(url => {
+    logMessage(LogLevels.DEBUG, env, `Query URL is ${url}`);
     if (!url) {
-      console.log('Query URL was null');
+      logMessage(LogLevels.DEBUG, env, 'Query URL was null');
       return new Promise((res, rej) => {
         /* Nothing */
       });

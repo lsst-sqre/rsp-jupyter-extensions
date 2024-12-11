@@ -138,7 +138,7 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
         "-b",
         branch,
         dirname,
-        timeout=30,
+        timeout=60,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git clone {repo_url}@{branch} failed")
@@ -366,10 +366,11 @@ class TutorialsMenuHandler(APIHandler):
             return
         # Need to rebuild the structure.
         res = _get_resident_tutorials()
+        resident_tag = os.getenv("IMAGE_DESCRIPTION", "resident")
         with TemporaryDirectory() as dirname:
             gh = _get_github_tutorials(dirname)
         self.tutorials = Hierarchy(
-            subhierarchies={"latest": gh, "resident": res}
+            subhierarchies={"latest": gh, resident_tag: res}
         )
         # And write a stash
         homedir = _get_homedir()

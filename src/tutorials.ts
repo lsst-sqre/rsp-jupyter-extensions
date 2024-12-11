@@ -20,6 +20,9 @@ import { Menu } from '@lumino/widgets';
 import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import * as token from './tokens';
+import { IEnvResponse } from './environment';
+import { LogLevels, logMessage } from './logger';
+import { apiRequest } from './request';
 
 enum Actions {
   COPY = 'copy',
@@ -67,24 +70,32 @@ interface ITutorialsHierarchyResponse {
 class TutorialsHierarchy implements ITutorialsHierarchyResponse {
   entries: { [name: string]: TutorialsEntry } | null = null;
   subhierarchies: { [name: string]: TutorialsHierarchy } | null = null;
+  env: IEnvResponse | null = null;
 
-  constructor(inp: ITutorialsHierarchyResponse, name: string | null = null) {
+  constructor(
+    inp: ITutorialsHierarchyResponse,
+    name: string | null = null,
+    env: IEnvResponse | null = null
+  ) {
     if (name === null) {
       name = '<unnamed>';
     }
-    console.log(`Building hierarchy ${name}`);
+    this.env = env;
+    logMessage(LogLevels.INFO, this.env, `Building hierarchy ${name}`);
     if (inp.entries !== null) {
       for (const entry in inp.entries) {
-        console.log(`${name} -> entry ${entry}`);
+        logMessage(LogLevels.DEBUG, this.env, `${name} -> entry ${entry}`);
         const e_obj = inp.entries[entry];
         if (e_obj === null) {
-          console.log(`skipping null entry ${entry}`);
+          logMessage(LogLevels.DEBUG, this.env, `skipping null entry ${entry}`);
           continue;
         }
         if (this.entries === null) {
           this.entries = {};
         }
-        console.log(
+        logMessage(
+          LogLevels.DEBUG,
+          this.env,
           `adding entry ${entry}: ${JSON.stringify(e_obj, undefined, 2)}`
         );
         this.entries[entry] = new TutorialsEntry(e_obj);
@@ -92,58 +103,80 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
     }
     if (inp.subhierarchies !== null) {
       const sublist = Object.keys(inp.subhierarchies);
-      console.log(`Subhierarchies: ${sublist}`);
+      logMessage(LogLevels.DEBUG, this.env, `Subhierarchies: ${sublist}`);
       for (const subh of sublist) {
         if (inp.subhierarchies === null) {
-          console.log(`Somehow, subhierarchies is null at ${name}`);
+          logMessage(
+            LogLevels.WARNING,
+            this.env,
+            `Somehow, subhierarchies is null at ${name}`
+          );
           continue;
         }
-        console.log(`${name} -> subhierarchy ${subh}`);
+        logMessage(
+          LogLevels.DEBUG,
+          this.env,
+          `${name} -> subhierarchy ${subh}`
+        );
         const s_obj = inp.subhierarchies[subh];
         if (s_obj === null) {
-          console.log(`skipping null subhierarchy ${subh}`);
+          logMessage(
+            LogLevels.DEBUG,
+            this.env,
+            `skipping null subhierarchy ${subh}`
+          );
           continue;
         }
         if (this.subhierarchies === null) {
           this.subhierarchies = {};
         }
-        console.log(`recurse: new subhierarchy of ${name} ${subh}`);
+        logMessage(
+          LogLevels.DEBUG,
+          env,
+          `recurse: new subhierarchy of ${name} ${subh}`
+        );
         this.subhierarchies[subh] = new TutorialsHierarchy(s_obj, subh);
       }
     }
-    console.log(`hierarchy ${name} built`);
+    logMessage(LogLevels.DEBUG, env, `hierarchy ${name} built`);
   }
 }
 
 function apiGetTutorialsHierarchy(
-  settings: ServerConnection.ISettings
+  settings: ServerConnection.ISettings,
+  env: IEnvResponse
 ): Promise<TutorialsHierarchy> {
   /**
    * Make a request to our endpoint to get the tutorial hierarchy
    *
    * @param settings - the settings for the current notebook server
    *
+   * @param env - the server environment
+   *
    * @returns a Promise resolved with the JSON response
    */
   // Fake out URL check in makeRequest
-  return ServerConnection.makeRequest(
+  return apiRequest(
     PageConfig.getBaseUrl() + 'rubin/tutorials',
     { method: 'GET' },
     settings
-  ).then(response => {
-    if (response.status !== 200) {
-      return response.json().then(data => {
-        throw new ServerConnection.ResponseError(response, data.message);
-      });
-    }
-    return response.json().then(data => {
-      console.log(`Response: ${JSON.stringify(data, undefined, 2)}`);
-      const h_i = data as ITutorialsHierarchyResponse;
-      const tut = new TutorialsHierarchy(h_i);
-      console.log('Created TutorialsHierarchy from response');
-      console.log('==============================');
-      return tut;
-    });
+  ).then(data => {
+    logMessage(
+      LogLevels.DEBUG,
+      env,
+      `Tutorial endpoint response: ${JSON.stringify(data, undefined, 2)}`
+    );
+    // Assure Typescript it will be the right shape.
+    const u_d = data as unknown;
+    const h_i = u_d as ITutorialsHierarchyResponse;
+    const tut = new TutorialsHierarchy(h_i);
+    logMessage(
+      LogLevels.DEBUG,
+      env,
+      'Created TutorialsHierarchy from response'
+    );
+    logMessage(LogLevels.DEBUG, env, '==============================');
+    return tut;
   });
 }
 
@@ -156,15 +189,20 @@ function apiGetTutorialsHierarchy(
  *
  * @param entry - the entry corresponding to the file to work with
  *
+ * @param env - the server environment
+ *
  * @returns a Promise resolved with the JSON response
  */
 function apiPostTutorialsEntry(
   settings: ServerConnection.ISettings,
   docManager: IDocumentManager,
-  entry: TutorialsEntry
+  entry: TutorialsEntry,
+  env: IEnvResponse
 ): void {
   // Fake out URL check in makeRequest
-  console.log(
+  logMessage(
+    LogLevels.DEBUG,
+    env,
     `Sending POST to tutorials endpoint with data ${JSON.stringify(
       entry,
       undefined,
@@ -178,8 +216,8 @@ function apiPostTutorialsEntry(
   ).then(response => {
     if (response.status === 409) {
       // File exists; prompt user
-      overwriteDialog(entry.dest, docManager).then(verb => {
-        console.log(`Dialog result was ${verb}`);
+      overwriteDialog(entry.dest, docManager, env).then(verb => {
+        logMessage(LogLevels.DEBUG, env, `Dialog result was ${verb}`);
         if (verb !== 'OVERWRITE') {
           // Don't do the thing!
           return;
@@ -194,16 +232,20 @@ function apiPostTutorialsEntry(
         } as ITutorialsEntryResponse;
         const newEntry = new TutorialsEntry(newEntryModel);
         // Resubmit response with request to overwrite file.
-        apiPostTutorialsEntry(settings, docManager, newEntry);
+        apiPostTutorialsEntry(settings, docManager, newEntry, env);
         return;
       });
     }
     if (response.status === 307 || response.status === 200) {
       // File got copied.
-      console.log(`Opening file ${entry.dest}`);
+      logMessage(LogLevels.DEBUG, env, `Opening file ${entry.dest}`);
       docManager.openOrReveal(entry.dest);
     } else {
-      console.log(`Unexpected response status ${response.status}`);
+      logMessage(
+        LogLevels.WARNING,
+        env,
+        `Unexpected response status ${response.status}`
+      );
     }
     return;
   });
@@ -217,7 +259,8 @@ interface IDialogResult {
 
 async function overwriteDialog(
   dest: string,
-  manager: IDocumentManager
+  manager: IDocumentManager,
+  env: IEnvResponse
 ): Promise<string | void> {
   const dialogOptions = {
     title: 'Target file exists',
@@ -226,22 +269,26 @@ async function overwriteDialog(
   };
 
   try {
-    console.log('Showing overwrite dialog');
+    logMessage(LogLevels.DEBUG, env, 'Showing overwrite dialog');
     const result: IDialogResult = await showDialog(dialogOptions);
     if (!result) {
-      console.log('No result from queryDialog');
+      logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
       return;
     }
-    console.log('Result from overwriteDialog: ', result);
+    logMessage(LogLevels.DEBUG, env, 'Result from overwriteDialog: ', result);
     if (!result.button) {
-      console.log('No result.button from overwriteDialog');
+      logMessage(LogLevels.DEBUG, env, 'No result.button from overwriteDialog');
       return;
     }
     if (result.button.label === 'OVERWRITE') {
-      console.log(`Got result ${result.button.label} from overwriteDialog`);
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `Got result ${result.button.label} from overwriteDialog`
+      );
       return result.button.label;
     }
-    console.log('Did not get overwriteDialog: OVERWRITE');
+    logMessage(LogLevels.DEBUG, env, 'Did not get overwriteDialog: OVERWRITE');
     return;
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
@@ -252,31 +299,41 @@ async function overwriteDialog(
 export function activateRSPTutorialsExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
-  docManager: IDocumentManager
+  docManager: IDocumentManager,
+  env: IEnvResponse
 ): void {
-  console.log('rsp-tutorials: loading...');
+  logMessage(LogLevels.INFO, env, 'rsp-tutorials: loading...');
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
 
   function buildTutorialsMenu(
     name: string,
     hierarchy: ITutorialsHierarchyResponse,
-    parentmenu: Menu | null
+    parentmenu: Menu | null,
+    env: IEnvResponse
   ): void {
-    console.log(`building tutorials menu for ${name}`);
+    logMessage(LogLevels.DEBUG, env, `building tutorials menu for ${name}`);
     if (parentmenu === null) {
       // Set up submenu
       const { commands } = app;
       const tutorialsmenu = new Menu({ commands });
       tutorialsmenu.title.label = 'Tutorials';
       parentmenu = tutorialsmenu;
-      console.log('set up top level Tutorials menu');
+      logMessage(LogLevels.DEBUG, env, 'set up top level Tutorials menu');
       mainMenu.addMenu(tutorialsmenu);
     } else {
-      console.log(`supplied parent menu=${parentmenu.title.label}`);
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `supplied parent menu=${parentmenu.title.label}`
+      );
     }
     const parent = parentmenu.title.label;
-    console.log(`building tutorials menu ${name}, parent=${parent}`);
+    logMessage(
+      LogLevels.DEBUG,
+      env,
+      `building tutorials menu ${name}, parent=${parent}`
+    );
 
     if (hierarchy.subhierarchies !== null) {
       // Recursively add submenus
@@ -284,27 +341,33 @@ export function activateRSPTutorialsExtension(
         const s_obj = hierarchy.subhierarchies[subh];
         // Skip null or empty entries
         if (s_obj === null) {
-          console.log(`skipping empty hierarchy ${subh}`);
+          logMessage(LogLevels.DEBUG, env, `skipping empty hierarchy ${subh}`);
           continue;
         }
         if (s_obj.entries === null && s_obj.subhierarchies === null) {
-          console.log(
+          logMessage(
+            LogLevels.DEBUG,
+            env,
             `Skipping hierarchy ${subh} with no entries or subhierarchies`
           );
           continue;
         }
-        console.log(`adding submenu ${subh} to ${parent}`);
+        logMessage(LogLevels.DEBUG, env, `adding submenu ${subh} to ${parent}`);
         const { commands } = app;
         const smenu = new Menu({ commands });
         smenu.title.label = subh;
         parentmenu.addItem({ submenu: smenu, type: 'submenu' });
-        console.log(`recurse: hierarchy ${subh}`);
+        logMessage(LogLevels.DEBUG, env, `recurse: hierarchy ${subh}`);
         // Now recurse down new menu/subhierarchy
-        buildTutorialsMenu(subh, s_obj, smenu);
-        console.log(`recursion done; emerged from ${subh}`);
+        buildTutorialsMenu(subh, s_obj, smenu, env);
+        logMessage(
+          LogLevels.DEBUG,
+          env,
+          `recursion done; emerged from ${subh}`
+        );
       }
     }
-    console.log(`done with subhierarchies for ${name}`);
+    logMessage(LogLevels.DEBUG, env, `done with subhierarchies for ${name}`);
 
     if (hierarchy.entries !== null) {
       parentmenu.addItem({ type: 'separator' });
@@ -312,7 +375,9 @@ export function activateRSPTutorialsExtension(
         const { commands } = app;
         const entry_obj = hierarchy.entries[entry];
         const cmdId = `${entry_obj.parent}/${entry_obj.menu_name}`;
-        console.log(
+        logMessage(
+          LogLevels.DEBUG,
+          env,
           `creating command ${cmdId} for entry ${JSON.stringify(
             entry,
             undefined,
@@ -322,29 +387,27 @@ export function activateRSPTutorialsExtension(
         commands.addCommand(cmdId, {
           label: entry,
           execute: () => {
-            apiPostTutorialsEntry(settings, docManager, entry_obj);
+            apiPostTutorialsEntry(settings, docManager, entry_obj, env);
           }
         });
-        console.log(`adding item ${cmdId} to ${parent}`);
+        logMessage(LogLevels.DEBUG, env, `adding item ${cmdId} to ${parent}`);
         parentmenu.addItem({
           command: cmdId,
           type: 'command'
         });
       }
     }
-    console.log(`done with entries for ${name} ; ${parentmenu.title.label}`);
-
-    console.log(`done with ${name}`);
+    logMessage(LogLevels.DEBUG, env, `done with ${name}`);
   }
 
-  apiGetTutorialsHierarchy(settings).then(res => {
+  apiGetTutorialsHierarchy(settings, env).then(res => {
     if (res) {
       const o_res = res as TutorialsHierarchy;
-      buildTutorialsMenu('root', o_res, null);
+      buildTutorialsMenu('root', o_res, null, env);
     }
   });
 
-  console.log('rsp-tutorials: ...loaded.');
+  logMessage(LogLevels.INFO, env, 'rsp-tutorials: ...loaded.');
 }
 
 /**

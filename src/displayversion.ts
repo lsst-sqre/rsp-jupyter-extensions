@@ -6,23 +6,13 @@ import {
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 
-import { PageConfig } from '@jupyterlab/coreutils';
-
-interface IEnvResponse {
-  IMAGE_DESCRIPTION?: string;
-  IMAGE_DIGEST?: string;
-  JUPYTER_IMAGE_SPEC?: string;
-  EXTERNAL_INSTANCE_URL?: string;
-  CPU_LIMIT?: string;
-  MEM_LIMIT?: string;
-  CONTAINER_SIZE?: string;
-}
-
-import { ServerConnection } from '@jupyterlab/services';
-
 import { IStatusBar } from '@jupyterlab/statusbar';
 
 import DisplayLabVersion from './DisplayLabVersion';
+
+import { IEnvResponse } from './environment';
+
+import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 
@@ -31,51 +21,42 @@ import * as token from './tokens';
  */
 export function activateRSPDisplayVersionExtension(
   app: JupyterFrontEnd,
-  statusBar: IStatusBar
+  statusBar: IStatusBar,
+  env: IEnvResponse
 ): void {
-  console.log('RSP DisplayVersion extension: loading...');
+  logMessage(LogLevels.INFO, env, 'rsp-displayversion: loading...');
 
-  const svcManager = app.serviceManager;
-
-  const endpoint = PageConfig.getBaseUrl() + 'rubin/environment';
-  const init = {
-    method: 'GET'
-  };
-  const settings = svcManager.serverSettings;
-
-  apiRequest(endpoint, init, settings).then(res => {
-    const image_description = res.IMAGE_DESCRIPTION || '';
-    const image_digest = res.IMAGE_DIGEST;
-    const image_spec = res.JUPYTER_IMAGE_SPEC;
-    const instance_url = new URL(res.EXTERNAL_INSTANCE_URL || '');
-    const hostname = ' ' + instance_url.hostname;
-    const container_size = res.CONTAINER_SIZE || '';
-    let size = '';
-    if (container_size === '') {
-      size = ' (' + res.CPU_LIMIT + ' CPU, ' + res.MEM_LIMIT + ' B)';
+  const image_description = env.IMAGE_DESCRIPTION || '';
+  const image_digest = env.IMAGE_DIGEST;
+  const image_spec = env.JUPYTER_IMAGE_SPEC;
+  const instance_url = new URL(env.EXTERNAL_INSTANCE_URL || '');
+  const hostname = ' ' + instance_url.hostname;
+  const container_size = env.CONTAINER_SIZE || '';
+  let size = '';
+  if (container_size === '') {
+    size = ' (' + env.CPU_LIMIT + ' CPU, ' + env.MEM_LIMIT + ' B)';
+  } else {
+    size = ' ' + container_size;
+  }
+  let digest_str = '';
+  let imagename = '';
+  if (image_spec) {
+    /* First try to get digest out of image spec (nublado v3) */
+    const imagearr = image_spec.split('/');
+    const pullname = imagearr[imagearr.length - 1];
+    const partsarr = pullname.split('@');
+    if (partsarr.length === 2) {
+      /* Split name and sha; "sha256:" is seven characters */
+      digest_str = ' [' + partsarr[1].substring(7, 7 + 8) + '...]';
+      imagename = ' (' + partsarr[0] + ')';
     } else {
-      size = ' ' + container_size;
+      /* Nothing to split; image name is the name we pulled by */
+      imagename = ' (' + pullname + ')';
     }
-    let digest_str = '';
-    let imagename = '';
-    if (image_spec) {
-      /* First try to get digest out of image spec (nublado v3) */
-      const imagearr = image_spec.split('/');
-      const pullname = imagearr[imagearr.length - 1];
-      const partsarr = pullname.split('@');
-      if (partsarr.length === 2) {
-        /* Split name and sha; "sha256:" is seven characters */
-        digest_str = ' [' + partsarr[1].substring(7, 7 + 8) + '...]';
-        imagename = ' (' + partsarr[0] + ')';
-      } else {
-        /* Nothing to split; image name is the name we pulled by */
-        imagename = ' (' + pullname + ')';
-      }
-      if (digest_str === '' && image_digest) {
-        /* No digest in spec?  Well, did we set IMAGE_DIGEST?
-           Yes, if we are nubladov2. */
-        digest_str = ' [' + image_digest.substring(0, 8) + '...]';
-      }
+    if (digest_str === '' && image_digest) {
+      /* No digest in spec?  Well, did we set IMAGE_DIGEST?
+         Yes, if we are nubladov2. */
+      digest_str = ' [' + image_digest.substring(0, 8) + '...]';
     }
     const label = image_description + digest_str + imagename + size + hostname;
 
@@ -90,36 +71,9 @@ export function activateRSPDisplayVersionExtension(
       rank: 80,
       isActive: () => true
     });
-  });
-
-  /**
-   * Make a request to our endpoint to get the version
-   *
-   * @param url - the path for the displayversion extension
-   *
-   * @param init - The GET for the extension
-   *
-   * @param settings - the settings for the current notebook server
-   *
-   * @returns a Promise resolved with the JSON response
-   */
-  function apiRequest(
-    url: string,
-    init: RequestInit,
-    settings: ServerConnection.ISettings
-  ): Promise<IEnvResponse> {
-    // Fake out URL check in makeRequest
-    return ServerConnection.makeRequest(url, init, settings).then(response => {
-      if (response.status !== 200) {
-        return response.json().then(data => {
-          throw new ServerConnection.ResponseError(response, data.message);
-        });
-      }
-      return response.json();
-    });
   }
 
-  console.log('RSP DisplayVersion extension: ... loaded');
+  logMessage(LogLevels.INFO, env, 'rsp-displayversion: ... loaded');
 }
 
 /**
