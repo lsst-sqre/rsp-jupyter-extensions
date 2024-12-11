@@ -1,26 +1,21 @@
-"""
-This is a Handler Module to provide an endpoint for notebook execution.
-"""
+"""Handler Module to provide an endpoint for notebook execution."""
+
 import json
-from typing import Dict
 
 import nbconvert
 import nbformat
 import tornado
-
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 from nbconvert.preprocessors import CellExecutionError
 
 NBFORMAT_VERSION = 4
 
 
-class ExecutionHandler(JupyterHandler):
-    """
-    RSP templated Execution Handler.
-    """
+class ExecutionHandler(APIHandler):
+    """RSP templated Execution Handler."""
 
     @property
-    def rubinexecution(self) -> Dict[str, str]:
+    def rubinexecution(self) -> dict[str, str]:
         return self.settings["rubinexecution"]
 
     @tornado.web.authenticated

@@ -18,9 +18,10 @@ import { PageConfig } from '@jupyterlab/coreutils';
 
 import { ServiceManager, ServerConnection } from '@jupyterlab/services';
 
-import { each } from '@lumino/algorithm';
+import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
+import { IEnvResponse } from './environment';
 
 /**
  * The command IDs used by the plugin.
@@ -37,9 +38,10 @@ export namespace CommandIDs {
 export function activateRSPSavequitExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
-  docManager: IDocumentManager
+  docManager: IDocumentManager,
+  env: IEnvResponse
 ): void {
-  console.log('rsp-savequit: loading...');
+  logMessage(LogLevels.INFO, null, 'rsp-savequit: loading...');
 
   const svcManager = app.serviceManager;
 
@@ -49,7 +51,7 @@ export function activateRSPSavequitExtension(
     label: 'Exit Without Saving',
     caption: 'Destroy container',
     execute: () => {
-      justQuit(app, docManager, svcManager, false);
+      justQuit(app, docManager, svcManager, false, env);
     }
   });
 
@@ -57,7 +59,7 @@ export function activateRSPSavequitExtension(
     label: 'Save All and Exit',
     caption: 'Save open notebooks and destroy container',
     execute: () => {
-      saveAndQuit(app, docManager, svcManager, false);
+      saveAndQuit(app, docManager, svcManager, false, env);
     }
   });
 
@@ -65,7 +67,7 @@ export function activateRSPSavequitExtension(
     label: 'Save All, Exit, and Log Out',
     caption: 'Save open notebooks, destroy container, and log out',
     execute: () => {
-      saveAndQuit(app, docManager, svcManager, true);
+      saveAndQuit(app, docManager, svcManager, true, env);
     }
   });
 
@@ -79,38 +81,58 @@ export function activateRSPSavequitExtension(
   const rank = 150;
   mainMenu.fileMenu.addGroup(menu, rank);
 
-  console.log('rsp-savequit: ...loaded.');
+  logMessage(LogLevels.INFO, env, 'rsp-savequit: ...loaded.');
 }
 
-function hubDeleteRequest(app: JupyterFrontEnd): Promise<Response> {
+function hubDeleteRequest(
+  app: JupyterFrontEnd,
+  env: IEnvResponse
+): Promise<Response> {
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
   const endpoint = PageConfig.getBaseUrl() + 'rubin/hub';
   const init = {
     method: 'DELETE'
   };
-  console.log('hubRequest: URL: ', endpoint, ' | Settings:', settings);
+  logMessage(
+    LogLevels.DEBUG,
+    env,
+    `savequit: hubRequest URL: ${endpoint} | Settings: ${settings}`
+  );
   return ServerConnection.makeRequest(endpoint, init, settings);
 }
 
 function saveAll(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager
+  svcManager: ServiceManager.IManager,
+  env: IEnvResponse
 ): Promise<any> {
   const promises: Promise<any>[] = [];
-  each(app.shell.widgets('main'), widget => {
+  for (const widget of app.shell.widgets('main')) {
     if (widget) {
       const context = docManager.contextForWidget(widget);
       if (context) {
-        console.log('Saving context for widget:', { id: widget.id });
+        logMessage(
+          LogLevels.DEBUG,
+          env,
+          `Saving context for widget: ${{ id: widget.id }}`
+        );
         promises.push(context.save());
       } else {
-        console.log('No context for widget:', { id: widget.id });
+        logMessage(
+          LogLevels.WARNING,
+          env,
+          `No context for widget: ${{ id: widget.id }}`
+        );
       }
     }
-  });
-  console.log('Waiting for all save-document promises to resolve.');
+  }
+  logMessage(
+    LogLevels.DEBUG,
+    env,
+    'Waiting for all save-document promises to resolve.'
+  );
   let r = Promise.resolve(1);
   if (promises) {
     Promise.all(promises);
@@ -123,17 +145,22 @@ function saveAndQuit(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  logout: boolean
+  logout: boolean,
+  env: IEnvResponse
 ): Promise<any> {
-  infoDialog();
-  const retval = Promise.resolve(saveAll(app, docManager, svcManager));
+  infoDialog(env);
+  const retval = Promise.resolve(saveAll(app, docManager, svcManager, env));
   retval.then(res => {
-    return justQuit(app, docManager, svcManager, logout);
+    return justQuit(app, docManager, svcManager, logout, env);
   });
   retval.catch(err => {
-    console.log('saveAll failed: ', err.message);
+    logMessage(
+      LogLevels.WARNING,
+      env,
+      `savequit: saveAll failed: ${err.message}`
+    );
   });
-  console.log('Save and Quit complete.');
+  logMessage(LogLevels.INFO, env, 'savequit: Save and Quit complete.');
   return retval;
 }
 
@@ -141,17 +168,18 @@ function justQuit(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  logout: boolean
+  logout: boolean,
+  env: IEnvResponse
 ): Promise<any> {
-  infoDialog();
+  infoDialog(env);
   let targetEndpoint = '/';
   if (logout) {
     targetEndpoint = '/logout';
   }
   return Promise.resolve(
-    hubDeleteRequest(app)
+    hubDeleteRequest(app, env)
       .then(() => {
-        console.log('Quit complete.');
+        logMessage(LogLevels.INFO, env, 'Quit complete.');
       })
       .then(() => {
         window.location.replace(targetEndpoint);
@@ -159,14 +187,14 @@ function justQuit(
   );
 }
 
-function infoDialog(): Promise<void> {
+function infoDialog(env: IEnvResponse): Promise<void> {
   const options = {
     title: 'Redirecting to landing page',
     body: 'JupyterLab cleaning up and redirecting to landing page.',
     buttons: [Dialog.okButton({ label: 'Got it!' })]
   };
   return showDialog(options).then(() => {
-    console.log('Info dialog panel displayed');
+    logMessage(LogLevels.DEBUG, env, 'Info dialog panel displayed');
   });
 }
 

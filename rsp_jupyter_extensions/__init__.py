@@ -1,10 +1,11 @@
+from jupyter_server.utils import url_path_join as ujoin
+
 from .handlers.environment import EnvironmentHandler
 from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
 from .handlers.hub import HubHandler
 from .handlers.query import QueryHandler
-
-from jupyter_server.utils import url_path_join as ujoin
+from .handlers.tutorials import TutorialsMenuHandler
 
 try:
     from ._version import __version__
@@ -14,7 +15,9 @@ except ImportError:
     # the package from a stable release or in editable mode: https://pip.pypa.io/en/stable/topics/local-project-installs/#editable-installs
     import warnings
 
-    warnings.warn("Importing 'rsp_jupyter_extensions' outside a proper installation.")
+    warnings.warn(
+        "Importing 'rsp_jupyter_extensions' outside a proper installation."
+    )
     __version__ = "dev"
 
 
@@ -35,6 +38,7 @@ def _setup_handlers(server_app) -> None:
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
         r"/rubin/query": QueryHandler,
+        r"/rubin/tutorials": TutorialsMenuHandler,
     }
 
     # add the baseurl to our paths...
