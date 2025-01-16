@@ -36,10 +36,10 @@ class QueryHandler(APIHandler):
         """POST receives the query type and the query value as a JSON
         object containing "type" and "value" keys.  Each is a string.
 
-        "type" is currently limited to "portal".
+        "type" is currently limited to "tap".
 
-        For a Portal Query, "value" is the URL referring to that query.
-        The interpretation of "value" is query-type dependent.
+        For a TAP query, "value" is the URL or jobref ID referring to that
+        query.   The interpretation of "value" is query-type dependent.
 
         We should have some sort of template service.  For right now, we're
         just going to go with a very dumb string substitution.
@@ -53,22 +53,34 @@ class QueryHandler(APIHandler):
         input_document = json.loads(input_str)
         q_type = input_document["type"]
         q_value = input_document["value"]
-        if q_type != "portal":
-            raise UnsupportedQueryTypeError(
-                f"{q_type} is not a supported query type"
-            )
-        q_fn = self._create_portal_query(q_value)
+        q_fn = self._create_query(q_value, q_type)
         self.write(q_fn)
 
-    def _create_portal_query(self, q_value: str) -> str:
-        # The value should be a URL
-        url = q_value
-        q_id = q_value.split("/")[-1]  # Last component is a unique query ID
-        nb = self._get_portal_query_notebook(url)
+    def _create_query(self, q_value: str, q_type: str) -> str:
+        match q_type:
+            case "tap":
+                return self._create_tap_query(q_value)
+            case _:
+                raise UnsupportedQueryTypeError(
+                    f"{q_type} is not a supported query type"
+                )
+
+    def _create_tap_query(self, q_value: str) -> str:
+        # The value should be a URL or a jobref ID
+        this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "not-an-rsp")
+        if q_value.startswith(this_rsp):
+            # This looks like a URL
+            url = q_value
+            q_id = q_value.split("/")[-1]  # Last component is the jobref ID
+        else:
+            # It's a raw jobref ID
+            url = f"{this_rsp}/api/tap/async/{q_value}"
+            q_id = q_value
+        nb = self._get_tap_query_notebook(url)
         r_qdir = Path("notebooks") / "queries"
         qdir = Path(os.getenv("HOME", "")) / r_qdir
         qdir.mkdir(parents=True, exist_ok=True)
-        fname = f"portal_{q_id}.ipynb"
+        fname = f"tap_{q_id}.ipynb"
         r_fpath = r_qdir / fname
         fpath = qdir / fname
         fpath.write_text(nb)
@@ -85,7 +97,7 @@ class QueryHandler(APIHandler):
         }
         return json.dumps(retval)
 
-    def _get_portal_query_notebook(self, url: str) -> str:
+    def _get_tap_query_notebook(self, url: str) -> str:
         """Ask times-square for a rendered notebook."""
         # These are all constant for this kind of query
         org = "lsst-sqre"
@@ -97,7 +109,7 @@ class QueryHandler(APIHandler):
         # response
         nb_url = f"github/{org}/{repo}/{directory}/{notebook}"
 
-        # The only parameter we have is query_url, which is the Portal query
+        # The only parameter we have is query_url, which is the TAP query
         # URL
         params = {"query_url": url}
 

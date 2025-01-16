@@ -55,10 +55,10 @@ export function activateRSPQueryExtension(
   const { commands } = app;
 
   commands.addCommand(CommandIDs.rubinquery, {
-    label: 'Open from portal query URL...',
-    caption: 'Open notebook from supplied portal query URL',
+    label: 'Open from your query history...',
+    caption: 'Open notebook from supplied query jobref ID or URL',
     execute: () => {
-      rubinportalquery(app, docManager, svcManager, env);
+      rubintapquery(app, docManager, svcManager);
     }
   });
 
@@ -93,7 +93,7 @@ function queryDialog(
   env: IEnvResponse
 ): Promise<string | (() => void) | null> {
   const options = {
-    title: 'Query Value',
+    title: 'Query Jobref ID or URL',
     body: new QueryHandler(),
     focusNodeSelector: 'input',
     buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'CREATE' })]
@@ -165,23 +165,23 @@ function apiRequest(
   });
 }
 
-function rubinportalquery(
+function rubintapquery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse
 ): void {
-  queryDialog(docManager, env).then(url => {
-    logMessage(LogLevels.DEBUG, env, `Query URL is ${url}`);
-    if (!url) {
-      logMessage(LogLevels.DEBUG, env, 'Query URL was null');
+  queryDialog(docManager).then(val => {
+    console.log('Query URL/ID is', val);
+    if (!val) {
+      console.log('Query URL was null');
       return new Promise((res, rej) => {
         /* Nothing */
       });
     }
     const body = JSON.stringify({
-      type: 'portal',
-      value: url
+      type: 'tap',
+      value: val
     });
     const endpoint = PageConfig.getBaseUrl() + 'rubin/query';
     const init = {
@@ -219,7 +219,7 @@ namespace Private {
   export function createQueryNode(): HTMLElement {
     const body = document.createElement('div');
     const qidLabel = document.createElement('label');
-    qidLabel.textContent = 'Enter Query Value';
+    qidLabel.textContent = 'Enter Query Jobref ID or URL';
     const name = document.createElement('input');
     body.appendChild(qidLabel);
     body.appendChild(name);
