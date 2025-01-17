@@ -1,8 +1,9 @@
 """Ghostwriter handler, used for redirection bank shots once you've
 started a new lab.
 """
-
 from jupyter_server.base.handlers import JupyterHandler
+
+from ._utils import _peel_route
 
 
 class GhostwriterHandler(JupyterHandler):
@@ -23,31 +24,15 @@ class GhostwriterHandler(JupyterHandler):
     """
 
     def prepare(self) -> None:  # type: ignore[override]
-        # We want to treat this as synchronous.
-        self.redirect(self._peel_route())
-
-    def _peel_route(self) -> str:
-        """Return the stuff after '/rubin/ghostwriter' as the top-level
-        path.  This will send the requestor back to the original location,
-        where this time, the running_lab check will succeed and they will
-        wind up where they should.
-        """
-        bad_route = "/nb"  # In case of failure, dump to lab?  I guess?
-        path = self.request.path
-        self.log.info(
-            f"Ghostwriter method '{self.request.method}'," f" path '{path}'"
-        )
-        stem = "/rubin/ghostwriter/"
-        pos = path.find(stem)
-        if pos == -1:
-            # We didn't match.
-            return bad_route
-        idx = len(stem) + pos - 1
-        redir = path[idx:]
-        if not redir or redir == "/" or redir.startswith(stem):
+        """Issue a redirect based on the request path."""
+        # the implicit None return can also function as a null coroutine,
+        # and in Python 3.13, "None" becomes a valid return type from it.
+        redir = _peel_route(self.request.path, "/rubin/ghostwriter")
+        if redir:
+            self.redirect(redir)
+        else:
             self.log.warning(
-                f"Request for bad redirection '{redir}';"
-                f" returning '{bad_route}' instead"
+                f"Cannot strip '/rubin/ghostwriter' from '{self.request.path}'"
+                f" ; returning '/nb' instead"
             )
-            return bad_route
-        return redir
+            self.redirect("/nb")

@@ -1,11 +1,11 @@
 """Handler Module to provide an endpoint for notebook execution."""
-
 import json
 
 import nbconvert
 import nbformat
 import tornado
 from jupyter_server.base.handlers import APIHandler
+from jupyter_server.base.handlers import JupyterHandler
 from nbconvert.preprocessors import CellExecutionError
 
 NBFORMAT_VERSION = 4
@@ -59,7 +59,6 @@ class ExecutionHandler(APIHandler):
         executor = nbconvert.preprocessors.ExecutePreprocessor()
         exporter = nbconvert.exporters.NotebookExporter()
 
-        # cf https://github.com/jupyter/nbconvert/blob/\
         #    a1fec27fec84514e83780d524766d9f74e4bb2e3/nbconvert/\
         #    preprocessors/execute.py#L101
         #

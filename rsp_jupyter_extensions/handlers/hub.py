@@ -1,10 +1,10 @@
 """Backend for Gafaelfawr-aware replacement for Hub menu items."""
-
 import os
 from typing import Any
 
 import requests
 import tornado
+
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join as ujoin
 
@@ -45,6 +45,6 @@ class HubHandler(APIHandler):
             return
         endpoint = ujoin(api_url, f"/users/{user}/server")
         # Boom goes the dynamite.
-        self.log.info(f"Requesting DELETE from {endpoint}")
+        self.log.info(f"Requesting hub shutdown from {endpoint}")
         headers = {"Authorization": f"token {token}"}
         requests.delete(endpoint, headers=headers, timeout=30)

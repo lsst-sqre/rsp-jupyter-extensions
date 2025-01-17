@@ -3,7 +3,7 @@
 from typing import Any
 from urllib.parse import urljoin
 
-import lsst.rsp  # type:ignore[import-untyped]
+import lsst.rsp
 import requests
 
 
@@ -42,12 +42,8 @@ class RSPClient(requests.Session):
                 base_path += "/"
             self.base_url = urljoin(instance_url, base_path)
 
-    def request(
-        self,
-        method,
-        url,
-        *args,
-        **kwargs,  # type:ignore
+    def request(  # type: ignore [override]
+        self, method: str|bytes, url: str, *args: Any, **kwargs: Any
     ) -> requests.Response:
         """Potentially rewrite request, relativizing it to self.base_url."""
         # We rely on urllib.parse's urljoin behavior to do the right thing

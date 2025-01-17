@@ -21,7 +21,7 @@ except ImportError:
     __version__ = "dev"
 
 
-def _jupyter_labextension_paths():
+def _jupyter_labextension_paths() -> list[dict[str,str]]:
     return [{"src": "labextension", "dest": "rsp-jupyter-extensions"}]
 
 
@@ -29,7 +29,7 @@ def _jupyter_server_extension_points() -> list[dict[str, str]]:
     return [{"module": "rsp_jupyter_extensions"}]
 
 
-def _setup_handlers(server_app) -> None:
+def _setup_handlers(server_app) -> None:  # type: ignore
     """Sets up the route handlers to call the appropriate functionality."""
     web_app = server_app.web_app
     extmap = {
@@ -37,6 +37,7 @@ def _setup_handlers(server_app) -> None:
         r"/rubin/execution": ExecutionHandler,
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
+        r"/rubin/query($|/$|.*)": QueryHandler,
         r"/rubin/query": QueryHandler,
         r"/rubin/tutorials": TutorialsMenuHandler,
     }
@@ -50,7 +51,7 @@ def _setup_handlers(server_app) -> None:
     web_app.add_handlers(host_pattern, handlers)
 
 
-def _load_jupyter_server_extension(server_app) -> None:
+def _load_jupyter_server_extension(server_app) -> None:  # type: ignore
     """Registers the API handler to receive HTTP requests from the frontend extension.
 
     Parameters

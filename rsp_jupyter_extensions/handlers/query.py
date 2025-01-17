@@ -1,30 +1,35 @@
-"""Handler Module to provide an endpoint for templated TAP queries."""
-
+"""Handler Module to provide an endpoint for templated queries."""
 import json
 import os
 from pathlib import Path
+from typing import Any
+from uuid import uuid4
 
 import tornado
-from jupyter_server.base.handlers import APIHandler
+import xmltodict
+from jupyter_server.base.handlers import JupyterHandler
+from lsst.rsp import get_query_history
 
 from ._rspclient import RSPClient
+from ._utils import _peel_route, _write_notebook_response
 
 
 class UnsupportedQueryTypeError(Exception):
-    """Unsupported query type."""
+    """Request for a query of a type we don't know about."""
 
 
 class UnimplementedQueryResolutionError(Exception):
-    """Query not implemented."""
+    """Request for a query where the parameters are not resolvable."""
 
 
-class QueryHandler(APIHandler):
+class QueryHandler(JupyterHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:
         """Get a client to talk to Portal API."""
         super().initialize()
-        self._client = RSPClient(base_path="times-square/api/v1/")
+        self._ts_client = RSPClient(base_path="times-square/api/v1/")
+        self._tap_client = RSPClient(base_path="/api/tap/")
 
     @property
     def rubinquery(self) -> dict[str, str]:
@@ -32,7 +37,7 @@ class QueryHandler(APIHandler):
         return self.settings["rubinquery"]
 
     @tornado.web.authenticated
-    def post(self) -> None:
+    def post(self, *args: str, **kwargs: str) -> None:
         """POST receives the query type and the query value as a JSON
         object containing "type" and "value" keys.  Each is a string.
 
@@ -77,25 +82,13 @@ class QueryHandler(APIHandler):
             url = f"{this_rsp}/api/tap/async/{q_value}"
             q_id = q_value
         nb = self._get_tap_query_notebook(url)
-        r_qdir = Path("notebooks") / "queries"
-        qdir = Path(os.getenv("HOME", "")) / r_qdir
-        qdir.mkdir(parents=True, exist_ok=True)
-        fname = f"tap_{q_id}.ipynb"
-        r_fpath = r_qdir / fname
-        fpath = qdir / fname
-        fpath.write_text(nb)
-        retval = {
-            "status": 200,
-            "filename": str(fname),
-            "path": str(r_fpath),
-            "url": (
-                os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "")
-                + "/tree/"
-                + str(r_fpath)
-            ),
-            "body": nb,
-        }
-        return json.dumps(retval)
+        fname = (
+            Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
+            / "notebooks"
+            / "queries"
+            / f"tap_{q_id}.ipynb"
+        )
+        return _write_notebook_response(nb, fname)
 
     def _get_tap_query_notebook(self, url: str) -> str:
         """Ask times-square for a rendered notebook."""
@@ -114,10 +107,130 @@ class QueryHandler(APIHandler):
         params = {"query_url": url}
 
         # Get the endpoint for the rendered URL
-        obj = self._client.get(nb_url).json()
+        obj = self._ts_client.get(nb_url).json()
         rendered_url = obj["rendered_url"]
 
         # Retrieve that URL and return the textual response, which is the
         # string representing the rendered notebook "in unicode", which I
         # think means, "a string represented in the default encoding".
-        return self._client.get(rendered_url, params=params).text
+        return self._ts_client.get(rendered_url, params=params).text
+
+    @tornado.web.authenticated
+    async def get(self, *args: str, **kwargs: str) -> None:
+        #
+        # The only supported querytype for now is "tap"
+        #
+        # GET .../<qtype>/<id> will act as if we'd posted a query with
+        #     qytpe and id
+        # GET .../<qtype>/history/<n> will request the last n queries of
+        #     that type.
+        # GET .../<qtype>/notebooks/query_all will create and open a notebook
+        #     that will ask for all queries and yield their jobids.
+
+        path = self.request.path
+        stem = "/rubin/query"
+
+        route = _peel_route(path, stem)
+        if route is None:
+            self.log.warning(f"Cannot strip '{stem}' from '{path}'")
+            raise UnimplementedQueryResolutionError(path)
+        route = route.strip("/")  # Remove leading and trailing slashes.
+        components = route.split("/")
+        if len(components) < 2 or len(components) > 3:
+            self.log.warning(
+                f"Cannot parse query from '{path}' components '{components}'"
+            )
+            raise UnimplementedQueryResolutionError(path)
+        q_type = components[0]
+        match q_type:
+            case "tap":
+                await self._tap_route_get(components[1:])
+            case _:
+                raise UnsupportedQueryTypeError(
+                    f"{q_type} is not a supported query type"
+                )
+
+    async def _tap_route_get(self, components: list[str]) -> None:
+        if components[0] == "history":
+            if len(components) == 1:
+                self.write(self._generate_query_all_notebook())
+                return
+            s_count = components[1]
+            try:
+                count = int(s_count)
+            except ValueError as exc:
+                raise UnimplementedQueryResolutionError(
+                    f"{self.request.path} -> {exc!s}"
+                ) from exc
+            jobs = await get_query_history(count)
+            self.write(self._get_query_text(jobs))
+        if len(components) == 1 and components[0] != "history":
+            query_id = components[0]
+            q_fn = self._create_query(query_id, "tap")
+            self.write(q_fn)
+            return
+        if components[0] == "notebooks" and components[1] == "query_all":
+            self.write(self._generate_query_all_notebook())
+            return
+
+    def _generate_query_all_notebook(self) -> str:
+        # Get this from nublado-seeds, I guess?
+        nbobj:dict[str,Any] = {
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "execution_count": None,
+                    "metadata": {},
+                    "outputs": [],
+                    "source": [
+                        "from lsst.rsp import get_query_history\n",
+                        "hist=await get_query_history()\n"
+                        "hist"
+                    ]
+                }
+            ],
+            "metadata": {
+                "kernelspec": {
+                    "display_name": "LSST",
+                    "name": "lsst"
+                },
+                "language_info": {
+                    "name": ""
+                }
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5
+        }
+        nbobj["cells"][0]["id"] = str(uuid4())
+        output=json.dumps(nbobj)
+        fname = (
+            Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
+            / "notebooks"
+            / "queries"
+            / "tap_query_history.ipynb"
+        )
+        return _write_notebook_response(output, fname)
+
+    def _get_query_text(self, job_ids: list[str]) -> dict[str, str]:
+        """For each job ID, get the query text.  This will be returned
+        to the UI to be used as a hover tooltip.
+        """
+        retval: dict[str, str] = {}
+        self.log.info(f"Requesting query history for {job_ids}")
+        for job in job_ids:
+            resp = self._tap_client.get(f"async/{job}")
+            rc = resp.status_code
+            if rc != 200:
+                self.log.warning(f"job {job} gave status code {rc}")
+                continue
+            obj = xmltodict.parse(resp.text)
+            parms = obj["uws:job"]["uws:parameters"]["uws:parameter"]
+            for parm in parms:
+                if "@id" in parm and parm["@id"] == "QUERY":
+                    qtext = parm.get("#text", None)
+                    self.log.info(f"Query text {qtext}")
+                    if qtext:
+                        retval[job] = qtext
+                        self.log.info(f"{job} -> '{qtext}'")
+                        break
+        return retval

@@ -27,6 +27,7 @@ class EnvironmentHandler(APIHandler):
         self.write(self.dump())
 
     def dump(self) -> str:
+        """Dump the environment as JSON."""
         self._refresh_env()
         return json.dumps(self.env, sort_keys=True, indent=4)
 
