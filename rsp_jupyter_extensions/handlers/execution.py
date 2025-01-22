@@ -5,7 +5,6 @@ import nbconvert
 import nbformat
 import tornado
 from jupyter_server.base.handlers import APIHandler
-from jupyter_server.base.handlers import JupyterHandler
 from nbconvert.preprocessors import CellExecutionError
 
 NBFORMAT_VERSION = 4

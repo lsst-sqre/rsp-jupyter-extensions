@@ -4,7 +4,6 @@ from typing import Any
 
 import requests
 import tornado
-
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join as ujoin
 

@@ -10,16 +10,13 @@ import xmltodict
 from jupyter_server.base.handlers import JupyterHandler
 from lsst.rsp import get_query_history
 
+from ..models.query import (
+    TAPQuery,
+    UnimplementedQueryResolutionError,
+    UnsupportedQueryTypeError,
+)
 from ._rspclient import RSPClient
 from ._utils import _peel_route, _write_notebook_response
-
-
-class UnsupportedQueryTypeError(Exception):
-    """Request for a query of a type we don't know about."""
-
-
-class UnimplementedQueryResolutionError(Exception):
-    """Request for a query where the parameters are not resolvable."""
 
 
 class QueryHandler(JupyterHandler):
@@ -163,7 +160,9 @@ class QueryHandler(JupyterHandler):
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
             jobs = await get_query_history(count)
-            self.write(self._get_query_text(jobs))
+            qtext = self._get_query_text(jobs)
+            q_dicts = [ x.dict() for x in qtext ]
+            self.write(json.dumps(q_dicts))
         if len(components) == 1 and components[0] != "history":
             query_id = components[0]
             q_fn = self._create_query(query_id, "tap")
@@ -211,11 +210,11 @@ class QueryHandler(JupyterHandler):
         )
         return _write_notebook_response(output, fname)
 
-    def _get_query_text(self, job_ids: list[str]) -> dict[str, str]:
+    def _get_query_text(self, job_ids: list[str]) -> list[TAPQuery]:
         """For each job ID, get the query text.  This will be returned
         to the UI to be used as a hover tooltip.
         """
-        retval: dict[str, str] = {}
+        retval: list[TAPQuery] = []
         self.log.info(f"Requesting query history for {job_ids}")
         for job in job_ids:
             resp = self._tap_client.get(f"async/{job}")
@@ -230,7 +229,8 @@ class QueryHandler(JupyterHandler):
                     qtext = parm.get("#text", None)
                     self.log.info(f"Query text {qtext}")
                     if qtext:
-                        retval[job] = qtext
+                        tq=TAPQuery(jobref=job,text=qtext)
+                        retval.append(tq)
                         self.log.info(f"{job} -> '{qtext}'")
                         break
         return retval

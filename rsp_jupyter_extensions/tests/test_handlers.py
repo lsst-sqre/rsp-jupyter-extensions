@@ -1,8 +1,11 @@
+"""Exercise backend handlers."""
 import json
 import os
+from collections.abc import Callable
 
 
-async def test_environment(jp_fetch):  # type:ignore [no-untyped-def]
+async def test_environment(jp_fetch: Callable) -> None:
+    """Test that the environment exists and returns a test key/value."""
     # When
     os.environ["TEST_KEY"] = "test_value"
     response = await jp_fetch("rubin", "environment")

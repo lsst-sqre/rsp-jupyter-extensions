@@ -14,7 +14,7 @@ import {
 
 import { IDocumentManager } from '@jupyterlab/docmanager';
 
-import { ServiceManager, ServerConnection } from '@jupyterlab/services';
+import { ServiceManager } from '@jupyterlab/services';
 
 import { PageConfig } from '@jupyterlab/coreutils';
 
@@ -24,12 +24,16 @@ import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 import { IEnvResponse } from './environment';
+import { apiRequest } from './request';
 
 /**
  * The command IDs used by the plugin.
  */
 export namespace CommandIDs {
-  export const rubinquery = 'rubinquery';
+
+  export const rubinqueryitem = 'rubinqueryitem';
+  export const rubinhistory = 'rubinhistory';
+  export const rubinquerynb = 'rubinquerynb';
 }
 
 /**
@@ -54,21 +58,33 @@ export function activateRSPQueryExtension(
 
   const { commands } = app;
 
-  commands.addCommand(CommandIDs.rubinquery, {
+  commands.addCommand(CommandIDs.rubinqueryitem, {
     label: 'Open from your query history...',
     caption: 'Open notebook from supplied query jobref ID or URL',
     execute: () => {
-      rubintapquery(app, docManager, svcManager);
+      rubintapquery(app, docManager, svcManager, env);
+    }
+  });
+  commands.addCommand(CommandIDs.rubinquerynb, {
+    label: 'All queries',
+    caption: 'Open notebook requesting all query history',
+    execute: () => {
+      rubinqueryallhistory(app, docManager, svcManager, env);
     }
   });
 
   // Add commands and menu itmes.
-  const menu: Menu.IItemOptions = { command: CommandIDs.rubinquery };
+  const querymenu: Menu.IItemOptions = { command: CommandIDs.rubinqueryitem };
   const rubinmenu = new Menu({
     commands
   });
+  const allquerynb: Menu.IItemOptions = { command: CommandIDs.rubinquerynb };
   rubinmenu.title.label = 'Rubin';
-  rubinmenu.insertItem(0, menu);
+
+  rubinmenu.insertItem(10, querymenu);
+  rubinmenu.addItem({ type: "separator" });
+  rubinmenu.insertItem(30, allquerynb);
+
   mainMenu.addMenu(rubinmenu);
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
 }
@@ -127,41 +143,37 @@ function queryDialog(
   });
 }
 
-/**
- * Make a request to our endpoint to get a pointer to a templated
- *  notebook for a given query
- *
- * @param url - the path for the query extension
- *
- * @param init - The POST + body for the extension
- *
- * @param settings - the settings for the current notebook server.
- *
- * @returns a Promise resolved with the JSON response
- */
-function apiRequest(
-  url: string,
-  init: RequestInit,
-  settings: ServerConnection.ISettings
-): Promise<IPathContainer> {
-  // Fake out URL check in makeRequest
-  const newSettings = ServerConnection.makeSettings({
-    baseUrl: settings.baseUrl,
-    appUrl: settings.appUrl,
-    wsUrl: settings.wsUrl,
-    init: settings.init,
-    token: settings.token,
-    Request: settings.Request,
-    Headers: settings.Headers,
-    WebSocket: settings.WebSocket
-  });
-  return ServerConnection.makeRequest(url, init, newSettings).then(response => {
-    if (response.status !== 200) {
-      return response.json().then(data => {
-        throw new ServerConnection.ResponseError(response, data.message);
-      });
-    }
-    return response.json();
+// function rubinqueryrecenthistory(
+//   app: JupyterFrontEnd,
+//   docManager: IDocumentManager,
+//   svcManager: ServiceManager.IManager,
+//   env: IEnvResponse
+// ): void {
+//   const count = 5
+//   const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
+//   const init = {
+//     method: 'GET',
+//   };
+//   const settings = svcManager.serverSettings;
+//   apiRequest(endpoint, init, settings).then(res => { });
+// }
+
+function rubinqueryallhistory(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  svcManager: ServiceManager.IManager,
+  env: IEnvResponse
+): void {
+  const endpoint = PageConfig.getBaseUrl() + 'rubin/query/tap/notebooks/query_all';
+  const init = {
+    method: 'GET',
+  };
+  const settings = svcManager.serverSettings;
+  apiRequest(endpoint, init, settings).then(res => {
+    const path_u = res as unknown;
+    const path_c = path_u as IPathContainer;
+    const path = path_c.path;
+    docManager.open(path);
   });
 }
 
@@ -171,7 +183,7 @@ function rubintapquery(
   svcManager: ServiceManager.IManager,
   env: IEnvResponse
 ): void {
-  queryDialog(docManager).then(val => {
+  queryDialog(docManager, env).then(val => {
     console.log('Query URL/ID is', val);
     if (!val) {
       console.log('Query URL was null');
@@ -190,7 +202,9 @@ function rubintapquery(
     };
     const settings = svcManager.serverSettings;
     apiRequest(endpoint, init, settings).then(res => {
-      const path = res.path;
+      const r_u = res as unknown;
+      const r_p = r_u as IPathContainer;
+      const path = r_p.path;
       docManager.open(path);
     });
     return new Promise((res, rej) => {
