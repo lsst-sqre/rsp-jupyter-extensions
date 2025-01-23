@@ -43,6 +43,23 @@ interface IPathContainer {
   path: string;
 }
 
+interface IRecentQueryResponse {
+  jobref: string;
+  text: string;
+}
+
+class RecentQueryResponse implements IRecentQueryResponse {
+  jobref: string;
+  text: string;
+
+  constructor(inp: IRecentQueryResponse) {
+    (this.jobref = inp.jobref),
+      (this.text = inp.text);
+  }
+}
+
+const RECENTQUERIESINDEX = 50; // Arbitrary
+
 /**
  * Activate the extension.
  */
@@ -55,14 +72,16 @@ export function activateRSPQueryExtension(
   logMessage(LogLevels.INFO, null, 'rsp-query...loading');
 
   const svcManager = app.serviceManager;
-
   const { commands } = app;
+  const rubinmenu = new Menu({
+    commands
+  });
 
   commands.addCommand(CommandIDs.rubinqueryitem, {
     label: 'Open from your query history...',
     caption: 'Open notebook from supplied query jobref ID or URL',
     execute: () => {
-      rubintapquery(app, docManager, svcManager, env);
+      rubintapquery(app, docManager, svcManager, env, rubinmenu);
     }
   });
   commands.addCommand(CommandIDs.rubinquerynb, {
@@ -75,18 +94,32 @@ export function activateRSPQueryExtension(
 
   // Add commands and menu itmes.
   const querymenu: Menu.IItemOptions = { command: CommandIDs.rubinqueryitem };
-  const rubinmenu = new Menu({
-    commands
-  });
   const allquerynb: Menu.IItemOptions = { command: CommandIDs.rubinquerynb };
   rubinmenu.title.label = 'Rubin';
 
   rubinmenu.insertItem(10, querymenu);
-  rubinmenu.addItem({ type: "separator" });
+  rubinmenu.insertItem(20, { type: "separator" });
   rubinmenu.insertItem(30, allquerynb);
-
+  rubinmenu.insertItem(40, { type: "separator" });
+  replaceRecentQueriesMenu(app, docManager, svcManager, rubinmenu);
   mainMenu.addMenu(rubinmenu);
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
+}
+
+function replaceRecentQueriesMenu(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  svcManager: ServiceManager.IManager,
+  rubinmenu: Menu
+): void {
+  const recentquerymenu = getRecentQueryMenu(
+    app,
+    docManager,
+    svcManager,
+    rubinmenu
+  )
+  rubinmenu.removeItemAt(RECENTQUERIESINDEX)
+  rubinmenu.insertItem(RECENTQUERIESINDEX, { submenu: recentquerymenu })
 }
 
 class QueryHandler extends Widget {
@@ -104,29 +137,29 @@ class QueryHandler extends Widget {
   }
 }
 
-function queryDialog(
-  manager: IDocumentManager,
+async function queryDialog(
   env: IEnvResponse
-): Promise<string | (() => void) | null> {
+): Promise<string | void> {
   const options = {
     title: 'Query Jobref ID or URL',
     body: new QueryHandler(),
     focusNodeSelector: 'input',
     buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'CREATE' })]
   };
-  return showDialog(options).then(result => {
+  try {
+    const result = await showDialog(options)
     if (!result) {
       logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
-      return new Promise((res, rej) => {
-        /* Nothing */
-      });
+      return
     }
     logMessage(LogLevels.DEBUG, env, `Result from queryDialog: ${result}`);
     if (!result.value) {
       logMessage(LogLevels.DEBUG, env, 'No result.value from queryDialog');
-      return new Promise((res, rej) => {
-        /* Nothing */
-      });
+      return
+    }
+    if (!result.button) {
+      logMessage(LogLevels.DEBUG, env, 'No result.button from queryDialog');
+      return
     }
     if (result.button.label === 'CREATE') {
       logMessage(
@@ -134,36 +167,69 @@ function queryDialog(
         env,
         `Got result ${result.value} from queryDialog: CREATE`
       );
-      return Promise.resolve(result.value);
+      return result.value;
     }
     logMessage(LogLevels.DEBUG, env, 'Did not get queryDialog: CREATE');
-    return new Promise((res, rej) => {
-      /* Nothing */
-    });
-  });
+    return;
+  } catch (error) {
+    console.error(`Error showing overwrite dialog ${error}`);
+    throw new Error(`Failed to show overwrite dialog: ${error}`);
+  }
 }
 
-// function rubinqueryrecenthistory(
-//   app: JupyterFrontEnd,
-//   docManager: IDocumentManager,
-//   svcManager: ServiceManager.IManager,
-//   env: IEnvResponse
-// ): void {
-//   const count = 5
-//   const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
-//   const init = {
-//     method: 'GET',
-//   };
-//   const settings = svcManager.serverSettings;
-//   apiRequest(endpoint, init, settings).then(res => { });
-// }
+function rubinqueryrecenthistory(
+  svcManager: ServiceManager.IManager,
+): RecentQueryResponse[] {
+  const count = 5
+  const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
+  const init = {
+    method: 'GET',
+  };
+  const settings = svcManager.serverSettings;
+  var retval: RecentQueryResponse[] = []
+  apiRequest(endpoint, init, settings).then(res => {
+    const qr_u = res as unknown;
+    const qr_c = qr_u as IRecentQueryResponse[];
+    qr_c.forEach((qr) => {
+      retval.push(qr)
+    });
+  });
+  return retval;
+}
 
-function rubinqueryallhistory(
+function getRecentQueryMenu(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  svcManager: ServiceManager.IManager,
+  rubinmenu: Menu
+): Menu {
+  const { commands } = app;
+  const retval: Menu = new Menu({ commands })
+  const queries = rubinqueryrecenthistory(svcManager)
+  queries.forEach((qr) => {
+    const submcmdId = `q-${qr.jobref}`
+    commands.addCommand(submcmdId, {
+      label: qr.jobref,
+      execute: () => { openQueryFromJobref(app, docManager, svcManager, qr.jobref, rubinmenu) }
+    });
+    const subm = new Menu({ commands })
+    subm.addItem({
+      command: submcmdId,
+    })
+    subm.title.label = qr.text
+    retval.addItem({
+      submenu: subm,
+    });
+  });
+  return retval;
+}
+
+async function rubinqueryallhistory(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse
-): void {
+): Promise<void> {
   const endpoint = PageConfig.getBaseUrl() + 'rubin/query/tap/notebooks/query_all';
   const init = {
     method: 'GET',
@@ -177,40 +243,59 @@ function rubinqueryallhistory(
   });
 }
 
-function rubintapquery(
+async function rubintapquery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse
-): void {
-  queryDialog(docManager, env).then(val => {
-    console.log('Query URL/ID is', val);
-    if (!val) {
+  env: IEnvResponse,
+  rubinmenu: Menu
+): Promise<void> {
+  try {
+    const jobref = await queryDialog(env)
+    console.log('Query URL/ID is', jobref);
+    if (!jobref) {
       console.log('Query URL was null');
-      return new Promise((res, rej) => {
-        /* Nothing */
-      });
+      return;
     }
-    const body = JSON.stringify({
-      type: 'tap',
-      value: val
-    });
-    const endpoint = PageConfig.getBaseUrl() + 'rubin/query';
-    const init = {
-      method: 'POST',
-      body: body
-    };
-    const settings = svcManager.serverSettings;
-    apiRequest(endpoint, init, settings).then(res => {
-      const r_u = res as unknown;
-      const r_p = r_u as IPathContainer;
-      const path = r_p.path;
-      docManager.open(path);
-    });
-    return new Promise((res, rej) => {
-      /* Nothing */
-    });
+    openQueryFromJobref(
+      app,
+      docManager,
+      svcManager,
+      jobref,
+      rubinmenu
+    )
+  } catch (error) {
+    console.error(`Error performing query ${error}`);
+    throw new Error(`Failed to perform query: ${error}`);
+  };
+};
+
+function openQueryFromJobref(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  svcManager: ServiceManager.IManager,
+  jobref: string,
+  rubinmenu: Menu
+): void {
+  const body = JSON.stringify({
+    type: 'tap',
+    value: jobref
   });
+  const endpoint = PageConfig.getBaseUrl() + 'rubin/query';
+  const init = {
+    method: 'POST',
+    body: body
+  };
+  const settings = svcManager.serverSettings;
+  apiRequest(endpoint, init, settings).then(res => {
+    const r_u = res as unknown;
+    const r_p = r_u as IPathContainer;
+    const path = r_p.path;
+    docManager.open(path);
+  });
+  // Opportunistic update of recent queries, since we just submitted a new
+  // one...
+  replaceRecentQueriesMenu(app, docManager, svcManager, rubinmenu);
 }
 
 /**
