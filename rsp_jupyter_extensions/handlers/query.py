@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import tornado
 import xmltodict
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 from lsst.rsp import get_query_history
 
 from ..models.query import (
@@ -19,7 +19,7 @@ from ._rspclient import RSPClient
 from ._utils import _peel_route, _write_notebook_response
 
 
-class QueryHandler(JupyterHandler):
+class QueryHandler(APIHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:
@@ -27,6 +27,24 @@ class QueryHandler(JupyterHandler):
         super().initialize()
         self._ts_client = RSPClient(base_path="times-square/api/v1/")
         self._tap_client = RSPClient(base_path="/api/tap/")
+        self._cachefile = (Path(os.getenv("JUPYTER_SERVER_ROOT", "")) /
+                           ".cache" / "queries.json" )
+        self._initialize_cache()
+
+    def _initialize_cache(self) -> None:
+        """We get a new instance of the class every time the front end
+        calls the endpoint.  Once a query has been issued, it is immutable.
+        While getting the list of latest queries each time is something we
+        cannot avoid, retrieving the text might be--if we already grabbed
+        that text, we can just return the value from the cache and avoid
+        another trip to TAP.
+        """
+        if not self._cachefile.is_file():
+            self._cache: dict[str, str] = {}
+            self._cachefile.parent.mkdir(exist_ok=True, parents=True)
+            self._cachefile.write_text(json.dumps(self._cache))
+        else:
+            self._cache = json.loads(self._cachefile.read_text())
 
     @property
     def rubinquery(self) -> dict[str, str]:
@@ -34,7 +52,7 @@ class QueryHandler(JupyterHandler):
         return self.settings["rubinquery"]
 
     @tornado.web.authenticated
-    def post(self, *args: str, **kwargs: str) -> None:
+    async def post(self, *args: str, **kwargs: str) -> None:
         """POST receives the query type and the query value as a JSON
         object containing "type" and "value" keys.  Each is a string.
 
@@ -55,19 +73,19 @@ class QueryHandler(JupyterHandler):
         input_document = json.loads(input_str)
         q_type = input_document["type"]
         q_value = input_document["value"]
-        q_fn = self._create_query(q_value, q_type)
+        q_fn = await self._create_query(q_value, q_type)
         self.write(q_fn)
 
-    def _create_query(self, q_value: str, q_type: str) -> str:
+    async def _create_query(self, q_value: str, q_type: str) -> str:
         match q_type:
             case "tap":
-                return self._create_tap_query(q_value)
+                return await self._create_tap_query(q_value)
             case _:
                 raise UnsupportedQueryTypeError(
                     f"{q_type} is not a supported query type"
                 )
 
-    def _create_tap_query(self, q_value: str) -> str:
+    async def _create_tap_query(self, q_value: str) -> str:
         # The value should be a URL or a jobref ID
         this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "not-an-rsp")
         if q_value.startswith(this_rsp):
@@ -85,6 +103,7 @@ class QueryHandler(JupyterHandler):
             / "queries"
             / f"tap_{q_id}.ipynb"
         )
+        await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(nb, fname)
 
     def _get_tap_query_notebook(self, url: str) -> str:
@@ -150,7 +169,7 @@ class QueryHandler(JupyterHandler):
     async def _tap_route_get(self, components: list[str]) -> None:
         if components[0] == "history":
             if len(components) == 1:
-                self.write(self._generate_query_all_notebook())
+                self.write(await self._generate_query_all_notebook())
                 return
             s_count = components[1]
             try:
@@ -165,14 +184,26 @@ class QueryHandler(JupyterHandler):
             self.write(json.dumps(q_dicts))
         if len(components) == 1 and components[0] != "history":
             query_id = components[0]
-            q_fn = self._create_query(query_id, "tap")
+            q_fn = await self._create_query(query_id, "tap")
             self.write(q_fn)
             return
         if components[0] == "notebooks" and components[1] == "query_all":
-            self.write(self._generate_query_all_notebook())
+            self.write(await self._generate_query_all_notebook())
             return
 
-    def _generate_query_all_notebook(self) -> str:
+    async def refresh_query_history(self, count: int =5) -> None:
+        """Get_query_history, but throw away the results.
+
+        The motivation here is that if we are asked to do anything at all,
+        if it is an operation that returns a notebook, that's going to shift
+        the user's attention anyway, so we might as well get our data fresh
+        in hopes of speeding up the next time they actually want to look at
+        recent query history.
+        """
+        jobs = await get_query_history(count)
+        self._get_query_text(jobs)
+
+    async def _generate_query_all_notebook(self) -> str:
         # Get this from nublado-seeds, I guess?
         nbobj:dict[str,Any] = {
             "cells": [
@@ -208,15 +239,24 @@ class QueryHandler(JupyterHandler):
             / "queries"
             / "tap_query_history.ipynb"
         )
+        await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(output, fname)
 
     def _get_query_text(self, job_ids: list[str]) -> list[TAPQuery]:
         """For each job ID, get the query text.  This will be returned
         to the UI to be used as a hover tooltip.
+
+        Each time through, we both get results we already have for the
+        cache, and update the cache if we get new results.
         """
         retval: list[TAPQuery] = []
         self.log.info(f"Requesting query history for {job_ids}")
         for job in job_ids:
+            if job in self._cache:
+                retval.append(
+                    TAPQuery(jobref=job,text=self._cache[job])
+                )
+                continue
             resp = self._tap_client.get(f"async/{job}")
             rc = resp.status_code
             if rc != 200:
@@ -232,5 +272,7 @@ class QueryHandler(JupyterHandler):
                         tq=TAPQuery(jobref=job,text=qtext)
                         retval.append(tq)
                         self.log.info(f"{job} -> '{qtext}'")
+                        self._cache.update({job: qtext})
+                        self._cachefile.write_text(json.dumps(self._cache))
                         break
         return retval
