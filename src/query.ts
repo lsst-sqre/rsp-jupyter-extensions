@@ -30,7 +30,6 @@ import { apiRequest } from './request';
  * The command IDs used by the plugin.
  */
 export namespace CommandIDs {
-
   export const rubinqueryitem = 'rubinqueryitem';
   export const rubinhistory = 'rubinhistory';
   export const rubinquerynb = 'rubinquerynb';
@@ -53,8 +52,7 @@ class RecentQueryResponse implements IRecentQueryResponse {
   text: string;
 
   constructor(inp: IRecentQueryResponse) {
-    (this.jobref = inp.jobref),
-      (this.text = inp.text);
+    (this.jobref = inp.jobref), (this.text = inp.text);
   }
 }
 
@@ -69,7 +67,7 @@ export function activateRSPQueryExtension(
   docManager: IDocumentManager,
   env: IEnvResponse
 ): void {
-  logMessage(LogLevels.INFO, null, 'rsp-query...loading');
+  logMessage(LogLevels.INFO, env, 'rsp-query...loading');
 
   const svcManager = app.serviceManager;
   const { commands } = app;
@@ -98,28 +96,51 @@ export function activateRSPQueryExtension(
   rubinmenu.title.label = 'Rubin';
 
   rubinmenu.insertItem(10, querymenu);
-  rubinmenu.insertItem(20, { type: "separator" });
+  rubinmenu.insertItem(20, { type: 'separator' });
   rubinmenu.insertItem(30, allquerynb);
-  rubinmenu.insertItem(40, { type: "separator" });
-  replaceRecentQueriesMenu(app, docManager, svcManager, rubinmenu);
+  rubinmenu.insertItem(40, { type: 'separator' });
+
+  replaceRecentQueriesMenu(app, docManager, svcManager, env, rubinmenu).then(
+    () => {
+      logMessage(LogLevels.INFO, env, 'recent queries loaded');
+    }
+  );
   mainMenu.addMenu(rubinmenu);
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
 }
 
-function replaceRecentQueriesMenu(
+async function replaceRecentQueriesMenu(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
+  env: IEnvResponse,
   rubinmenu: Menu
-): void {
-  const recentquerymenu = getRecentQueryMenu(
+): Promise<void> {
+  const recentquerymenu = await getRecentQueryMenu(
     app,
     docManager,
     svcManager,
+    env,
     rubinmenu
-  )
-  rubinmenu.removeItemAt(RECENTQUERIESINDEX)
-  rubinmenu.insertItem(RECENTQUERIESINDEX, { submenu: recentquerymenu })
+  );
+  logMessage(
+    LogLevels.INFO,
+    env,
+    `querymenu retrieved; removing item at ${RECENTQUERIESINDEX}`
+  );
+  rubinmenu.removeItemAt(RECENTQUERIESINDEX);
+  logMessage(
+    LogLevels.INFO,
+    env,
+    `inserting querymenu at ${RECENTQUERIESINDEX}`
+  );
+  rubinmenu.insertItem(RECENTQUERIESINDEX,
+    {
+      type: 'submenu',
+      submenu: recentquerymenu
+    }
+  );
+  logMessage(LogLevels.INFO, env, 'inserted querymenu');
 }
 
 class QueryHandler extends Widget {
@@ -137,9 +158,7 @@ class QueryHandler extends Widget {
   }
 }
 
-async function queryDialog(
-  env: IEnvResponse
-): Promise<string | void> {
+async function queryDialog(env: IEnvResponse): Promise<string | void> {
   const options = {
     title: 'Query Jobref ID or URL',
     body: new QueryHandler(),
@@ -147,19 +166,19 @@ async function queryDialog(
     buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'CREATE' })]
   };
   try {
-    const result = await showDialog(options)
+    const result = await showDialog(options);
     if (!result) {
       logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
-      return
+      return;
     }
     logMessage(LogLevels.DEBUG, env, `Result from queryDialog: ${result}`);
     if (!result.value) {
       logMessage(LogLevels.DEBUG, env, 'No result.value from queryDialog');
-      return
+      return;
     }
     if (!result.button) {
       logMessage(LogLevels.DEBUG, env, 'No result.button from queryDialog');
-      return
+      return;
     }
     if (result.button.label === 'CREATE') {
       logMessage(
@@ -177,50 +196,95 @@ async function queryDialog(
   }
 }
 
-function rubinqueryrecenthistory(
+async function rubinqueryrecenthistory(
   svcManager: ServiceManager.IManager,
-): RecentQueryResponse[] {
-  const count = 5
+  env: IEnvResponse
+): Promise<RecentQueryResponse[]> {
+  const count = 5;
   const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
   const init = {
-    method: 'GET',
+    method: 'GET'
   };
+  logMessage(LogLevels.INFO, env, `About to query TAP history at ${endpoint}`);
   const settings = svcManager.serverSettings;
-  var retval: RecentQueryResponse[] = []
-  apiRequest(endpoint, init, settings).then(res => {
+  const retval: RecentQueryResponse[] = [];
+  try {
+    const res = await apiRequest(endpoint, init, settings);
     const qr_u = res as unknown;
     const qr_c = qr_u as IRecentQueryResponse[];
-    qr_c.forEach((qr) => {
-      retval.push(qr)
+    logMessage(
+      LogLevels.INFO,
+      env,
+      `Got query response ${JSON.stringify(qr_c, undefined, 2)}`
+    );
+    qr_c.forEach(qr => {
+      retval.push(qr);
     });
-  });
+  } catch (error) {
+    console.error(`Error showing overwrite dialog ${error}`);
+    throw new Error(`Failed to show overwrite dialog: ${error}`);
+  }
+  logMessage(
+    LogLevels.INFO,
+    env,
+    `rubinqueryrecent history return: ${JSON.stringify(retval, undefined, 2)}`
+  );
   return retval;
 }
 
-function getRecentQueryMenu(
+async function getRecentQueryMenu(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
+  env: IEnvResponse,
   rubinmenu: Menu
-): Menu {
+): Promise<Menu> {
+  logMessage(LogLevels.INFO, env, 'Retrieving recent query menu');
   const { commands } = app;
-  const retval: Menu = new Menu({ commands })
-  const queries = rubinqueryrecenthistory(svcManager)
-  queries.forEach((qr) => {
-    const submcmdId = `q-${qr.jobref}`
-    commands.addCommand(submcmdId, {
-      label: qr.jobref,
-      execute: () => { openQueryFromJobref(app, docManager, svcManager, qr.jobref, rubinmenu) }
+  const retval: Menu = new Menu({ commands });
+  try {
+    const queries = await rubinqueryrecenthistory(svcManager, env);
+    logMessage(
+      LogLevels.INFO,
+      env,
+      `Recent queries: ${JSON.stringify(queries, undefined, 2)}`
+    );
+    queries.forEach(qr => {
+      const submcmdId = `q-${qr.jobref}`;
+      if (!commands.hasCommand(submcmdId)) {
+        // If we haven't added this command before, do so now.
+        commands.addCommand(submcmdId, {
+          label: qr.jobref,
+          execute: () => {
+            openQueryFromJobref(
+              app,
+              docManager,
+              svcManager,
+              env,
+              qr.jobref,
+              rubinmenu
+            );
+          }
+        });
+      }
+      const subm = new Menu({ commands });
+      subm.addItem({
+        command: submcmdId
+      });
+      subm.title.label = qr.text;
+      retval.addItem({
+        submenu: subm
+      });
+      logMessage(LogLevels.DEBUG, env, `Added ${qr.jobref}`);
     });
-    const subm = new Menu({ commands })
-    subm.addItem({
-      command: submcmdId,
-    })
-    subm.title.label = qr.text
-    retval.addItem({
-      submenu: subm,
-    });
-  });
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      env,
+      `Error performing recent query history ${error}`
+    );
+    throw new Error(`Failed to query recent history: ${error}`);
+  }
   return retval;
 }
 
@@ -230,10 +294,12 @@ async function rubinqueryallhistory(
   svcManager: ServiceManager.IManager,
   env: IEnvResponse
 ): Promise<void> {
-  const endpoint = PageConfig.getBaseUrl() + 'rubin/query/tap/notebooks/query_all';
+  const endpoint =
+    PageConfig.getBaseUrl() + 'rubin/query/tap/notebooks/query_all';
   const init = {
-    method: 'GET',
+    method: 'GET'
   };
+  logMessage(LogLevels.INFO, env, 'Opening query-all notebook');
   const settings = svcManager.serverSettings;
   apiRequest(endpoint, init, settings).then(res => {
     const path_u = res as unknown;
@@ -251,32 +317,28 @@ async function rubintapquery(
   rubinmenu: Menu
 ): Promise<void> {
   try {
-    const jobref = await queryDialog(env)
-    console.log('Query URL/ID is', jobref);
+    const jobref = await queryDialog(env);
+    logMessage(LogLevels.INFO, env, `Query URL / ID is ${jobref}`);
     if (!jobref) {
-      console.log('Query URL was null');
+      logMessage(LogLevels.WARNING, env, "Query URL was null'");
       return;
     }
-    openQueryFromJobref(
-      app,
-      docManager,
-      svcManager,
-      jobref,
-      rubinmenu
-    )
+    openQueryFromJobref(app, docManager, svcManager, env, jobref, rubinmenu);
   } catch (error) {
-    console.error(`Error performing query ${error}`);
+    logMessage(LogLevels.ERROR, env, `Error performing query ${error}`);
     throw new Error(`Failed to perform query: ${error}`);
-  };
-};
+  }
+}
 
 function openQueryFromJobref(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
+  env: IEnvResponse,
   jobref: string,
   rubinmenu: Menu
 ): void {
+  logMessage(LogLevels.INFO, env, `Opening query for ${jobref}`);
   const body = JSON.stringify({
     type: 'tap',
     value: jobref
@@ -295,7 +357,7 @@ function openQueryFromJobref(
   });
   // Opportunistic update of recent queries, since we just submitted a new
   // one...
-  replaceRecentQueriesMenu(app, docManager, svcManager, rubinmenu);
+  replaceRecentQueriesMenu(app, docManager, svcManager, env, rubinmenu);
 }
 
 /**
