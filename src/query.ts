@@ -74,73 +74,79 @@ export function activateRSPQueryExtension(
   const rubinmenu = new Menu({
     commands
   });
-
-  commands.addCommand(CommandIDs.rubinqueryitem, {
-    label: 'Open from your query history...',
-    caption: 'Open notebook from supplied query jobref ID or URL',
-    execute: () => {
-      rubintapquery(app, docManager, svcManager, env, rubinmenu);
-    }
-  });
-  commands.addCommand(CommandIDs.rubinquerynb, {
-    label: 'All queries',
-    caption: 'Open notebook requesting all query history',
-    execute: () => {
-      rubinqueryallhistory(app, docManager, svcManager, env);
-    }
-  });
-
-  // Add commands and menu itmes.
-  const querymenu: Menu.IItemOptions = { command: CommandIDs.rubinqueryitem };
-  const allquerynb: Menu.IItemOptions = { command: CommandIDs.rubinquerynb };
+  mainMenu.addMenu(rubinmenu);
   rubinmenu.title.label = 'Rubin';
 
-  rubinmenu.insertItem(10, querymenu);
-  rubinmenu.insertItem(20, { type: 'separator' });
-  rubinmenu.insertItem(30, allquerynb);
-  rubinmenu.insertItem(40, { type: 'separator' });
-
-  replaceRecentQueriesMenu(app, docManager, svcManager, env, rubinmenu).then(
-    () => {
-      logMessage(LogLevels.INFO, env, 'recent queries loaded');
-    }
+  replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).then(
+    () => {}
   );
-  mainMenu.addMenu(rubinmenu);
+
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
 }
 
-async function replaceRecentQueriesMenu(
+async function replaceRubinMenuContents(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse,
   rubinmenu: Menu
 ): Promise<void> {
-  const recentquerymenu = await getRecentQueryMenu(
-    app,
-    docManager,
-    svcManager,
-    env,
-    rubinmenu
-  );
-  logMessage(
-    LogLevels.INFO,
-    env,
-    `querymenu retrieved; removing item at ${RECENTQUERIESINDEX}`
-  );
-  rubinmenu.removeItemAt(RECENTQUERIESINDEX);  // Not working correctly?
-  rubinmenu.update()  // removeItemAt should already do this...
-  logMessage(
-    LogLevels.INFO,
-    env,
-    `inserting querymenu at ${RECENTQUERIESINDEX}`
-  );
-  rubinmenu.insertItem(RECENTQUERIESINDEX, {
-    type: 'submenu',
-    submenu: recentquerymenu
-  });
-  rubinmenu.update()
-  logMessage(LogLevels.INFO, env, 'inserted querymenu');
+  const { commands } = app;
+
+  if (!commands.hasCommand(CommandIDs.rubinqueryitem)) {
+    commands.addCommand(CommandIDs.rubinqueryitem, {
+      label: 'Open from your query history...',
+      caption: 'Open notebook from supplied query jobref ID or URL',
+      execute: () => {
+        rubintapquery(app, docManager, svcManager, env, rubinmenu);
+      }
+    });
+  }
+  if (!commands.hasCommand(CommandIDs.rubinquerynb)) {
+    commands.addCommand(CommandIDs.rubinquerynb, {
+      label: 'All queries',
+      caption: 'Open notebook requesting all query history',
+      execute: () => {
+        rubinqueryallhistory(app, docManager, svcManager, env);
+      }
+    });
+  }
+
+  // Get rid of menu contents
+  rubinmenu.clearItems();
+
+  // Add commands and menu itmes.
+  const querymenu: Menu.IItemOptions = { command: CommandIDs.rubinqueryitem };
+  const allquerynb: Menu.IItemOptions = { command: CommandIDs.rubinquerynb };
+
+  rubinmenu.insertItem(10, querymenu);
+  rubinmenu.insertItem(20, { type: 'separator' });
+  rubinmenu.insertItem(30, allquerynb);
+  rubinmenu.insertItem(40, { type: 'separator' });
+
+  try {
+    const recentquerymenu = await getRecentQueryMenu(
+      app,
+      docManager,
+      svcManager,
+      env,
+      rubinmenu
+    );
+    logMessage(LogLevels.DEBUG, env, 'query menu retrieved');
+    logMessage(
+      LogLevels.DEBUG,
+      env,
+      `inserting querymenu at ${RECENTQUERIESINDEX}`
+    );
+    rubinmenu.insertItem(RECENTQUERIESINDEX, {
+      type: 'submenu',
+      submenu: recentquerymenu
+    });
+  } catch (error) {
+    console.error(`Error getting recent query menu ${error}`);
+    throw new Error(`Failed to get recent query menu: ${error}`);
+  }
+  logMessage(LogLevels.INFO, env, 'inserted recent query menu');
 }
 
 class QueryHandler extends Widget {
@@ -213,7 +219,7 @@ async function rubinqueryrecenthistory(
     const qr_u = res as unknown;
     const qr_c = qr_u as IRecentQueryResponse[];
     logMessage(
-      LogLevels.INFO,
+      LogLevels.DEBUG,
       env,
       `Got query response ${JSON.stringify(qr_c, undefined, 2)}`
     );
@@ -225,7 +231,7 @@ async function rubinqueryrecenthistory(
     throw new Error(`Failed to show overwrite dialog: ${error}`);
   }
   logMessage(
-    LogLevels.INFO,
+    LogLevels.DEBUG,
     env,
     `rubinqueryrecent history return: ${JSON.stringify(retval, undefined, 2)}`
   );
@@ -246,7 +252,7 @@ async function getRecentQueryMenu(
   try {
     const queries = await rubinqueryrecenthistory(svcManager, env);
     logMessage(
-      LogLevels.INFO,
+      LogLevels.DEBUG,
       env,
       `Recent queries: ${JSON.stringify(queries, undefined, 2)}`
     );
@@ -256,7 +262,7 @@ async function getRecentQueryMenu(
       if (!commands.hasCommand(submcmdId)) {
         // If we haven't added this command before, do so now.
         commands.addCommand(submcmdId, {
-          label: qr.jobref,
+          label: qr.text,
           execute: () => {
             openQueryFromJobref(
               app,
@@ -271,7 +277,7 @@ async function getRecentQueryMenu(
       } // Not gonna worry about pruning no-longer-displayed commands.
       // Submenu is a single-item menu
       const subm = new Menu({ commands });
-      subm.title.label = qr.text;
+      subm.title.label = qr.jobref;
       subm.insertItem(0, {
         type: 'command',
         command: submcmdId
@@ -333,7 +339,7 @@ async function rubintapquery(
 ): Promise<void> {
   try {
     const jobref = await queryDialog(env);
-    logMessage(LogLevels.INFO, env, `Query URL / ID is ${jobref}`);
+    logMessage(LogLevels.DEBUG, env, `Query URL / ID is ${jobref}`);
     if (!jobref) {
       logMessage(LogLevels.WARNING, env, "Query URL was null'");
       return;
@@ -370,9 +376,8 @@ function openQueryFromJobref(
     const path = r_p.path;
     docManager.open(path);
   });
-  // Opportunistic update of recent queries, since we just submitted a new
-  // one...
-  replaceRecentQueriesMenu(app, docManager, svcManager, env, rubinmenu);
+  // Opportunistic update of menu, since we just submitted a new query.
+  replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
 }
 
 /**
