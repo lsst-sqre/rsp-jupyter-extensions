@@ -2,8 +2,6 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
-from uuid import uuid4
 
 import tornado
 import xmltodict
@@ -23,7 +21,7 @@ class QueryHandler(APIHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:
-        """Get a client to talk to Portal API."""
+        """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
         self._ts_client = RSPClient(base_path="times-square/api/v1/")
         self._tap_client = RSPClient(base_path="/api/tap/")
@@ -109,30 +107,67 @@ class QueryHandler(APIHandler):
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(nb, fname)
 
-    def _get_tap_query_notebook(self, url: str) -> str:
+    def _get_ts_query_notebook(
+        self,
+        org: str,
+        repo: str,
+        directory: str,
+        notebook: str,
+        params: dict[str,str]
+    ) -> str:
         """Ask times-square for a rendered notebook."""
-        # These are all constant for this kind of query
-        org = "lsst-sqre"
-        repo = "nublado-seeds"
-        directory = "portal"
-        notebook = "query"
-
         # Since we know the path we don't have to crawl the base github
-        # response
+        # response.
         nb_url = f"github/{org}/{repo}/{directory}/{notebook}"
-
-        # The only parameter we have is query_url, which is the TAP query
-        # URL
-        params = {"query_url": url}
 
         # Get the endpoint for the rendered URL
         obj = self._ts_client.get(nb_url).json()
         rendered_url = obj["rendered_url"]
 
         # Retrieve that URL and return the textual response, which is the
-        # string representing the rendered notebook "in unicode", which I
-        # think means, "a string represented in the default encoding".
+        # string representing the rendered notebook "in unicode", which
+        # means "a string represented in the default encoding".
         return self._ts_client.get(rendered_url, params=params).text
+
+
+    def _get_nublado_seeds_notebook(
+        self, notebook: str, params: dict[str,str]
+    ) -> str:
+        """Partially-curried function with invariant parameters filled in."""
+        org = "lsst-sqre"
+        repo = "nublado-seeds"
+        directory = "tap"
+
+        return self._get_ts_query_notebook(
+            org,
+            repo,
+            directory,
+            notebook,
+            params
+        )
+
+    def _get_tap_query_notebook(self, url: str) -> str:
+        """Even-more-curried helper function for TAP query notebook."""
+        notebook = "query"
+        # The only parameter we have is query_url, which is the TAP query
+        # URL
+        params = {"query_url": url}
+
+        return self._get_nublado_seeds_notebook(
+            notebook,
+            params
+        )
+
+    def _get_query_all_notebook(self) -> str:
+        """Even-more-curried helper function for TAP history notebook."""
+        notebook = "history"
+        params: dict[str,str] = {}
+        return self._get_nublado_seeds_notebook(
+            notebook,
+            params
+        )
+
+
 
     @tornado.web.authenticated
     async def get(self, *args: str, **kwargs: str) -> None:
@@ -207,35 +242,7 @@ class QueryHandler(APIHandler):
         self._get_query_text(jobs)
 
     async def _generate_query_all_notebook(self) -> str:
-        # Get this from nublado-seeds, I guess?
-        nbobj:dict[str,Any] = {
-            "cells": [
-                {
-                    "cell_type": "code",
-                    "execution_count": None,
-                    "metadata": {},
-                    "outputs": [],
-                    "source": [
-                        "from lsst.rsp import get_query_history\n",
-                        "hist=await get_query_history()\n"
-                        "hist"
-                    ]
-                }
-            ],
-            "metadata": {
-                "kernelspec": {
-                    "display_name": "LSST",
-                    "name": "lsst"
-                },
-                "language_info": {
-                    "name": ""
-                }
-            },
-            "nbformat": 4,
-            "nbformat_minor": 5
-        }
-        nbobj["cells"][0]["id"] = str(uuid4())
-        output=json.dumps(nbobj)
+        output = self._get_query_all_notebook()
         fname = (
             Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
             / "notebooks"
