@@ -240,6 +240,7 @@ async function getRecentQueryMenu(
   logMessage(LogLevels.INFO, env, 'Retrieving recent query menu');
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
+  retval.title.label = 'Recent Queries';
   try {
     const queries = await rubinqueryrecenthistory(svcManager, env);
     logMessage(
@@ -247,6 +248,7 @@ async function getRecentQueryMenu(
       env,
       `Recent queries: ${JSON.stringify(queries, undefined, 2)}`
     );
+    let menuindex = 10;
     queries.forEach(qr => {
       const submcmdId = `q-${qr.jobref}`;
       if (!commands.hasCommand(submcmdId)) {
@@ -264,16 +266,29 @@ async function getRecentQueryMenu(
             );
           }
         });
-      }
+      } // Not gonna worry about pruning no-longer-displayed commands.
+      // Submenu is a single-item menu
       const subm = new Menu({ commands });
-      subm.addItem({
+      subm.title.label = qr.text;
+      subm.insertItem(0, {
+        type: 'command',
         command: submcmdId
       });
-      subm.title.label = qr.text;
-      retval.addItem({
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `Added ${submcmdId} to submenu for ${qr.jobref} => ${subm.title.label}`
+      );
+      retval.insertItem(menuindex, {
+        type: 'submenu',
         submenu: subm
       });
-      logMessage(LogLevels.DEBUG, env, `Added ${qr.jobref}`);
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `Added submenu ${qr.jobref} at menuindex ${menuindex} to ${retval.title.label}`
+      );
+      menuindex += 10;
     });
   } catch (error) {
     logMessage(
