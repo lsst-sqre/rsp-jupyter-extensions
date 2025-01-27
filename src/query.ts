@@ -128,7 +128,8 @@ async function replaceRecentQueriesMenu(
     env,
     `querymenu retrieved; removing item at ${RECENTQUERIESINDEX}`
   );
-  rubinmenu.removeItemAt(RECENTQUERIESINDEX);
+  rubinmenu.removeItemAt(RECENTQUERIESINDEX);  // Not working correctly?
+  rubinmenu.update()  // removeItemAt should already do this...
   logMessage(
     LogLevels.INFO,
     env,
@@ -138,6 +139,7 @@ async function replaceRecentQueriesMenu(
     type: 'submenu',
     submenu: recentquerymenu
   });
+  rubinmenu.update()
   logMessage(LogLevels.INFO, env, 'inserted querymenu');
 }
 
