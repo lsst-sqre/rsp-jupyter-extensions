@@ -134,12 +134,10 @@ async function replaceRecentQueriesMenu(
     env,
     `inserting querymenu at ${RECENTQUERIESINDEX}`
   );
-  rubinmenu.insertItem(RECENTQUERIESINDEX,
-    {
-      type: 'submenu',
-      submenu: recentquerymenu
-    }
-  );
+  rubinmenu.insertItem(RECENTQUERIESINDEX, {
+    type: 'submenu',
+    submenu: recentquerymenu
+  });
   logMessage(LogLevels.INFO, env, 'inserted querymenu');
 }
 

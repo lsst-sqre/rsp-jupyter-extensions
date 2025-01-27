@@ -61,13 +61,13 @@ class QueryHandler(APIHandler):
         For a TAP query, "value" is the URL or jobref ID referring to that
         query.   The interpretation of "value" is query-type dependent.
 
-        We should have some sort of template service.  For right now, we're
-        just going to go with a very dumb string substitution.
-
-        It will then use the value to resolve the template, and will write
-        a file with the template resolved under the user's
-        "$HOME/notebooks/queries" directory.  That filename will also be
-        derived from the type and value.
+        It will then use the value to resolve the template, and construct
+        a filename resolved under $JUPYTER_SERVER_ROOT (in the RSP, the
+        same as $HOME).  If that file exists, we will return it, on the
+        grounds that the user has done this particular query before and we
+        want to keep any changes made.  Otherwise we will write a file with
+        the query template resolved, so the user can run it to retrieve
+        results.
         """
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
@@ -96,13 +96,16 @@ class QueryHandler(APIHandler):
             # It's a raw jobref ID
             url = f"{this_rsp}/api/tap/async/{q_value}"
             q_id = q_value
-        nb = self._get_tap_query_notebook(url)
         fname = (
             Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
             / "notebooks"
             / "queries"
             / f"tap_{q_id}.ipynb"
         )
+        if fname.is_file():
+            nb=fname.read_text()
+        else:
+            nb = self._get_tap_query_notebook(url)
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(nb, fname)
 
