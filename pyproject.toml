@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "jinja2",
     "jupyter_server>=2.0.1,<3",
-    "lsst-rsp@git+https://github.com/lsst-sqre/lsst-rsp@tickets/DM-48465",
+    "lsst-rsp>=0.7.0",
     "pydantic",
     "requests",
     "xmltodict"
