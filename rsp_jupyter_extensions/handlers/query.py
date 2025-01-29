@@ -129,9 +129,9 @@ class QueryHandler(APIHandler):
         self, notebook: str, params: dict[str, str]
     ) -> str:
         """Partially-curried function with invariant parameters filled in."""
-        org = "lsst-sqre"
-        repo = "nublado-seeds"
-        directory = "tap"
+        org = os.getenv("NUBLADO_SEEDS_ORG", "lsst-sqre")
+        repo = os.getenv("NUBLADO_SEEDS_REPO", "nublado-seeds")
+        directory = os.getenv("NUBLADO_SEEDS_DIR", "tap")
 
         return self._get_ts_query_notebook(
             org, repo, directory, notebook, params
@@ -200,8 +200,8 @@ class QueryHandler(APIHandler):
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
             jobs = await get_query_history(count)
-            qtext = self._get_query_text(jobs)
-            q_dicts = [x.dict() for x in qtext]
+            qtext = self._get_query_text_list(jobs)
+            q_dicts = [x.model_dump() for x in qtext]
             self.write(json.dumps(q_dicts))
         if len(components) == 1 and components[0] != "history":
             query_id = components[0]
@@ -222,7 +222,7 @@ class QueryHandler(APIHandler):
         recent query history.
         """
         jobs = await get_query_history(count)
-        self._get_query_text(jobs)
+        self._get_query_text_list(jobs)
 
     async def _generate_query_all_notebook(self) -> str:
         output = self._get_query_all_notebook()
@@ -235,7 +235,7 @@ class QueryHandler(APIHandler):
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(output, fname)
 
-    def _get_query_text(self, job_ids: list[str]) -> list[TAPQuery]:
+    def _get_query_text_list(self, job_ids: list[str]) -> list[TAPQuery]:
         """For each job ID, get the query text.  This will be returned
         to the UI to be used as a hover tooltip.
 
@@ -245,25 +245,28 @@ class QueryHandler(APIHandler):
         retval: list[TAPQuery] = []
         self.log.info(f"Requesting query history for {job_ids}")
         for job in job_ids:
-            if job in self._cache:
-                retval.append(TAPQuery(jobref=job, text=self._cache[job]))
-                continue
-            resp = self._tap_client.get(f"async/{job}")
-            rc = resp.status_code
-            if rc != 200:
-                self.log.warning(f"job {job} gave status code {rc}")
-                continue
-            obj = xmltodict.parse(resp.text)
-            parms = obj["uws:job"]["uws:parameters"]["uws:parameter"]
-            for parm in parms:
-                if "@id" in parm and parm["@id"] == "QUERY":
-                    qtext = parm.get("#text", None)
-                    self.log.info(f"Query text {qtext}")
-                    if qtext:
-                        tq = TAPQuery(jobref=job, text=qtext)
-                        retval.append(tq)
-                        self.log.info(f"{job} -> '{qtext}'")
-                        self._cache.update({job: qtext})
-                        self._cachefile.write_text(json.dumps(self._cache))
-                        break
+            try:
+                retval.append(self._get_query_text_job(job))
+            except Exception:
+                self.log.exception(f"job {job} text retrieval failed")
         return retval
+
+    def _get_query_text_job(self, job: str) -> TAPQuery:
+        if job in self._cache:
+            return TAPQuery(jobref=job, text=self._cache[job])
+        resp = self._tap_client.get(f"async/{job}")
+        resp.raise_for_status()
+        # If we didn't get a 200, resp.text probably won't parse, and
+        # we will raise that.
+        obj = xmltodict.parse(resp.text)
+        parms = obj["uws:job"]["uws:parameters"]["uws:parameter"]
+        for parm in parms:
+            if "@id" in parm and parm["@id"] == "QUERY":
+                qtext = parm.get("#text", None)
+                if qtext:
+                    tq = TAPQuery(jobref=job, text=qtext)
+                    self.log.debug(f"{job} -> '{qtext}'")
+                    self._cache.update({job: qtext})
+                    self._cachefile.write_text(json.dumps(self._cache))
+                    return tq
+        raise RuntimeError("Job {job} did not have associated query text")

@@ -77,7 +77,7 @@ export function activateRSPQueryExtension(
   rubinmenu.title.label = 'Rubin';
 
   replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).then(
-    () => { }
+    () => {}
   );
 
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
