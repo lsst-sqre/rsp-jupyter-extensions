@@ -77,7 +77,7 @@ export function activateRSPQueryExtension(
   rubinmenu.title.label = 'Rubin';
 
   replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).then(
-    () => {}
+    () => { }
   );
 
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
@@ -97,7 +97,7 @@ async function replaceRubinMenuContents(
       label: 'Open from your query history...',
       caption: 'Open notebook from supplied query jobref ID or URL',
       execute: () => {
-        rubintapquery(app, docManager, svcManager, env, rubinmenu);
+        rubinTAPQuery(app, docManager, svcManager, env, rubinmenu);
       }
     });
   }
@@ -106,7 +106,7 @@ async function replaceRubinMenuContents(
       label: 'All queries',
       caption: 'Open notebook requesting all query history',
       execute: () => {
-        rubinqueryallhistory(app, docManager, svcManager, env);
+        rubinQueryAllHistory(app, docManager, svcManager, env);
       }
     });
   }
@@ -214,7 +214,7 @@ async function queryDialog(env: IEnvResponse): Promise<string | void> {
   }
 }
 
-async function rubinqueryrecenthistory(
+async function rubinQueryRecentHistory(
   svcManager: ServiceManager.IManager,
   env: IEnvResponse
 ): Promise<RecentQueryResponse[]> {
@@ -262,7 +262,7 @@ async function getRecentQueryMenu(
   const retval: Menu = new Menu({ commands });
   retval.title.label = 'Recent Queries';
   try {
-    const queries = await rubinqueryrecenthistory(svcManager, env);
+    const queries = await rubinQueryRecentHistory(svcManager, env);
     logMessage(
       LogLevels.DEBUG,
       env,
@@ -321,7 +321,7 @@ async function getRecentQueryMenu(
   return retval;
 }
 
-async function rubinqueryallhistory(
+async function rubinQueryAllHistory(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
@@ -342,7 +342,7 @@ async function rubinqueryallhistory(
   });
 }
 
-async function rubintapquery(
+async function rubinTAPQuery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
