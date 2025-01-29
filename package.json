@@ -1,6 +1,6 @@
 {
     "name": "rsp-jupyter-extensions",
-    "version": "0.13.0",
+    "version": "0.14.0",
     "description": "Jupyter Extensions for the Rubin Science Platform",
     "keywords": [
         "jupyter",
