@@ -1,8 +1,10 @@
 """Synchronous RSP Client for use in server extension handlers."""
 
+from typing import Any
 from urllib.parse import urljoin
-import requests
+
 import lsst.rsp
+import requests
 
 
 class RSPClient(requests.Session):
@@ -11,7 +13,7 @@ class RSPClient(requests.Session):
     cf. https://stackoverflow.com/questions/42601812
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         base_path = kwargs.pop("base_path", None)
         super().__init__(*args, **kwargs)
         token = lsst.rsp.get_access_token()
@@ -40,7 +42,9 @@ class RSPClient(requests.Session):
                 base_path += "/"
             self.base_url = urljoin(instance_url, base_path)
 
-    def request(self, method, url, *args, **kwargs) -> requests.Response:
+    def request(  # type: ignore [override]
+        self, method: str | bytes, url: str, *args: Any, **kwargs: Any
+    ) -> requests.Response:
         """Potentially rewrite request, relativizing it to self.base_url."""
         # We rely on urllib.parse's urljoin behavior to do the right thing
         # with absolute URLs.

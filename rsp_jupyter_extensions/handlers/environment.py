@@ -1,30 +1,33 @@
+"""Extract environment variables from Jupyter Server context."""
+
 import json
 import os
-from typing import Dict
+from pathlib import Path
+from typing import Any
 
 import tornado
+from jupyter_server.base.handlers import APIHandler
 
-from jupyter_server.base.handlers import JupyterHandler
 
-
-class EnvironmentHandler(JupyterHandler):
+class EnvironmentHandler(APIHandler):
     """
     Environment Handler.  Return the JSON representation of our OS environment
     settings.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.env = {}
+        self.env: dict[str, str] = {}
         self._refresh_env()
 
     @tornado.web.authenticated
     def get(self) -> None:
-        """ """
+        """Emit environment to calling HTTP client."""
         self.log.info("Sending Rubin settings")
         self.write(self.dump())
 
     def dump(self) -> str:
+        """Dump the environment as JSON."""
         self._refresh_env()
         return json.dumps(self.env, sort_keys=True, indent=4)
 
@@ -40,9 +43,14 @@ class EnvironmentHandler(JupyterHandler):
         #  the OS environment but also by overriding any values with what
         #  we find where our environmental configmap is mounted.
         #
-        loc = "/opt/lsst/software/jupyterlab/environment"  # By convention.
+        loc = Path(
+            os.getenv(
+                "ENVIRONMENT_CONFIGMAP",
+                "/opt/lsst/software/jupyterlab/environment",
+            )
+        )
         try:
-            fns = os.listdir(path=loc)
+            fns = [x.name for x in list(loc.iterdir())]
         except FileNotFoundError:
             # We don't have a mounted environment configmap, so treat it
             # as empty.
@@ -54,12 +62,11 @@ class EnvironmentHandler(JupyterHandler):
                 #  the current configmap, ..<date> points to various revisions,
                 #  and the files are symlinked to ..data/filename
                 continue
-            with open(os.path.join(loc, fn), "r") as f:
-                ev[fn] = f.read()
+            ev[fn] = (Path(loc) / fn).read_text()
         ev.update(self._env_to_dict())
         self.env.update(ev)
 
-    def _env_to_dict(self) -> Dict[str, str]:
+    def _env_to_dict(self) -> dict[str, str]:
         ev = {}
         for var in os.environ:
             ev[var] = os.environ[var]

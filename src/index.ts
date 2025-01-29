@@ -9,13 +9,21 @@ import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import { IDocumentManager } from '@jupyterlab/docmanager';
 
+import { getServerEnvironment } from './environment';
+
 import { activateRSPDisplayVersionExtension } from './displayversion';
 
 import { activateRSPQueryExtension } from './query';
 
 import { activateRSPSavequitExtension } from './savequit';
 
+import { activateRSPTutorialsExtension } from './tutorials';
+
+import { logMessage, LogLevels } from './logger';
+
 import * as token from './tokens';
+
+const ACTIVATETUTORIALSMENU = false; // Not yet ready elsewhere in Rubin.
 
 function activateRSPExtension(
   app: JupyterFrontEnd,
@@ -23,17 +31,57 @@ function activateRSPExtension(
   docManager: IDocumentManager,
   statusBar: IStatusBar
 ): void {
-  console.log('rsp-lab-extension: loading...');
-  console.log('...activating displayversion extension...');
-  activateRSPDisplayVersionExtension(app, statusBar);
-  console.log('...activated...');
-  console.log('...activating savequit extension...');
-  activateRSPSavequitExtension(app, mainMenu, docManager);
-  console.log('...activated...');
-  console.log('...activating query extension...');
-  activateRSPQueryExtension(app, mainMenu, docManager);
-  console.log('...activated...');
-  console.log('...loaded rsp-lab-extension.');
+  logMessage(LogLevels.INFO, null, 'getting server environment...');
+  getServerEnvironment(app).then(env => {
+    logMessage(
+      LogLevels.DEBUG,
+      env,
+      `...env: ${JSON.stringify(env, undefined, 2)}...`
+    );
+    logMessage(LogLevels.INFO, env, '...got server environment');
+    logMessage(LogLevels.INFO, env, 'rsp-lab-extension: loading...');
+    logMessage(
+      LogLevels.INFO,
+      env,
+      '...activating displayversion extension...'
+    );
+    activateRSPDisplayVersionExtension(app, statusBar, env);
+    logMessage(LogLevels.INFO, env, '...activated...');
+    logMessage(LogLevels.INFO, env, '...activating query extension...');
+    if (env.RSP_SITE_TYPE === 'science' || env.RSP_SITE_TYPE === 'staff') {
+      activateRSPQueryExtension(app, mainMenu, docManager, env);
+      logMessage(LogLevels.INFO, env, '...activated...');
+    } else {
+      logMessage(
+        LogLevels.INFO,
+        env,
+        `...skipping query extension because site type is '${env.RSP_SITE_TYPE}'...`
+      );
+    }
+    logMessage(LogLevels.INFO, env, '...activating savequit extension...');
+    activateRSPSavequitExtension(app, mainMenu, docManager, env);
+    logMessage(LogLevels.INFO, env, '...activated...');
+    logMessage(LogLevels.INFO, env, '...activating tutorials extension...');
+    if (ACTIVATETUTORIALSMENU) {
+      if (env.RSP_SITE_TYPE === 'science') {
+        activateRSPTutorialsExtension(app, mainMenu, docManager, env);
+        logMessage(LogLevels.INFO, env, '...activated...');
+      } else {
+        logMessage(
+          LogLevels.INFO,
+          env,
+          `...skipping tutorials extension because site type is '${env.RSP_SITE_TYPE}'...`
+        );
+      }
+    } else {
+      logMessage(
+        LogLevels.INFO,
+        env,
+        '...skipping tutorials extension because it is globally disabled...'
+      );
+    }
+    logMessage(LogLevels.INFO, env, '...loaded rsp-lab-extension.');
+  });
 }
 
 /**

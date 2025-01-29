@@ -1,24 +1,26 @@
+"""Backend for Gafaelfawr-aware replacement for Hub menu items."""
+
 import os
+from typing import Any
 
 import requests
 import tornado
-
-from jupyter_server.base.handlers import JupyterHandler
+from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join as ujoin
 
 
-class HubHandler(JupyterHandler):
+class HubHandler(APIHandler):
     """
     Hub Handler.  Currently all we do is DELETE (to shut down a running Lab
     instance) but we could extend this to do anything in the Hub REST API.
     """
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+
     @property
     def lsstquery(self) -> str:
         return self.settings["lsstquery"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     @tornado.web.authenticated
     def delete(self) -> None:
@@ -29,7 +31,6 @@ class HubHandler(JupyterHandler):
         We will need to make this more clever when and if we have multiple
         named servers.
         """
-
         user = os.environ.get("JUPYTERHUB_USER")
         if not user:
             self.log.warning("User unknown; Hub communication impossible.")
@@ -44,6 +45,6 @@ class HubHandler(JupyterHandler):
             return
         endpoint = ujoin(api_url, f"/users/{user}/server")
         # Boom goes the dynamite.
-        self.log.info("Requesting DELETE from {}".format(endpoint))
+        self.log.info(f"Requesting hub shutdown from {endpoint}")
         headers = {"Authorization": f"token {token}"}
-        requests.delete(endpoint, headers=headers)
+        requests.delete(endpoint, headers=headers, timeout=30)
