@@ -305,7 +305,8 @@ jobs:
 
       - run: |
           mkdir -p dist
-          cp rsp_jupyter_extensions* dist
+          ls -lR
+          cp rsp_jupyter_extensions*.whl rsp_jupyter_extensions*.gz dist
 
       - name: Publish package distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
