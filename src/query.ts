@@ -33,6 +33,7 @@ export namespace CommandIDs {
   export const rubinqueryitem = 'rubinqueryitem';
   export const rubinhistory = 'rubinhistory';
   export const rubinquerynb = 'rubinquerynb';
+  export const rubinqueryrefresh = 'rubinqueryrefresh';
 }
 
 /**
@@ -55,8 +56,6 @@ class RecentQueryResponse implements IRecentQueryResponse {
     (this.jobref = inp.jobref), (this.text = inp.text);
   }
 }
-
-const RECENTQUERIESINDEX = 50; // Arbitrary
 
 /**
  * Activate the extension.
@@ -111,6 +110,15 @@ async function replaceRubinMenuContents(
       }
     });
   }
+  if (!commands.hasCommand(CommandIDs.rubinqueryrefresh)) {
+    commands.addCommand(CommandIDs.rubinqueryrefresh, {
+      label: 'Refresh query history',
+      caption: 'Refresh query history',
+      execute: () => {
+        replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+      }
+    });
+  }
 
   // Get rid of menu contents
   rubinmenu.clearItems();
@@ -118,10 +126,15 @@ async function replaceRubinMenuContents(
   // Add commands and menu itmes.
   const querymenu: Menu.IItemOptions = { command: CommandIDs.rubinqueryitem };
   const allquerynb: Menu.IItemOptions = { command: CommandIDs.rubinquerynb };
+  const queryrefresh: Menu.IItemOptions = {
+    command: CommandIDs.rubinqueryrefresh
+  };
 
   rubinmenu.insertItem(10, querymenu);
+  logMessage(LogLevels.DEBUG, env, 'inserted query dialog menu');
   rubinmenu.insertItem(20, { type: 'separator' });
   rubinmenu.insertItem(30, allquerynb);
+  logMessage(LogLevels.DEBUG, env, 'inserted all-query notebook generator');
   rubinmenu.insertItem(40, { type: 'separator' });
 
   try {
@@ -132,13 +145,9 @@ async function replaceRubinMenuContents(
       env,
       rubinmenu
     );
-    logMessage(LogLevels.DEBUG, env, 'query menu retrieved');
-    logMessage(
-      LogLevels.DEBUG,
-      env,
-      `inserting querymenu at ${RECENTQUERIESINDEX}`
-    );
-    rubinmenu.insertItem(RECENTQUERIESINDEX, {
+    logMessage(LogLevels.DEBUG, env, 'recent query menu retrieved');
+    logMessage(LogLevels.DEBUG, env, 'inserting recent querymenu...');
+    rubinmenu.insertItem(50, {
       type: 'submenu',
       submenu: recentquerymenu
     });
@@ -146,7 +155,10 @@ async function replaceRubinMenuContents(
     console.error(`Error getting recent query menu ${error}`);
     throw new Error(`Failed to get recent query menu: ${error}`);
   }
-  logMessage(LogLevels.INFO, env, 'inserted recent query menu');
+  logMessage(LogLevels.DEBUG, env, '...inserted recent query menu');
+  rubinmenu.insertItem(60, { type: 'separator' });
+  rubinmenu.insertItem(70, queryrefresh);
+  logMessage(LogLevels.DEBUG, env, 'inserted query refresh');
 }
 
 class QueryHandler extends Widget {
