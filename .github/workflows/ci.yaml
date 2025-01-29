@@ -303,5 +303,9 @@ jobs:
         with:
           name: extension-artifacts
 
+      - run: |
+          mkdir -p dist
+          cp rsp_jupyter_extensions* dist
+
       - name: Publish package distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
