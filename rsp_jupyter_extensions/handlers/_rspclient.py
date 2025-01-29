@@ -43,7 +43,7 @@ class RSPClient(requests.Session):
             self.base_url = urljoin(instance_url, base_path)
 
     def request(  # type: ignore [override]
-        self, method: str|bytes, url: str, *args: Any, **kwargs: Any
+        self, method: str | bytes, url: str, *args: Any, **kwargs: Any
     ) -> requests.Response:
         """Potentially rewrite request, relativizing it to self.base_url."""
         # We rely on urllib.parse's urljoin behavior to do the right thing

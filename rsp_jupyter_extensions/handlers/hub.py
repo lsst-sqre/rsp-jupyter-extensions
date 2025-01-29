@@ -1,4 +1,5 @@
 """Backend for Gafaelfawr-aware replacement for Hub menu items."""
+
 import os
 from typing import Any
 

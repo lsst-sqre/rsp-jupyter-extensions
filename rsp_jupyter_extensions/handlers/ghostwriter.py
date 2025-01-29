@@ -1,6 +1,7 @@
 """Ghostwriter handler, used for redirection bank shots once you've
 started a new lab.
 """
+
 from jupyter_server.base.handlers import JupyterHandler
 
 from ._utils import _peel_route

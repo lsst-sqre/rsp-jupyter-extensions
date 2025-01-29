@@ -1,4 +1,5 @@
 """Exercise backend handlers."""
+
 import json
 import os
 from collections.abc import Callable

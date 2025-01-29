@@ -1,4 +1,5 @@
 """Handler Module to provide an endpoint for templated queries."""
+
 import json
 import os
 from pathlib import Path
@@ -25,8 +26,8 @@ class QueryHandler(APIHandler):
         super().initialize()
         self._ts_client = RSPClient(base_path="times-square/api/v1/")
         self._tap_client = RSPClient(base_path="/api/tap/")
-        self._cachefile = (Path(os.getenv("JUPYTER_SERVER_ROOT", "")) /
-                           ".cache" / "queries.json" )
+        self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
+        self._cachefile = self._root_dir / ".cache" / "queries.json"
         self._initialize_cache()
 
     def _initialize_cache(self) -> None:
@@ -59,13 +60,13 @@ class QueryHandler(APIHandler):
         For a TAP query, "value" is the URL or jobref ID referring to that
         query.   The interpretation of "value" is query-type dependent.
 
-        It will then use the value to resolve the template, and construct
-        a filename resolved under $JUPYTER_SERVER_ROOT (in the RSP, the
-        same as $HOME).  If that file exists, we will return it, on the
-        grounds that the user has done this particular query before and we
-        want to keep any changes made.  Otherwise we will write a file with
-        the query template resolved, so the user can run it to retrieve
-        results.
+        It will then use the value to resolve the template, and
+        construct a filename resolved under $JUPYTER_SERVER_ROOT
+        (self._rootdir, and in the RSP, the same as $HOME).  If that
+        file exists, we will return it, on the grounds that the user
+        has done this particular query before and we want to keep any
+        changes made.  Otherwise we will write a file with the query
+        template resolved, so the user can run it to retrieve results.
         """
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
@@ -94,14 +95,9 @@ class QueryHandler(APIHandler):
             # It's a raw jobref ID
             url = f"{this_rsp}/api/tap/async/{q_value}"
             q_id = q_value
-        fname = (
-            Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
-            / "notebooks"
-            / "queries"
-            / f"tap_{q_id}.ipynb"
-        )
+        fname = self._root_dir / "notebooks" / "queries" / f"tap_{q_id}.ipynb"
         if fname.is_file():
-            nb=fname.read_text()
+            nb = fname.read_text()
         else:
             nb = self._get_tap_query_notebook(url)
         await self.refresh_query_history()  # Opportunistic
@@ -113,7 +109,7 @@ class QueryHandler(APIHandler):
         repo: str,
         directory: str,
         notebook: str,
-        params: dict[str,str]
+        params: dict[str, str],
     ) -> str:
         """Ask times-square for a rendered notebook."""
         # Since we know the path we don't have to crawl the base github
@@ -129,9 +125,8 @@ class QueryHandler(APIHandler):
         # means "a string represented in the default encoding".
         return self._ts_client.get(rendered_url, params=params).text
 
-
     def _get_nublado_seeds_notebook(
-        self, notebook: str, params: dict[str,str]
+        self, notebook: str, params: dict[str, str]
     ) -> str:
         """Partially-curried function with invariant parameters filled in."""
         org = "lsst-sqre"
@@ -139,11 +134,7 @@ class QueryHandler(APIHandler):
         directory = "tap"
 
         return self._get_ts_query_notebook(
-            org,
-            repo,
-            directory,
-            notebook,
-            params
+            org, repo, directory, notebook, params
         )
 
     def _get_tap_query_notebook(self, url: str) -> str:
@@ -153,21 +144,13 @@ class QueryHandler(APIHandler):
         # URL
         params = {"query_url": url}
 
-        return self._get_nublado_seeds_notebook(
-            notebook,
-            params
-        )
+        return self._get_nublado_seeds_notebook(notebook, params)
 
     def _get_query_all_notebook(self) -> str:
         """Even-more-curried helper function for TAP history notebook."""
         notebook = "history"
-        params: dict[str,str] = {}
-        return self._get_nublado_seeds_notebook(
-            notebook,
-            params
-        )
-
-
+        params: dict[str, str] = {}
+        return self._get_nublado_seeds_notebook(notebook, params)
 
     @tornado.web.authenticated
     async def get(self, *args: str, **kwargs: str) -> None:
@@ -218,7 +201,7 @@ class QueryHandler(APIHandler):
                 ) from exc
             jobs = await get_query_history(count)
             qtext = self._get_query_text(jobs)
-            q_dicts = [ x.dict() for x in qtext ]
+            q_dicts = [x.dict() for x in qtext]
             self.write(json.dumps(q_dicts))
         if len(components) == 1 and components[0] != "history":
             query_id = components[0]
@@ -229,7 +212,7 @@ class QueryHandler(APIHandler):
             self.write(await self._generate_query_all_notebook())
             return
 
-    async def refresh_query_history(self, count: int =5) -> None:
+    async def refresh_query_history(self, count: int = 5) -> None:
         """Get_query_history, but throw away the results.
 
         The motivation here is that if we are asked to do anything at all,
@@ -244,7 +227,7 @@ class QueryHandler(APIHandler):
     async def _generate_query_all_notebook(self) -> str:
         output = self._get_query_all_notebook()
         fname = (
-            Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
+            self._root_dir
             / "notebooks"
             / "queries"
             / "tap_query_history.ipynb"
@@ -263,9 +246,7 @@ class QueryHandler(APIHandler):
         self.log.info(f"Requesting query history for {job_ids}")
         for job in job_ids:
             if job in self._cache:
-                retval.append(
-                    TAPQuery(jobref=job,text=self._cache[job])
-                )
+                retval.append(TAPQuery(jobref=job, text=self._cache[job]))
                 continue
             resp = self._tap_client.get(f"async/{job}")
             rc = resp.status_code
@@ -279,7 +260,7 @@ class QueryHandler(APIHandler):
                     qtext = parm.get("#text", None)
                     self.log.info(f"Query text {qtext}")
                     if qtext:
-                        tq=TAPQuery(jobref=job,text=qtext)
+                        tq = TAPQuery(jobref=job, text=qtext)
                         retval.append(tq)
                         self.log.info(f"{job} -> '{qtext}'")
                         self._cache.update({job: qtext})
