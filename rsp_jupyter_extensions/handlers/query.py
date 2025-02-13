@@ -112,13 +112,7 @@ class QueryHandler(APIHandler):
         params: dict[str, str],
     ) -> str:
         """Ask times-square for a rendered notebook."""
-        # Since we know the path we don't have to crawl the base github
-        # response.
-        nb_url = f"github/{org}/{repo}/{directory}/{notebook}"
-
-        # Get the endpoint for the rendered URL
-        obj = self._ts_client.get(nb_url).json()
-        rendered_url = obj["rendered_url"]
+        rendered_url = f"github/rendered/{org}/{repo}/{directory}/{notebook}"
 
         # Retrieve that URL and return the textual response, which is the
         # string representing the rendered notebook "in unicode", which
