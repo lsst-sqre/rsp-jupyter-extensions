@@ -93,17 +93,11 @@ def _build_hierarchy(
 
 
 def _find_repo() -> str | None:
-    # Eventually we may not even want to set AUTO_REPO_SPECS...
-    auto_repos = os.getenv("AUTO_REPO_SPECS")
-    if not auto_repos:
-        # This instance doesn't want them
-        return None
-    repos = auto_repos.split(",")
-    for repo in repos:
-        if repo.find("tutorial-notebooks") > -1:
-            break
-    atsign = repo.find("@")
-    if atsign == -1:
+    repo = os.getenv(
+        "TUTORIAL_NOTEBOOKS_URL",
+        "https://github.com/lsst/tutorial-notebooks@main",
+    )
+    if "@" not in repo:
         repo += "@main"
     return repo
 
