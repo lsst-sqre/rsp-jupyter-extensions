@@ -93,9 +93,13 @@ def _build_hierarchy(
 
 
 def _find_repo() -> str | None:
-    return os.getenv(
-        "TUTORIAL_NOTEBOOKS_URL", "https://github.com/lsst/tutorial-notebooks"
+    repo = os.getenv(
+        "TUTORIAL_NOTEBOOKS_URL",
+        "https://github.com/lsst/tutorial-notebooks@main",
     )
+    if "@" not in repo:
+        repo += "@main"
+    return repo
 
 
 def _get_tag() -> str:
