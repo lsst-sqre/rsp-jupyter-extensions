@@ -23,8 +23,6 @@ import { logMessage, LogLevels } from './logger';
 
 import * as token from './tokens';
 
-const ACTIVATETUTORIALSMENU = false; // Not yet ready elsewhere in Rubin.
-
 function activateRSPExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
@@ -62,22 +60,14 @@ function activateRSPExtension(
     activateRSPSavequitExtension(app, mainMenu, docManager, env);
     logMessage(LogLevels.INFO, env, '...activated...');
     logMessage(LogLevels.INFO, env, '...activating tutorials extension...');
-    if (ACTIVATETUTORIALSMENU) {
-      if (env.RSP_SITE_TYPE === 'science') {
-        activateRSPTutorialsExtension(app, mainMenu, docManager, env);
-        logMessage(LogLevels.INFO, env, '...activated...');
-      } else {
-        logMessage(
-          LogLevels.INFO,
-          env,
-          `...skipping tutorials extension because site type is '${env.RSP_SITE_TYPE}'...`
-        );
-      }
+    if (env.RSP_SITE_TYPE === 'science') {
+      activateRSPTutorialsExtension(app, mainMenu, docManager, env);
+      logMessage(LogLevels.INFO, env, '...activated...');
     } else {
       logMessage(
         LogLevels.INFO,
         env,
-        '...skipping tutorials extension because it is globally disabled...'
+        `...skipping tutorials extension because site type is '${env.RSP_SITE_TYPE}'...`
       );
     }
     logMessage(LogLevels.INFO, env, '...loaded rsp-lab-extension.');
