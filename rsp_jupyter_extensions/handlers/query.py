@@ -197,12 +197,7 @@ class QueryHandler(APIHandler):
                 raise UnimplementedQueryResolutionError(
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
-            try:
-                jobs = await get_query_history(count)
-            except KeyError:
-                # No 'uws:jobs' key, or no 'uws:jobref' inside it.
-                self.write(json.dumps([]))
-                return
+            jobs = await get_query_history(count)
             qtext = self._get_query_text_list(jobs)
             q_dicts = [x.model_dump() for x in qtext]
             self.write(json.dumps(q_dicts))
@@ -224,10 +219,7 @@ class QueryHandler(APIHandler):
         in hopes of speeding up the next time they actually want to look at
         recent query history.
         """
-        try:
-            jobs = await get_query_history(count)
-        except KeyError:
-            return
+        jobs = await get_query_history(count)
         self._get_query_text_list(jobs)
 
     async def _generate_query_all_notebook(self) -> str:
