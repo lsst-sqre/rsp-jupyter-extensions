@@ -53,7 +53,7 @@ class RecentQueryResponse implements IRecentQueryResponse {
   text: string;
 
   constructor(inp: IRecentQueryResponse) {
-    (this.jobref = inp.jobref), (this.text = pretty_split(inp.text, 80));
+    (this.jobref = inp.jobref), (this.text = inp.text);
   }
 }
 
@@ -236,7 +236,14 @@ async function rubinQueryRecentHistory(
       `Got query response ${JSON.stringify(qr_c, undefined, 2)}`
     );
     qr_c.forEach(qr => {
-      retval.push(qr);
+      const new_rqr: RecentQueryResponse = new RecentQueryResponse(qr);
+      new_rqr.text = pretty_split(qr.text, 80);
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `query menu entry ${JSON.stringify(new_rqr, undefined, 2)}`
+      );
+      retval.push(new_rqr);
     });
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
