@@ -41,11 +41,12 @@ class QueryHandler(APIHandler):
         if self._cachefile.is_file():
             try:
                 self._cache = json.loads(self._cachefile.read_text())
-            except json.decode.JSONDecodeError:
+            except json.decoder.JSONDecodeError:
                 pass  # Can't read it; invalidate and start over.
             else:
                 return
-        self._cache: dict[str, str] = {}
+        # Invalidate cache.
+        self._cache = {}
         self._cachefile.parent.mkdir(exist_ok=True, parents=True)
         self._cachefile.write_text(json.dumps(self._cache))
 

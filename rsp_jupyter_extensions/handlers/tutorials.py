@@ -155,9 +155,10 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
     # not work (it doesn't respond to its endpoints).
     #
     # So what we do is to check the presence of a serialized hierarchy
-    # in a known location inside the user's homedir.  If it exists and it
-    # is sufficiently new (let's start with 8 hours or less) then we
-    # deserialize it and return that.
+    # in a known location inside the user's homedir.  If it exists, it
+    # is sufficiently new (let's start with 8 hours or less), and it
+    # has a subhierarchy matching the current tag, then we deserialize it
+    # and return that.
     #
     # If it does not exist or is potentially stale...we return None from
     # here, which then allows the clone to proceed, and we rebuild the stash
@@ -174,7 +175,17 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
     age = now - mod
     if age > max_age:
         return None
-    return Hierarchy.from_primitive(json.loads(stash.read_text()))
+    try:
+        tut_obj = json.loads(stash.read_text())
+    except json.decoder.JSONDecodeError:
+        return None
+    resident_tag = os.getenv("IMAGE_DESCRIPTION", "resident")
+    if (
+        "subhierarchies" not in tut_obj
+        or resident_tag not in tut_obj["subhierarchies"]
+    ):
+        return None
+    return Hierarchy.from_primitive(tut_obj)
 
 
 def _get_github_tutorials(dirname: str) -> Hierarchy:
