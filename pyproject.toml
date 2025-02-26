@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    "httpx",
     "jinja2",
     "jupyter_server>=2.0.1,<3",
     "lsst-rsp>=0.7.1",

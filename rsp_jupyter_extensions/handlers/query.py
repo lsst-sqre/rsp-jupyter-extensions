@@ -6,6 +6,7 @@ from pathlib import Path
 
 import tornado
 import xmltodict
+from httpx import ReadTimeout
 from jupyter_server.base.handlers import APIHandler
 from lsst.rsp import get_query_history
 
@@ -198,7 +199,12 @@ class QueryHandler(APIHandler):
                 raise UnimplementedQueryResolutionError(
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
-            jobs = await get_query_history(count)
+            try:
+                jobs = await get_query_history(count)
+            except ReadTimeout:
+                # get_query_history can be weirdly slow
+                self.write(json.dumps([]))
+                return
             qtext = self._get_query_text_list(jobs)
             q_dicts = [x.model_dump() for x in qtext]
             self.write(json.dumps(q_dicts))
@@ -220,8 +226,12 @@ class QueryHandler(APIHandler):
         in hopes of speeding up the next time they actually want to look at
         recent query history.
         """
-        jobs = await get_query_history(count)
-        self._get_query_text_list(jobs)
+        try:
+            jobs = await get_query_history(count)
+            self._get_query_text_list(jobs)
+        except ReadTimeout:
+            # get_query_history can be weirdly slow
+            pass
 
     async def _generate_query_all_notebook(self) -> str:
         output = self._get_query_all_notebook()
