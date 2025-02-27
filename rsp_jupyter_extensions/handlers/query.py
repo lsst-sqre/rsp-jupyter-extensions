@@ -6,6 +6,7 @@ from pathlib import Path
 
 import tornado
 import xmltodict
+from httpx import ReadTimeout
 from jupyter_server.base.handlers import APIHandler
 from lsst.rsp import get_query_history
 
@@ -38,12 +39,17 @@ class QueryHandler(APIHandler):
         that text, we can just return the value from the cache and avoid
         another trip to TAP.
         """
-        if not self._cachefile.is_file():
-            self._cache: dict[str, str] = {}
-            self._cachefile.parent.mkdir(exist_ok=True, parents=True)
-            self._cachefile.write_text(json.dumps(self._cache))
-        else:
-            self._cache = json.loads(self._cachefile.read_text())
+        if self._cachefile.is_file():
+            try:
+                self._cache = json.loads(self._cachefile.read_text())
+            except json.decoder.JSONDecodeError:
+                pass  # Can't read it; invalidate and start over.
+            else:
+                return
+        # Invalidate cache.
+        self._cache = {}
+        self._cachefile.parent.mkdir(exist_ok=True, parents=True)
+        self._cachefile.write_text(json.dumps(self._cache))
 
     @property
     def rubinquery(self) -> dict[str, str]:
@@ -193,7 +199,12 @@ class QueryHandler(APIHandler):
                 raise UnimplementedQueryResolutionError(
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
-            jobs = await get_query_history(count)
+            try:
+                jobs = await get_query_history(count)
+            except ReadTimeout:
+                # get_query_history can be weirdly slow
+                self.write(json.dumps([]))
+                return
             qtext = self._get_query_text_list(jobs)
             q_dicts = [x.model_dump() for x in qtext]
             self.write(json.dumps(q_dicts))
@@ -215,8 +226,12 @@ class QueryHandler(APIHandler):
         in hopes of speeding up the next time they actually want to look at
         recent query history.
         """
-        jobs = await get_query_history(count)
-        self._get_query_text_list(jobs)
+        try:
+            jobs = await get_query_history(count)
+            self._get_query_text_list(jobs)
+        except ReadTimeout:
+            # get_query_history can be weirdly slow
+            pass
 
     async def _generate_query_all_notebook(self) -> str:
         output = self._get_query_all_notebook()
@@ -253,7 +268,10 @@ class QueryHandler(APIHandler):
         # If we didn't get a 200, resp.text probably won't parse, and
         # we will raise that.
         obj = xmltodict.parse(resp.text)
-        parms = obj["uws:job"]["uws:parameters"]["uws:parameter"]
+        try:
+            parms = obj["uws:job"]["uws:parameters"]["uws:parameter"]
+        except KeyError:
+            parms = []
         for parm in parms:
             if "@id" in parm and parm["@id"] == "QUERY":
                 qtext = parm.get("#text", None)

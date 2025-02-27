@@ -236,7 +236,14 @@ async function rubinQueryRecentHistory(
       `Got query response ${JSON.stringify(qr_c, undefined, 2)}`
     );
     qr_c.forEach(qr => {
-      retval.push(qr);
+      const new_rqr: RecentQueryResponse = new RecentQueryResponse(qr);
+      new_rqr.text = pretty_split(qr.text, 80);
+      logMessage(
+        LogLevels.DEBUG,
+        env,
+        `query menu entry ${JSON.stringify(new_rqr, undefined, 2)}`
+      );
+      retval.push(new_rqr);
     });
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
@@ -390,6 +397,52 @@ function openQueryFromJobref(
   });
   // Opportunistic update of menu, since we just submitted a new query.
   replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+}
+
+function pretty_split(input: string, width: number): string {
+  // Split on whitespace or commas by inserting newlines
+  if (input.length <= width) {
+    return input;
+  }
+  let output = '';
+  let head = '';
+  let rest = input;
+  for (;;) {
+    if (rest.length <= width) {
+      output += rest;
+      break;
+    }
+
+    // Set up for each pass through the loop
+    head = rest.substring(0, width);
+    rest = rest.substring(width);
+    const hlen = head.length - 1;
+    let found = false;
+
+    // Walk backwards through head looking for splittable point
+    for (let i = hlen; i >= 0; i--) {
+      const char = head.substring(i, i + 1);
+      if (char === ' ') {
+        // Replace space with newline
+        output += head.substring(0, i) + '\n';
+        found = true;
+        rest = head.substring(i + 1) + rest;
+        break;
+      }
+      if (char === ',') {
+        // Put newline after comma
+        output += head.substring(0, i + 1) + '\n';
+        found = true;
+        rest = head.substring(i + 1) + rest;
+        break;
+      }
+    }
+    if (found === false) {
+      // Break after width chars even if it's mid-word
+      output += head + '\n';
+    }
+  }
+  return output;
 }
 
 /**
