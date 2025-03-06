@@ -190,7 +190,7 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
 
 def _get_github_tutorials(dirname: str) -> Hierarchy:
     homedir = _get_homedir()
-    tutorial_dir = homedir / "notebooks" / "tutorials" / "latest"
+    tutorial_dir = homedir / "notebooks" / "tutorials"
     repo = _find_repo()
     if not repo:
         return Hierarchy()
@@ -218,38 +218,10 @@ def _get_github_tutorials(dirname: str) -> Hierarchy:
 
     return _build_hierarchy(
         dir_obj,
-        parent=Path("/latest"),
+        parent=Path("/"),
         suffix=".ipynb",
         action=Actions.FETCH,
         xform_src=_xform_src,
-        xform_dest=_xform,
-    )
-
-
-def _get_resident_tutorials() -> Hierarchy:
-    homedir = _get_homedir()
-    tag = _get_tag()
-    if not tag:
-        raise TagError("Image tag cannot be determined")
-    tutorial_dir = homedir / "notebooks" / "tutorials" / tag
-    # by convention
-    prefix = Path(
-        os.getenv(
-            "TUTORIAL_NOTEBOOKS_DIR",
-            "/opt/lsst/software/notebooks-at-build-time/tutorial-notebooks",
-        )
-    )
-
-    def _xform(src: Path) -> Path:
-        homedir = _get_homedir()
-        rest = src.relative_to(prefix)
-        return (tutorial_dir / rest).relative_to(homedir)
-
-    return _build_hierarchy(
-        prefix,
-        parent=Path(f"/{tag}"),
-        suffix=".ipynb",
-        action=Actions.COPY,
         xform_dest=_xform,
     )
 
@@ -370,13 +342,8 @@ class TutorialsMenuHandler(APIHandler):
             self.tutorials = stash
             return
         # Need to rebuild the structure.
-        res = _get_resident_tutorials()
-        resident_tag = os.getenv("IMAGE_DESCRIPTION", "resident")
         with TemporaryDirectory() as dirname:
-            gh = _get_github_tutorials(dirname)
-        self.tutorials = Hierarchy(
-            subhierarchies={"latest": gh, resident_tag: res}
-        )
+            self.tutorials = _get_github_tutorials(dirname)
         # And write a stash
         homedir = _get_homedir()
         stashfile = homedir / ".cache" / "tutorials.json"
