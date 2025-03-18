@@ -9,7 +9,7 @@ help:
 .PHONY: init
 init:
 	pip install --upgrade uv
-	uv pip install --editable '.[test]'
+	uv pip install --editable '.[test]' jupyterlab
 	pre-commit install
 
 .PHONY: typing
