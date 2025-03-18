@@ -172,7 +172,7 @@ function justQuit(
   env: IEnvResponse
 ): Promise<any> {
   infoDialog(env);
-  let targetEndpoint = `${env.EXTERNAL_INSTANCE_URL}`
+  let targetEndpoint = `${env.EXTERNAL_INSTANCE_URL}`;
   if (logout) {
     targetEndpoint = targetEndpoint + '/logout';
   }

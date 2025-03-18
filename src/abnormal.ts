@@ -45,29 +45,32 @@ function getDialogBody(env: IEnvResponse): string {
     msg = env.ABNORMAL_STARTUP_MESSAGE;
   }
   let body = `JupyterLab is running in degraded mode: error # ${errno} [${strerror}] "${msg}"`;
-  body = body + '\n\n' + getSupplementalBody(errno)
-  return body
+  body = body + '\n\n' + getSupplementalBody(errno);
+  return body;
 }
 
 function getSupplementalBody(errno: number): string {
-  const no_storage = 'You have run out of storage space. Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.'
-  const no_permission = 'You do not have permission to write.  Ask your RSP site administrator to check ownership and permissions on your directories.';
-  const no_idea = 'Please open an issue with your RSP site administrator with the error number, description, and message shown above.';
+  const no_storage =
+    'You have run out of storage space. Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.';
+  const no_permission =
+    'You do not have permission to write.  Ask your RSP site administrator to check ownership and permissions on your directories.';
+  const no_idea =
+    'Please open an issue with your RSP site administrator with the error number, description, and message shown above.';
   switch (errno) {
-  case 13:
-    return no_permission;
-    break;
-  case 28:
-    return no_storage;
-    break;
-  case 30:
-    return no_permission;
-    break;
-  case 122:
-    return no_storage;
-    break;
-  default:
-    return no_idea;
-    break;
+    case 13:
+      return no_permission;
+      break;
+    case 28:
+      return no_storage;
+      break;
+    case 30:
+      return no_permission;
+      break;
+    case 122:
+      return no_storage;
+      break;
+    default:
+      return no_idea;
+      break;
   }
 }
