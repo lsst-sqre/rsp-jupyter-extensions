@@ -65,8 +65,6 @@ function activateRSPExtension(
         `...skipping query extension because site type is '${env.RSP_SITE_TYPE}'...`
       );
     }
-    logMessage(LogLevels.INFO, env, '...activating savequit extension...');
-    activateRSPSavequitExtension(app, mainMenu, docManager, env);
     logMessage(LogLevels.INFO, env, '...activated...');
     logMessage(LogLevels.INFO, env, '...activating tutorials extension...');
     if (env.RSP_SITE_TYPE === 'science') {
