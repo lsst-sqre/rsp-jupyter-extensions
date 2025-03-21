@@ -34,7 +34,10 @@ class GhostwriterHandler(JupyterHandler):
         #
         # So once we're at Python 3.13, we can remove that type: ignore.
         redir = _peel_route(self.request.path, "/rubin/ghostwriter")
-        ext_url = os.getenv("EXTERNAL_INSTANCE_URL", "http://localhost:8888")
+        # If we don't have EXTERNAL_INSTANCE_URL, we don't have ghostwriter.
+        # Just crash the handler, I guess?  It'll look like a no-op to the
+        # user with some nastiness in the browser console.
+        ext_url = os.environ["EXTERNAL_INSTANCE_URL"]
         if redir:
             # We want to go all the way back out to the top level and
             # hit the external ghostwriter redirect again.

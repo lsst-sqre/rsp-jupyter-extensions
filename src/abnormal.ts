@@ -50,12 +50,18 @@ function getDialogBody(env: IEnvResponse): string {
 }
 
 function getSupplementalBody(errno: number): string {
+  const no_trust = ' This Lab should not be trusted for work you want to keep.';
   const no_storage =
     'You have run out of storage space. Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.';
   const no_permission =
-    'You do not have permission to write.  Ask your RSP site administrator to check ownership and permissions on your directories.';
+    'You do not have permission to write. Ask your RSP site administrator to check ownership and permissions on your directories.' +
+    no_trust;
   const no_idea =
-    'Please open an issue with your RSP site administrator with the error number, description, and message shown above.';
+    'Please open an issue with your RSP site administrator with the error number, description, and message shown above.' +
+    no_trust;
+  const no_environment =
+    'You are missing environment variables necessary for RSP operation. ' +
+    no_idea;
   switch (errno) {
     case 13:
       return no_permission;
@@ -65,6 +71,9 @@ function getSupplementalBody(errno: number): string {
       break;
     case 30:
       return no_permission;
+      break;
+    case 104:
+      return no_environment;
       break;
     case 122:
       return no_storage;
