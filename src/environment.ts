@@ -6,6 +6,7 @@ import { apiRequest, IJSONResponse } from './request';
 // care about.  It's always a string-to-string mapping.
 interface IEnvResponse {
   ABNORMAL_STARTUP?: string;
+  ABNORMAL_STARTUP_ERRORCODE?: string;
   ABNORMAL_STARTUP_ERRNO?: string;
   ABNORMAL_STARTUP_STRERROR?: string;
   ABNORMAL_STARTUP_MESSAGE?: string;

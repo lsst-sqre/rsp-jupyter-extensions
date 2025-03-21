@@ -36,6 +36,11 @@ function getDialogBody(env: IEnvResponse): string {
   if (env.ABNORMAL_STARTUP_ERRNO) {
     errno = parseInt(env.ABNORMAL_STARTUP_ERRNO);
   }
+  let errorcode = 'EUNKNOWN';
+  if (env.ABNORMAL_STARTUP_ERRORCODE) {
+    errorcode = env.ABNORMAL_STARTUP_ERRORCODE;
+  }
+
   let strerror = 'unknown error';
   if (env.ABNORMAL_STARTUP_STRERROR) {
     strerror = env.ABNORMAL_STARTUP_STRERROR;
@@ -44,12 +49,12 @@ function getDialogBody(env: IEnvResponse): string {
   if (env.ABNORMAL_STARTUP_MESSAGE) {
     msg = env.ABNORMAL_STARTUP_MESSAGE;
   }
-  let body = `JupyterLab is running in degraded mode: error # ${errno} [${strerror}] "${msg}"`;
-  body = body + '\n\n' + getSupplementalBody(errno);
+  let body = `JupyterLab is running in degraded mode: error # ${errno} (${errorcode}) [${strerror}] "${msg}"`;
+  body = body + '\n\n' + getSupplementalBody(errorcode);
   return body;
 }
 
-function getSupplementalBody(errno: number): string {
+function getSupplementalBody(errorcode: string): string {
   const no_trust = ' This Lab should not be trusted for work you want to keep.';
   const no_storage =
     'You have run out of storage space. Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.';
@@ -62,21 +67,21 @@ function getSupplementalBody(errno: number): string {
   const no_environment =
     'You are missing environment variables necessary for RSP operation. ' +
     no_idea;
-  switch (errno) {
-    case 13:
+  switch (errorcode) {
+    case 'EACCES':
       return no_permission;
       break;
-    case 28:
+    case 'ENOSPC':
       return no_storage;
       break;
-    case 30:
+    case 'EROFS':
       return no_permission;
       break;
-    case 104:
+    case 'EDQUOT':
+      return no_storage;
+      break;
+    case 'EBADENV':
       return no_environment;
-      break;
-    case 122:
-      return no_storage;
       break;
     default:
       return no_idea;
