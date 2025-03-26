@@ -1,6 +1,6 @@
 # rsp_jupyter_extensions
 
-[![Github Actions Status](https://github.com/lsst-sqre/rsp-jupyter-extensions /workflows/Build/badge.svg)](https://github.com/lsst-sqre/rsp-jupyter-extensions /actions/workflows/build.yml)
+[![Github Actions Status](https://github.com/lsst-sqre/rsp-jupyter-extensions/workflows/CI/badge.svg)](https://github.com/lsst-sqre/rsp-jupyter-extensions/actions/workflows/ci.yaml)
 Jupyter Extensions for the Rubin Science Platform
 
 This extension is composed of a Python package named `rsp_jupyter_extensions`

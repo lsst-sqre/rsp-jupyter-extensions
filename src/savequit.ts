@@ -172,9 +172,9 @@ function justQuit(
   env: IEnvResponse
 ): Promise<any> {
   infoDialog(env);
-  let targetEndpoint = '/';
+  let targetEndpoint = `${env.EXTERNAL_INSTANCE_URL}`;
   if (logout) {
-    targetEndpoint = '/logout';
+    targetEndpoint = targetEndpoint + '/logout';
   }
   return Promise.resolve(
     hubDeleteRequest(app, env)

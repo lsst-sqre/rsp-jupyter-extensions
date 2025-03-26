@@ -21,6 +21,8 @@ import { activateRSPTutorialsExtension } from './tutorials';
 
 import { logMessage, LogLevels } from './logger';
 
+import { abnormalDialog } from './abnormal';
+
 import * as token from './tokens';
 
 function activateRSPExtension(
@@ -38,6 +40,13 @@ function activateRSPExtension(
     );
     logMessage(LogLevels.INFO, env, '...got server environment');
     logMessage(LogLevels.INFO, env, 'rsp-lab-extension: loading...');
+    logMessage(LogLevels.INFO, env, '...activating savequit extension...');
+    activateRSPSavequitExtension(app, mainMenu, docManager, env);
+    logMessage(LogLevels.INFO, env, '...checking for abnormal startup...');
+    if (env.ABNORMAL_STARTUP === 'TRUE') {
+      // Give the user a warning dialog
+      abnormalDialog(env);
+    }
     logMessage(
       LogLevels.INFO,
       env,
@@ -56,8 +65,6 @@ function activateRSPExtension(
         `...skipping query extension because site type is '${env.RSP_SITE_TYPE}'...`
       );
     }
-    logMessage(LogLevels.INFO, env, '...activating savequit extension...');
-    activateRSPSavequitExtension(app, mainMenu, docManager, env);
     logMessage(LogLevels.INFO, env, '...activated...');
     logMessage(LogLevels.INFO, env, '...activating tutorials extension...');
     if (env.RSP_SITE_TYPE === 'science') {

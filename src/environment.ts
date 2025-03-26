@@ -5,6 +5,11 @@ import { apiRequest, IJSONResponse } from './request';
 // IEnvResponse encapsulates the environment variables we
 // care about.  It's always a string-to-string mapping.
 interface IEnvResponse {
+  ABNORMAL_STARTUP?: string;
+  ABNORMAL_STARTUP_ERRORCODE?: string;
+  ABNORMAL_STARTUP_ERRNO?: string;
+  ABNORMAL_STARTUP_STRERROR?: string;
+  ABNORMAL_STARTUP_MESSAGE?: string;
   IMAGE_DESCRIPTION?: string;
   IMAGE_DIGEST?: string;
   JUPYTER_IMAGE_SPEC?: string;
