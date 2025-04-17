@@ -28,67 +28,6 @@ from ..models.tutorials import (
     UserEnvironmentError,
 )
 
-
-def _build_hierarchy(
-    root: Path,
-    parent: Path = Path("/"),
-    action: Actions = Actions.COPY,
-    disposition: Dispositions = Dispositions.PROMPT,
-    xform_src: Callable[[str | Path], str | Path] = lambda x: x,
-    xform_dest: Callable[[Path], Path] = lambda x: x,
-    suffix: str | None = None,
-) -> Hierarchy:
-    h = Hierarchy()
-    sortlist = list(root.iterdir())
-    sortlist.sort(key=lambda x: x.name)
-    for entry in sortlist:
-        # We may want to make this more sophisticated sometime.
-        if entry.is_symlink():
-            # Just skip any symbolic links.
-            continue
-        if entry.is_dir():
-            if entry.name == ".git":
-                # Skip the Git objects dir: the tutorials hierarchy is
-                # not intended for pushing back up (consider that
-                # the repository tags probably do not match the eups
-                # container tag)
-                continue
-            next_parent = parent / entry.name
-            # Recurse down the tree.
-            subdir = _build_hierarchy(
-                root=entry,
-                parent=next_parent,
-                action=action,
-                disposition=Dispositions.PROMPT,
-                xform_src=xform_src,
-                xform_dest=xform_dest,
-                suffix=suffix,
-            )
-            if subdir.subhierarchies is not None or subdir.entries is not None:
-                if h.subhierarchies is None:
-                    h.subhierarchies = {}
-                h.subhierarchies[entry.name] = subdir
-            continue  # Done with directory.
-        # It's a file.
-        nm = entry.name
-        if suffix:
-            if not nm.endswith(suffix):
-                continue
-            nm = nm[: -len(suffix)]
-        h_entry = HierarchyEntry(
-            menu_name=nm,
-            action=action,
-            disposition=Dispositions.PROMPT,
-            parent=parent,
-            src=xform_src(entry),
-            dest=xform_dest(entry),
-        )
-        if h.entries is None:
-            h.entries = {}
-        h.entries[nm] = h_entry
-    return h
-
-
 # _find_repo and _get_tag might belong in lsst.rsp.
 
 
@@ -186,44 +125,6 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
     ):
         return None
     return Hierarchy.from_primitive(tut_obj)
-
-
-def _get_github_tutorials(dirname: str) -> Hierarchy:
-    homedir = _get_homedir()
-    tutorial_dir = homedir / "notebooks" / "tutorials"
-    repo = _find_repo()
-    if not repo:
-        return Hierarchy()
-    repo_url, branch = repo.split("@")
-    if not branch:
-        # This is to placate mypy: _find_repo() will append @main if needed
-        branch = "main"
-    _clone_repo(repo_url, branch, dirname)
-    dir_obj = Path(dirname)
-
-    def _xform_src(src: Path | str) -> str:
-        # From our cloned copy, reverse-engineer the direct download
-        # file URLs for each notebook.
-        if isinstance(src, str):
-            src = Path(src)
-        rest = src.relative_to(dir_obj)
-        return urlunparse(
-            urlparse(f"{repo_url}/raw/refs/heads/{branch}/{rest!s}")
-        )
-
-    def _xform(src: Path) -> Path:
-        homedir = _get_homedir()
-        rest = src.relative_to(dir_obj)
-        return (tutorial_dir / rest).relative_to(Path(homedir))
-
-    return _build_hierarchy(
-        dir_obj,
-        parent=Path("/"),
-        suffix=".ipynb",
-        action=Actions.FETCH,
-        xform_src=_xform_src,
-        xform_dest=_xform,
-    )
 
 
 def _reabsolutize_path(path: Path) -> Path:
@@ -342,8 +243,15 @@ class TutorialsMenuHandler(APIHandler):
             self.tutorials = stash
             return
         # Need to rebuild the structure.
-        with TemporaryDirectory() as dirname:
-            self.tutorials = _get_github_tutorials(dirname)
+        # Do we have a cache directory?  Then use it.
+        if dirname := os.getenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", ""):
+            self.tutorials = self._get_github_tutorials(
+                dirname, from_cache=True
+            )
+        else:
+            # Or get a new clone and use that.
+            with TemporaryDirectory() as dirname:
+                self.tutorials = self._get_github_tutorials(dirname)
         # And write a stash
         homedir = _get_homedir()
         stashfile = homedir / ".cache" / "tutorials.json"
@@ -366,7 +274,7 @@ class TutorialsMenuHandler(APIHandler):
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
         guide = _copy_and_guide(input_document)
-        self.log.info(f"Copy/guide got: {guide}")
+        self.log.debug(f"Copy/guide got: {guide}")
         if guide.dest is None:
             dest = input_document["dest"]
             self.log.warning(f"File {dest} already exists.")
@@ -382,5 +290,127 @@ class TutorialsMenuHandler(APIHandler):
                 else:
                     self.set_status(guide.status_code)
             return
-        self.log.info(f"Replying with dest = '{guide.dest}'")
+        self.log.debug(f"Replying with dest = '{guide.dest}'")
         self.write(json.dumps({"dest": guide.dest}))
+
+    def _get_github_tutorials(
+        self, dirname: str, *, from_cache: bool = False
+    ) -> Hierarchy:
+        homedir = _get_homedir()
+        tutorial_dir = homedir / "notebooks" / "tutorials"
+        if from_cache:
+            self.log.debug(f"get_gh: Checking cached repo {dirname}")
+            # Does it appear to be a git repo?
+            repo_git = Path(dirname) / ".git"
+            if not repo_git.is_dir():
+                self.log.debug("get_gh: Not a repo: force new clone")
+                from_cache = False  # force new clone
+        repo = _find_repo()
+        if not repo:
+            self.log.debug("get_gh: No repository found")
+            return Hierarchy()
+        repo_url, branch = repo.split("@")
+        if not branch:
+            # This is to placate mypy: _find_repo() will append @main
+            # if needed
+            branch = "main"
+        if not from_cache:
+            self.log.debug("get_gh: New clone")
+            self.log.debug(f"Cloning {repo_url} branch {branch} to {dirname}")
+            _clone_repo(repo_url, branch, dirname)
+        dir_obj = Path(dirname)
+
+        def _xform_src(src: Path | str) -> str:
+            # From our cloned copy, reverse-engineer the direct download
+            # file URLs for each notebook.
+            if isinstance(src, str):
+                src = Path(src)
+            rest = src.relative_to(dir_obj)
+            return urlunparse(
+                urlparse(f"{repo_url}/raw/refs/heads/{branch}/{rest!s}")
+            )
+
+        def _xform(src: Path) -> Path:
+            homedir = _get_homedir()
+            rest = src.relative_to(dir_obj)
+            return (tutorial_dir / rest).relative_to(Path(homedir))
+
+        return self._build_hierarchy(
+            dir_obj,
+            parent=Path("/"),
+            suffix=".ipynb",
+            action=Actions.FETCH,
+            xform_src=_xform_src,
+            xform_dest=_xform,
+        )
+
+    def _build_hierarchy(
+        self,
+        root: Path,
+        parent: Path = Path("/"),
+        action: Actions = Actions.COPY,
+        disposition: Dispositions = Dispositions.PROMPT,
+        xform_src: Callable[[str | Path], str | Path] = lambda x: x,
+        xform_dest: Callable[[Path], Path] = lambda x: x,
+        suffix: str | None = None,
+    ) -> Hierarchy:
+        h = Hierarchy()
+        sortlist = list(root.iterdir())
+        sortlist.sort(key=lambda x: x.name)
+        for entry in sortlist:
+            self.log.debug(f"build_hierarchy: considering {entry.name}")
+            # We may want to make this more sophisticated sometime.
+            if entry.is_symlink():
+                # Just skip any symbolic links.
+                self.log.debug(f"Skipping symlink {entry.name}")
+                continue
+            if entry.is_dir():
+                if entry.name == ".git":
+                    # Skip the Git objects dir: the tutorials hierarchy is
+                    # not intended for pushing back up (consider that
+                    # the repository tags probably do not match the eups
+                    # container tag)
+                    self.log.warning("build_herarchy: Skipping .git directory")
+                    continue
+                next_parent = parent / entry.name
+                # Recurse down the tree.
+                self.log.debug(f"build_hierarchy: recurse on {next_parent!s}")
+                subdir = self._build_hierarchy(
+                    root=entry,
+                    parent=next_parent,
+                    action=action,
+                    disposition=Dispositions.PROMPT,
+                    xform_src=xform_src,
+                    xform_dest=xform_dest,
+                    suffix=suffix,
+                )
+                if (
+                    subdir.subhierarchies is not None
+                    or subdir.entries is not None
+                ):
+                    if h.subhierarchies is None:
+                        h.subhierarchies = {}
+                    self.log.debug(
+                        f"build_hierarchy: adding child {entry.name}"
+                    )
+                    h.subhierarchies[entry.name] = subdir
+                continue  # Done with directory.
+            # It's a file.
+            nm = entry.name
+            if suffix:
+                if not nm.endswith(suffix):
+                    continue
+                nm = nm[: -len(suffix)]
+            self.log.debug(f"build_hierarchy: Adding file entry {nm}")
+            h_entry = HierarchyEntry(
+                menu_name=nm,
+                action=action,
+                disposition=Dispositions.PROMPT,
+                parent=parent,
+                src=xform_src(entry),
+                dest=xform_dest(entry),
+            )
+            if h.entries is None:
+                h.entries = {}
+            h.entries[nm] = h_entry
+        return h
