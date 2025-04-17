@@ -188,17 +188,25 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
     return Hierarchy.from_primitive(tut_obj)
 
 
-def _get_github_tutorials(dirname: str) -> Hierarchy:
+def _get_github_tutorials(
+    dirname: str, *, from_cache: bool = False
+) -> Hierarchy:
     homedir = _get_homedir()
     tutorial_dir = homedir / "notebooks" / "tutorials"
-    repo = _find_repo()
-    if not repo:
-        return Hierarchy()
-    repo_url, branch = repo.split("@")
-    if not branch:
-        # This is to placate mypy: _find_repo() will append @main if needed
-        branch = "main"
-    _clone_repo(repo_url, branch, dirname)
+    if from_cache:
+        # Does it appear to be a git repo?
+        repo_git = Path(dirname) / ".git"
+        if not repo_git.is_dir():
+            from_cache = False  # force new clone
+    if not from_cache:
+        repo = _find_repo()
+        if not repo:
+            return Hierarchy()
+        repo_url, branch = repo.split("@")
+        if not branch:
+            # This is to placate mypy: _find_repo() will append @main if needed
+            branch = "main"
+        _clone_repo(repo_url, branch, dirname)
     dir_obj = Path(dirname)
 
     def _xform_src(src: Path | str) -> str:
@@ -342,8 +350,13 @@ class TutorialsMenuHandler(APIHandler):
             self.tutorials = stash
             return
         # Need to rebuild the structure.
-        with TemporaryDirectory() as dirname:
-            self.tutorials = _get_github_tutorials(dirname)
+        # Do we have a cache directory?  Then use it.
+        if dirname := os.getenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", ""):
+            self.tutorials = _get_github_tutorials(dirname, from_cache=True)
+        else:
+            # Or get a new clone and use that.
+            with TemporaryDirectory() as dirname:
+                self.tutorials = _get_github_tutorials(dirname)
         # And write a stash
         homedir = _get_homedir()
         stashfile = homedir / ".cache" / "tutorials.json"
