@@ -298,13 +298,14 @@ class TutorialsMenuHandler(APIHandler):
     ) -> Hierarchy:
         homedir = _get_homedir()
         tutorial_dir = homedir / "notebooks" / "tutorials"
-        if from_cache:
+        use_cache = from_cache
+        if use_cache:
             self.log.debug(f"get_gh: Checking cached repo {dirname}")
             # Does it appear to be a git repo?
             repo_git = Path(dirname) / ".git"
             if not repo_git.is_dir():
                 self.log.debug("get_gh: Not a repo: force new clone")
-                from_cache = False  # force new clone
+                use_cache = False  # force new clone
         repo = _find_repo()
         if not repo:
             self.log.debug("get_gh: No repository found")
@@ -314,7 +315,7 @@ class TutorialsMenuHandler(APIHandler):
             # This is to placate mypy: _find_repo() will append @main
             # if needed
             branch = "main"
-        if not from_cache:
+        if not use_cache:
             self.log.debug("get_gh: New clone")
             self.log.debug(f"Cloning {repo_url} branch {branch} to {dirname}")
             _clone_repo(repo_url, branch, dirname)
