@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import ANY
 
 import pytest
+import tornado
 
 import rsp_jupyter_extensions.handlers.tutorials as t
 from rsp_jupyter_extensions.models.tutorials import (
@@ -14,6 +15,17 @@ from rsp_jupyter_extensions.models.tutorials import (
     Hierarchy,
     HierarchyEntry,
     HierarchyError,
+)
+
+
+class _FakeConnect(tornado.httputil.HTTPConnection):
+    def set_close_callback(self, arg: Any) -> None:
+        pass
+
+
+HDLR = t.TutorialsMenuHandler(
+    tornado.web.Application(),
+    request=tornado.httputil.HTTPServerRequest(connection=_FakeConnect()),
 )
 
 
@@ -34,7 +46,7 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
         (p / "hello.txt").write_text("Hello, world!\n")
         (p / "hello.py").write_text("print('Hello, world!')\n")
 
-    h1 = t._build_hierarchy(root=tmp_path)
+    h1 = HDLR._build_hierarchy(root=tmp_path)
     h1_p = h1.to_primitive()
     assert h1_p == {
         "entries": {
@@ -110,7 +122,7 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     h1_a = Hierarchy.from_primitive(h1_p)
     assert h1 == h1_a
 
-    h2 = t._build_hierarchy(root=tmp_path, suffix=".py")
+    h2 = HDLR._build_hierarchy(root=tmp_path, suffix=".py")
     h2_p = h2.to_primitive()
 
     assert h2_p == {
@@ -160,7 +172,7 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     h2_a = Hierarchy.from_primitive(h2_p)
     assert h2 == h2_a
 
-    h3 = t._build_hierarchy(
+    h3 = HDLR._build_hierarchy(
         root=tmp_path,
         suffix=".txt",
         action=Actions.FETCH,
@@ -229,7 +241,7 @@ def test_ignore_symlinks(tmp_path: Path) -> None:
     assert (tmp_path / "me").is_symlink()
     assert (tmp_path / "here").is_symlink()
 
-    h = t._build_hierarchy(tmp_path)
+    h = HDLR._build_hierarchy(tmp_path)
     h_p = h.to_primitive()
     assert h_p == {
         "entries": {
