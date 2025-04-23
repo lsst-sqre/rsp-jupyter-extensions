@@ -370,7 +370,9 @@ class TutorialsMenuHandler(APIHandler):
                     # not intended for pushing back up (consider that
                     # the repository tags probably do not match the eups
                     # container tag)
-                    self.log.warning("build_hierarchy: Skipping .git directory")
+                    self.log.warning(
+                        "build_hierarchy: Skipping .git directory"
+                    )
                     continue
                 next_parent = parent / entry.name
                 # Recurse down the tree.
@@ -379,7 +381,6 @@ class TutorialsMenuHandler(APIHandler):
                     root=entry,
                     parent=next_parent,
                     action=action,
-                    disposition=Dispositions.PROMPT,
                     xform_src=xform_src,
                     xform_dest=xform_dest,
                     suffix=suffix,
