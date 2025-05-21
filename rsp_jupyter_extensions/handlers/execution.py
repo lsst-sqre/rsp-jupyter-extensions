@@ -20,25 +20,32 @@ class ExecutionHandler(APIHandler):
 
     @tornado.web.authenticated
     def post(self) -> None:
-        """
-        POST the contents of a notebook and get back the rendered,
-        executed notebook.
+        """Handle ``POST /rubin/execution``.
 
-        There are two supported formats.  The first is simply the text
-        of an ipynb file.  This is expected to be the common use case.
+        This handler executes a notebook, and returns the rendered notebook,
+        along with any resources and errors that occurred during execution.
 
-        The second is a JSON representation of a dict containting a
-        notebook and associated resources; the notebook contents (a string
-        containing an ipynb file) will be in the "notebook" key and
-        the resources will be a string in the key "resources" representing
-        a JSON-encoded dict).
+        **Request body.**
+        The request body can take two forms:
+        1. A string containing the text of an ipynb file.
+        2. A JSON-encoded dict containing a ``notebook`` key (the ipynb as a
+           string) and a ``resources`` key (a JSON-encoded dict of resources).
+           The second form is used less often, but is useful for passing
+           resources to the notebook that are not part of the notebook itself.
+
+        **Request headers.**
+        Set the ``X-Kernel-Name`` header to the name of the kernel to use for
+        execution.
         """
         input_str = self.request.body.decode("utf-8")
+        kernel_name = self.request.headers.get("X-Kernel-Name", None)
         # Do The Deed
-        output_str = self._execute_nb(input_str)
+        output_str = self._execute_nb(
+            input_str=input_str, kernel_name=kernel_name
+        )
         self.write(output_str)
 
-    def _execute_nb(self, input_str: str) -> str:
+    def _execute_nb(self, *, input_str: str, kernel_name: str | None) -> str:
         # We will try to decode it as if it were a resource-bearing document.
         #  If that fails, we will assume it to be a bare notebook string.
         #
@@ -56,7 +63,9 @@ class ExecutionHandler(APIHandler):
             resources = None
             nb_str = input_str
         nb = nbformat.reads(nb_str, NBFORMAT_VERSION)
-        executor = nbconvert.preprocessors.ExecutePreprocessor()
+        executor = nbconvert.preprocessors.ExecutePreprocessor(
+            kernel_name=kernel_name
+        )
         exporter = nbconvert.exporters.NotebookExporter()
 
         #    a1fec27fec84514e83780d524766d9f74e4bb2e3/nbconvert/\
