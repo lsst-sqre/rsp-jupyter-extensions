@@ -13,6 +13,8 @@ import { getServerEnvironment } from './environment';
 
 import { activateRSPDisplayVersionExtension } from './displayversion';
 
+import { activateRSPLandingExtension } from './landing';
+
 import { activateRSPQueryExtension } from './query';
 
 import { activateRSPSavequitExtension } from './savequit';
@@ -75,6 +77,17 @@ function activateRSPExtension(
         LogLevels.INFO,
         env,
         `...skipping tutorials extension because site type is '${env.RSP_SITE_TYPE}'...`
+      );
+    }
+    logMessage(LogLevels.INFO, env, '...activating landing page extension...');
+    if (env.RSP_SITE_TYPE === 'science') {
+      activateRSPLandingExtension(app, mainMenu, docManager, env);
+      logMessage(LogLevels.INFO, env, '...activated...');
+    } else {
+      logMessage(
+        LogLevels.INFO,
+        env,
+        `...skipping landing page extension because site type is '${env.RSP_SITE_TYPE}'...`
       );
     }
     logMessage(LogLevels.INFO, env, '...loaded rsp-lab-extension.');
