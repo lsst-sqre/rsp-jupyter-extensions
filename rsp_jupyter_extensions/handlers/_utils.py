@@ -4,6 +4,16 @@ import json
 import os
 from pathlib import Path
 
+from ..models.tutorials import UserEnvironmentError
+
+
+def _get_homedir() -> Path:
+    # Return user home directory.
+    homedir = os.getenv("HOME")
+    if not homedir:
+        raise UserEnvironmentError("home directory is not set")
+    return Path(homedir)
+
 
 def _peel_route(path: str, stem: str) -> str | None:
     # Return the part of the route after the stem, or None if that doesn't

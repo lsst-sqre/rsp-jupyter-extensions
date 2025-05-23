@@ -27,6 +27,7 @@ from ..models.tutorials import (
     TagError,
     UserEnvironmentError,
 )
+from ._utils import _get_homedir
 
 # _find_repo and _get_tag might belong in lsst.rsp.
 
@@ -75,13 +76,6 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git clone {repo_url}@{branch} failed")
-
-
-def _get_homedir() -> Path:
-    homedir = os.getenv("HOME")
-    if not homedir:
-        raise UserEnvironmentError("home directory is not set")
-    return Path(homedir)
 
 
 # RSP-specific tutorial locations

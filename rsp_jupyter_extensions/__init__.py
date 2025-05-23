@@ -4,6 +4,7 @@ from .handlers.environment import EnvironmentHandler
 from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
 from .handlers.hub import HubHandler
+from .handlers.landing import LandingPageHandler
 from .handlers.query import QueryHandler
 from .handlers.tutorials import TutorialsMenuHandler
 
@@ -37,6 +38,7 @@ def _setup_handlers(server_app) -> None:  # type: ignore
         r"/rubin/execution": ExecutionHandler,
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
+        r"/rubin/landing": LandingPageHandler,
         r"/rubin/query($|/$|.*)": QueryHandler,
         r"/rubin/query": QueryHandler,
         r"/rubin/tutorials": TutorialsMenuHandler,
