@@ -72,7 +72,17 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
         "-b",
         branch,
         dirname,
-        timeout=60,
+        timeout=120,  # You'd think, like, 5 would be enough.  You haven't
+        # met our office network at NOIRLab:
+        #
+        # $ time git clone --depth 1 \
+        #  https://github.com/lsst/tutorial-notebooks -b main
+        # Cloning into 'tutorial-notebooks'...
+        # ...
+        # Receiving objects: 100% (51/51), 11.11 MiB | 124.00 KiB/s, done.
+        # ...
+        # hub clone --depth 1 https://github.com/lsst/tutorial-notebooks \
+        #  -b main  0.71s user 0.84s system 1% cpu 1:32.43 total
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git clone {repo_url}@{branch} failed")
