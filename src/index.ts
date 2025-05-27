@@ -90,7 +90,7 @@ function activateRSPExtension(
         `...skipping landing page extension because site type is '${env.RSP_SITE_TYPE}'...`
       );
     }
-    logMessage(LogLevels.INFO, env, '...loaded rsp-lab-extension.');
+    logMessage(LogLevels.INFO, env, '... rsp-lab-extension: loaded');
   });
 }
 

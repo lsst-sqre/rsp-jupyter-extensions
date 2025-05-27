@@ -25,12 +25,15 @@ export function activateRSPLandingExtension(
 ): void {
   logMessage(LogLevels.INFO, env, 'rsp-landing: loading...');
 
-  openLandingPage(app, docManager).then(() => {});
+  openLandingPage(app, docManager, env).then(() => {});
+
+  logMessage(LogLevels.INFO, env, 'rsp-landing: ...loaded.');
 }
 
 async function openLandingPage(
   app: JupyterFrontEnd,
-  docManager: IDocumentManager
+  docManager: IDocumentManager,
+  env: IEnvResponse
 ): Promise<void> {
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
@@ -44,7 +47,9 @@ async function openLandingPage(
     console.error(`Error getting landing page ${error}`);
     throw new Error(`Failed to get landing page: ${error}`);
   }
+  logMessage(LogLevels.DEBUG, env, '...opening landing page...');
   docManager.openOrReveal('.cache/landing_page.md');
+  logMessage(LogLevels.DEBUG, env, '...opened landing page...');
 }
 
 /**

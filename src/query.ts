@@ -66,7 +66,7 @@ export function activateRSPQueryExtension(
   docManager: IDocumentManager,
   env: IEnvResponse
 ): void {
-  logMessage(LogLevels.INFO, env, 'rsp-query...loading');
+  logMessage(LogLevels.INFO, env, 'rsp-query: ...loading');
 
   const svcManager = app.serviceManager;
   const { commands } = app;
@@ -80,7 +80,7 @@ export function activateRSPQueryExtension(
     () => {}
   );
 
-  logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
+  logMessage(LogLevels.INFO, env, 'rsp-query: ...loaded.');
 }
 
 async function replaceRubinMenuContents(
