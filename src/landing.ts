@@ -17,6 +17,20 @@ import { IEnvResponse } from './environment';
 import { LogLevels, logMessage } from './logger';
 import { apiRequest } from './request';
 
+interface ILandingEntryResult {
+  dest: string;
+  cached: boolean;
+}
+
+class LandingEntry implements ILandingEntryResult {
+  dest: string;
+  cached: boolean;
+
+  constructor(inp: ILandingEntryResult) {
+    (this.dest = inp.dest), (this.cached = inp.cached);
+  }
+}
+
 export function activateRSPLandingExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
@@ -25,31 +39,48 @@ export function activateRSPLandingExtension(
 ): void {
   logMessage(LogLevels.INFO, env, 'rsp-landing: loading...');
 
-  openLandingPage(app, docManager, env).then(() => {});
-
+  logMessage(LogLevels.DEBUG, env, '...requesting landing page...');
+  ensureLandingPage(app, env).then(res => {
+    if (res) {
+      const dest = res.dest;
+      docManager.open(dest);
+      logMessage(LogLevels.DEBUG, env, `...opened landing page ${dest}...`);
+    }
+  });
   logMessage(LogLevels.INFO, env, 'rsp-landing: ...loaded.');
 }
 
-async function openLandingPage(
+function ensureLandingPage(
   app: JupyterFrontEnd,
-  docManager: IDocumentManager,
   env: IEnvResponse
-): Promise<void> {
+): Promise<LandingEntry> {
+  /**
+   * Make a request to our endpoint to get the landing location
+   *
+   * @param settings - the settings for the current notebook server
+   *
+   * @param env - the server environment
+   *
+   * @returns a Promise resolved with the JSON response
+   */
+
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
-  try {
-    await apiRequest(
-      PageConfig.getBaseUrl() + 'rubin/landing',
-      { method: 'GET' },
-      settings
+  return apiRequest(
+    PageConfig.getBaseUrl() + 'rubin/landing',
+    { method: 'GET' },
+    settings
+  ).then(res => {
+    logMessage(
+      LogLevels.DEBUG,
+      env,
+      `rsp-landing: backend result ${JSON.stringify(res, undefined, 2)}`
     );
-  } catch (error) {
-    console.error(`Error getting landing page ${error}`);
-    throw new Error(`Failed to get landing page: ${error}`);
-  }
-  logMessage(LogLevels.DEBUG, env, '...opening landing page...');
-  docManager.openOrReveal('.cache/landing_page.md');
-  logMessage(LogLevels.DEBUG, env, '...opened landing page...');
+    const u_d = res as unknown;
+    const i_le = u_d as ILandingEntryResult;
+    const l_e = new LandingEntry(i_le);
+    return l_e;
+  });
 }
 
 /**
