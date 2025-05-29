@@ -185,4 +185,4 @@ async def test_execution_handler_post_no_kernel_name(
 
     assert response.code == 200
     mock_class, _ = mock_executor
-    mock_class.assert_called_once_with(kernel_name=None)
+    mock_class.assert_called_once_with()

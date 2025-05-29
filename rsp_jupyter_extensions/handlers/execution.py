@@ -63,9 +63,13 @@ class ExecutionHandler(APIHandler):
             resources = None
             nb_str = input_str
         nb = nbformat.reads(nb_str, NBFORMAT_VERSION)
-        executor = nbconvert.preprocessors.ExecutePreprocessor(
-            kernel_name=kernel_name
-        )
+        if kernel_name is not None:
+            executor = nbconvert.preprocessors.ExecutePreprocessor(
+                kernel_name=kernel_name
+            )
+        else:
+            # If kernel_name is None, don't set it to avoid TraitError
+            executor = nbconvert.preprocessors.ExecutePreprocessor()
         exporter = nbconvert.exporters.NotebookExporter()
 
         #    a1fec27fec84514e83780d524766d9f74e4bb2e3/nbconvert/\
