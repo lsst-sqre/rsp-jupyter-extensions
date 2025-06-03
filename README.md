@@ -14,10 +14,9 @@ Observatory's development practices don't entirely track what JupyterLab
 expects you to do. Some notes for use by Rubin developers follow:
 
 If you need to change the `rsp-jupyter-extensions` package, you will
-need to know that it is a `prebuilt extension
-<https://jupyterlab.readthedocs.io/en/stable/extension/extension_dev.html#prebuilt-extensions>`_
-created from the `JupyterLab extension copier template
-<https://github.com/jupyterlab/extension-template>`_.
+need to know that it is a [prebuilt
+extension](https://jupyterlab.readthedocs.io/en/stable/extension/extension_dev.html#prebuilt-extensions>)
+created from the [JupyterLab extension copier template](https://github.com/jupyterlab/extension-template).
 
 To this copier template we have added GitHub Actions to rebuild
 containers and client libraries and push them to their respective
