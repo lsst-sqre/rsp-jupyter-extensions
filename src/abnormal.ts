@@ -4,7 +4,7 @@ import { LogLevels, logMessage } from './logger';
 
 export async function abnormalDialog(env: IEnvResponse): Promise<void> {
   const options = {
-    title: 'Degraded Mode',
+    title: 'Abnormal Lab Start',
     body: getDialogBody(env),
     focusNodeSelector: 'input',
     buttons: [Dialog.warnButton({ label: 'OK' })]
@@ -49,15 +49,18 @@ function getDialogBody(env: IEnvResponse): string {
   if (env.ABNORMAL_STARTUP_MESSAGE) {
     msg = env.ABNORMAL_STARTUP_MESSAGE;
   }
-  let body = `JupyterLab is running in degraded mode: error # ${errno} (${errorcode}) [${strerror}] "${msg}"`;
-  body = body + '\n\n' + getSupplementalBody(errorcode);
+  let body = getSupplementalBody(errorcode)
+  body = body + '\n\n' + `JupyterLab started in an abnormal state: error # ${errno} (${errorcode}) [${strerror}] "${msg}"`;
   return body;
 }
 
 function getSupplementalBody(errorcode: string): string {
   const no_trust = ' This Lab should not be trusted for work you want to keep.';
+  const delete_something = ' Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.';
   const no_storage =
-    'You have run out of storage space. Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.';
+    'You have run out of filesystem space.' + delete_something;
+  const no_quota =
+    'You have exceeded your filesystem quota.' + delete_something;
   const no_permission =
     'You do not have permission to write. Ask your RSP site administrator to check ownership and permissions on your directories.' +
     no_trust;
@@ -78,7 +81,7 @@ function getSupplementalBody(errorcode: string): string {
       return no_permission;
       break;
     case 'EDQUOT':
-      return no_storage;
+      return no_quota;
       break;
     case 'EBADENV':
       return no_environment;
