@@ -1,6 +1,7 @@
 """Handler Module to provide an endpoint for notebook execution."""
 
 import json
+from traceback import format_exception
 
 import nbconvert
 import nbformat
@@ -54,7 +55,9 @@ class ExecutionHandler(APIHandler):
         #
         # The notebook and resources are the results of execution as far as
         # successfully completed, and "error" is either None (for success)
-        # or a CellExecutionError where execution failed.
+        # a CellExecutionError where execution failed, or some other kind
+        # of Exception (we have seen JSON validation errors on malformed
+        # notebooks, for instance).
         try:
             d = json.loads(input_str)
             resources = d["resources"]
@@ -87,8 +90,8 @@ class ExecutionHandler(APIHandler):
             (rendered, rendered_resources) = exporter.from_notebook_node(
                 executor.nb, resources=executor.resources
             )
-            # The Exception is not directly JSON-serializable, so we will
-            # just extract the fields from it and return those.
+            # The CellExecutionError is not directly JSON-serializable, so
+            # we will just extract the fields from it and return those.
             return json.dumps(
                 {
                     "notebook": rendered,
@@ -101,6 +104,26 @@ class ExecutionHandler(APIHandler):
                     },
                 }
             )
+        except Exception as exc:
+            # Catch a generic exception.  Do our best to format it reasonably.
+            (rendered, rendered_resources) = exporter.from_notebook_node(
+                executor.nb, resources=executor.resources
+            )
+            name = exc.__class__.__name__
+            tb = "\n".join(format_exception(exc)).strip()
+            return json.dumps(
+                {
+                    "notebook": rendered,
+                    "resources": rendered_resources,
+                    "error": {
+                        "traceback": tb,
+                        "ename": name,
+                        "evalue": str(exc),
+                        "err_msg": tb,
+                    },
+                }
+            )
+
         # Run succeeded, so nb and resources have been updated in place
         (rendered, rendered_resources) = exporter.from_notebook_node(
             nb, resources=resources
