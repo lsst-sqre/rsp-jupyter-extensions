@@ -13,6 +13,7 @@ interface IEnvResponse {
   IMAGE_DESCRIPTION?: string;
   IMAGE_DIGEST?: string;
   JUPYTER_IMAGE_SPEC?: string;
+  JUPYTERHUB_PUBLIC_URL?: string;
   EXTERNAL_INSTANCE_URL?: string;
   CPU_LIMIT?: string;
   MEM_LIMIT?: string;
