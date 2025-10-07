@@ -237,7 +237,8 @@ async function rubinQueryRecentHistory(
     );
     qr_c.forEach(qr => {
       const new_rqr: RecentQueryResponse = new RecentQueryResponse(qr);
-      new_rqr.text = pretty_split(qr.text, 80);
+      // Keep the original SQL text for tooltip display
+      new_rqr.text = qr.text;
       logMessage(
         LogLevels.DEBUG,
         env,
@@ -281,7 +282,8 @@ async function getRecentQueryMenu(
       if (!commands.hasCommand(submcmdId)) {
         // If we haven't added this command before, do so now.
         commands.addCommand(submcmdId, {
-          label: qr.text,
+          label: qr.jobref, // Show just the jobref as the label
+          caption: qr.text, // Use the full SQL as the caption/tooltip
           execute: () => {
             openQueryFromJobref(
               app,
@@ -294,26 +296,19 @@ async function getRecentQueryMenu(
           }
         });
       } // Not gonna worry about pruning no-longer-displayed commands.
-      // Submenu is a single-item menu
-      const subm = new Menu({ commands });
-      subm.title.label = qr.jobref;
-      subm.insertItem(0, {
+      // Create a direct menu item instead of a submenu
+      retval.insertItem(menuindex, {
         type: 'command',
         command: submcmdId
       });
+
+      // Add hover tooltip functionality to the main menu item
+      addHoverTooltipToMainMenu(retval, qr.text, qr.jobref, menuindex);
+
       logMessage(
         LogLevels.DEBUG,
         env,
-        `Added ${submcmdId} to submenu for ${qr.jobref} => ${subm.title.label}`
-      );
-      retval.insertItem(menuindex, {
-        type: 'submenu',
-        submenu: subm
-      });
-      logMessage(
-        LogLevels.DEBUG,
-        env,
-        `Added submenu ${qr.jobref} at menuindex ${menuindex} to ${retval.title.label}`
+        `Added ${submcmdId} to submenu for ${qr.jobref}`
       );
       menuindex += 10;
     });
@@ -399,50 +394,400 @@ function openQueryFromJobref(
   replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
 }
 
-function pretty_split(input: string, width: number): string {
-  // Split on whitespace or commas by inserting newlines
-  if (input.length <= width) {
-    return input;
-  }
-  let output = '';
-  let head = '';
-  let rest = input;
-  for (;;) {
-    if (rest.length <= width) {
-      output += rest;
-      break;
-    }
+/**
+ * Add hover tooltip functionality to a main menu item
+ */
+function addHoverTooltipToMainMenu(
+  menu: Menu,
+  sqlText: string,
+  jobref: string,
+  menuIndex: number
+): void {
+  // Wait for the menu to be rendered
+  setTimeout(() => {
+    const menuNode = menu.node;
+    if (menuNode) {
+      // Find the menu item element by command ID
+      const menuItem = menuNode.querySelector(
+        `[data-command="q-${jobref}"]`
+      ) as HTMLElement;
+      if (menuItem) {
+        console.log(`Found menu item for ${jobref}, adding hover listeners`);
+        // Add hover event listeners
+        menuItem.addEventListener('mouseenter', event => {
+          // Clear any pending hide timeout
+          if (tooltipHideTimeout) {
+            clearTimeout(tooltipHideTimeout);
+            tooltipHideTimeout = null;
+          }
+          showSQLTooltip(event, sqlText, jobref);
+        });
 
-    // Set up for each pass through the loop
-    head = rest.substring(0, width);
-    rest = rest.substring(width);
-    const hlen = head.length - 1;
-    let found = false;
+        menuItem.addEventListener('mouseleave', () => {
+          // Add a small delay before hiding to allow mouse to move to tooltip
+          tooltipHideTimeout = window.setTimeout(() => {
+            hideSQLTooltip();
+          }, 100);
+        });
 
-    // Walk backwards through head looking for splittable point
-    for (let i = hlen; i >= 0; i--) {
-      const char = head.substring(i, i + 1);
-      if (char === ' ') {
-        // Replace space with newline
-        output += head.substring(0, i) + '\n';
-        found = true;
-        rest = head.substring(i + 1) + rest;
-        break;
-      }
-      if (char === ',') {
-        // Put newline after comma
-        output += head.substring(0, i + 1) + '\n';
-        found = true;
-        rest = head.substring(i + 1) + rest;
-        break;
+        // Ensure click functionality is preserved
+        // The command system should handle clicks automatically, but let's add a click handler
+        // to hide the tooltip when clicked
+        menuItem.addEventListener('click', () => {
+          hideSQLTooltip();
+        });
+      } else {
+        console.log(`Menu item not found for ${jobref}, trying again...`);
+        // Try again with a longer timeout
+        setTimeout(() => {
+          const retryMenuItem = menuNode.querySelector(
+            `[data-command="q-${jobref}"]`
+          ) as HTMLElement;
+          if (retryMenuItem) {
+            console.log(
+              `Found menu item for ${jobref} on retry, adding hover listeners`
+            );
+            retryMenuItem.addEventListener('mouseenter', event => {
+              if (tooltipHideTimeout) {
+                clearTimeout(tooltipHideTimeout);
+                tooltipHideTimeout = null;
+              }
+              showSQLTooltip(event, sqlText, jobref);
+            });
+            retryMenuItem.addEventListener('mouseleave', () => {
+              tooltipHideTimeout = window.setTimeout(() => {
+                hideSQLTooltip();
+              }, 100);
+            });
+            retryMenuItem.addEventListener('click', () => {
+              hideSQLTooltip();
+            });
+          } else {
+            console.log(`Menu item still not found for ${jobref} after retry`);
+          }
+        }, 200);
       }
     }
-    if (found === false) {
-      // Break after width chars even if it's mid-word
-      output += head + '\n';
-    }
+  }, 100);
+}
+
+/**
+ * Global tooltip element
+ */
+let globalTooltip: HTMLElement | null = null;
+
+/**
+ * Global tooltip hide timeout
+ */
+let tooltipHideTimeout: number | null = null;
+
+/**
+ * Show SQL tooltip on hover with syntax highlighting
+ */
+function showSQLTooltip(
+  event: MouseEvent,
+  sqlText: string,
+  jobref: string
+): void {
+  // Remove existing tooltip
+  hideSQLTooltip();
+
+  // Create tooltip element
+  globalTooltip = document.createElement('div');
+  globalTooltip.className = 'sql-hover-tooltip';
+  globalTooltip.style.cssText = `
+    position: fixed;
+    z-index: 10000;
+    background: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 16px;
+    max-width: 500px;
+    max-height: 300px;
+    overflow: hidden;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: text;
+    user-select: text;
+  `;
+
+  // Create title
+  const title = document.createElement('div');
+  title.textContent = `Query: ${jobref}`;
+  title.style.cssText = `
+    font-weight: 600;
+    color: #24292e;
+    margin-bottom: 8px;
+    font-size: 13px;
+  `;
+
+  // Create container for SQL display
+  const sqlContainer = document.createElement('div');
+  sqlContainer.style.cssText = `
+    margin: 0;
+    background: #f6f8fa;
+    border: 1px solid #e1e4e8;
+    border-radius: 4px;
+    overflow: auto;
+    max-height: 250px;
+  `;
+
+  // Create pre element for SQL with syntax highlighting
+  const sqlPre = document.createElement('pre');
+  sqlPre.style.cssText = `
+    margin: 0;
+    padding: 12px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #24292e;
+  `;
+
+  // Apply syntax highlighting using the existing highlightSQLBasic function
+  sqlPre.innerHTML = highlightSQLBasic(sqlText);
+
+  sqlContainer.appendChild(sqlPre);
+  globalTooltip.appendChild(title);
+  globalTooltip.appendChild(sqlContainer);
+  document.body.appendChild(globalTooltip);
+
+  // Position tooltip closer to the menu item for easier mouse access
+  const rect = (event.target as HTMLElement).getBoundingClientRect();
+  const tooltipRect = globalTooltip.getBoundingClientRect();
+
+  let left = rect.right - 2; // Position tooltip slightly overlapping for easier access
+  let top = rect.top;
+
+  // Adjust if tooltip would go off screen
+  if (left + tooltipRect.width > window.innerWidth) {
+    left = rect.left - tooltipRect.width + 2; // Position tooltip slightly overlapping on the left
   }
-  return output;
+  if (top + tooltipRect.height > window.innerHeight) {
+    top = window.innerHeight - tooltipRect.height - 10;
+  }
+
+  globalTooltip.style.left = `${left}px`;
+  globalTooltip.style.top = `${top}px`;
+
+  // Add hover listeners to keep tooltip visible when mouse enters it
+  globalTooltip.addEventListener('mouseenter', () => {
+    // Clear any pending hide timeout when mouse enters tooltip
+    if (tooltipHideTimeout) {
+      clearTimeout(tooltipHideTimeout);
+      tooltipHideTimeout = null;
+    }
+  });
+
+  globalTooltip.addEventListener('mouseleave', () => {
+    // Hide tooltip when mouse leaves
+    hideSQLTooltip();
+  });
+}
+
+/**
+ * Hide SQL tooltip
+ */
+function hideSQLTooltip(): void {
+  // Clear any pending hide timeout
+  if (tooltipHideTimeout) {
+    clearTimeout(tooltipHideTimeout);
+    tooltipHideTimeout = null;
+  }
+
+  if (globalTooltip) {
+    globalTooltip.remove();
+    globalTooltip = null;
+  }
+}
+
+/**
+ * Create a beautiful SQL query card for display
+ */
+export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'sql-card';
+  card.style.cssText = `
+    background: #ffffff;
+    border: 1px solid #e1e4e8;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  `;
+
+  if (title) {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'sql-card-title';
+    titleEl.style.cssText = `
+      font-weight: 600;
+      color: #24292e;
+      margin-bottom: 8px;
+      font-size: 14px;
+    `;
+    titleEl.textContent = title;
+    card.appendChild(titleEl);
+  }
+
+  const sqlEl = document.createElement('pre');
+  sqlEl.className = 'sql-card-content';
+  sqlEl.style.cssText = `
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: #24292e;
+    background: #f6f8fa;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #e1e4e8;
+  `;
+
+  // Apply syntax highlighting
+  sqlEl.innerHTML = highlightSQLBasic(sqlQuery);
+  card.appendChild(sqlEl);
+
+  return card;
+}
+
+/**
+ * Basic SQL syntax highlighting function
+ */
+function highlightSQLBasic(sql: string): string {
+  // SQL keywords to highlight
+  const keywords = [
+    'SELECT',
+    'FROM',
+    'WHERE',
+    'ORDER',
+    'BY',
+    'GROUP',
+    'HAVING',
+    'JOIN',
+    'INNER',
+    'LEFT',
+    'RIGHT',
+    'OUTER',
+    'ON',
+    'AS',
+    'AND',
+    'OR',
+    'NOT',
+    'IN',
+    'EXISTS',
+    'BETWEEN',
+    'LIKE',
+    'IS',
+    'NULL',
+    'DISTINCT',
+    'LIMIT',
+    'INSERT',
+    'UPDATE',
+    'DELETE',
+    'CREATE',
+    'DROP',
+    'ALTER',
+    'TABLE',
+    'INDEX',
+    'VIEW',
+    'PROCEDURE',
+    'FUNCTION',
+    'TRIGGER',
+    'DATABASE',
+    'SCHEMA',
+    'UNION',
+    'ALL',
+    'CASE',
+    'WHEN',
+    'THEN',
+    'ELSE',
+    'END',
+    'IF',
+    'WHILE',
+    'FOR',
+    'LOOP',
+    'BEGIN',
+    'COMMIT',
+    'ROLLBACK',
+    'TRANSACTION',
+    'GRANT',
+    'REVOKE',
+    'PRIMARY',
+    'KEY',
+    'FOREIGN',
+    'REFERENCES',
+    'CONSTRAINT',
+    'CHECK',
+    'DEFAULT',
+    'AUTO_INCREMENT',
+    'VARCHAR',
+    'INT',
+    'BIGINT',
+    'SMALLINT',
+    'TINYINT',
+    'DECIMAL',
+    'FLOAT',
+    'DOUBLE',
+    'CHAR',
+    'TEXT',
+    'DATE',
+    'TIME',
+    'DATETIME',
+    'TIMESTAMP',
+    'BOOLEAN',
+    'BLOB',
+    'JSON'
+  ];
+
+  // Escape HTML entities first to prevent double-escaping
+  let highlighted = sql
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  // Highlight keywords
+  keywords.forEach(keyword => {
+    const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
+    highlighted = highlighted.replace(
+      regex,
+      `<span style="color: #cf222e; font-weight: bold;">${keyword.toUpperCase()}</span>`
+    );
+  });
+
+  // Highlight strings (single and double quotes)
+  highlighted = highlighted.replace(
+    /(&#39;)((?:\\.|(?!\1)[^\\])*?)\1/g,
+    '<span style="color: #0a3069;">$1$2$1</span>'
+  );
+  highlighted = highlighted.replace(
+    /(&quot;)((?:\\.|(?!\1)[^\\])*?)\1/g,
+    '<span style="color: #0a3069;">$1$2$1</span>'
+  );
+
+  // Highlight numbers
+  highlighted = highlighted.replace(
+    /\b\d+(\.\d+)?\b/g,
+    '<span style="color: #0a3069; font-weight: bold;">$&</span>'
+  );
+
+  // Highlight comments (-- and /* */)
+  highlighted = highlighted.replace(
+    /--.*$/gm,
+    '<span style="color: #6a737d; font-style: italic;">$&</span>'
+  );
+  highlighted = highlighted.replace(
+    /\/\*[\s\S]*?\*\//g,
+    '<span style="color: #6a737d; font-style: italic;">$&</span>'
+  );
+
+  return highlighted;
 }
 
 /**
