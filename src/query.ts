@@ -60,12 +60,12 @@ class RecentQueryResponse implements IRecentQueryResponse {
 /**
  * Activate the extension.
  */
-export function activateRSPQueryExtension(
+export async function activateRSPQueryExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   env: IEnvResponse
-): void {
+): Promise<void> {
   logMessage(LogLevels.INFO, env, 'rsp-query...loading');
 
   const svcManager = app.serviceManager;
@@ -76,9 +76,7 @@ export function activateRSPQueryExtension(
   mainMenu.addMenu(rubinmenu);
   rubinmenu.title.label = 'Rubin';
 
-  replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).then(
-    () => {}
-  );
+  await replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
 
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
 }
@@ -114,8 +112,14 @@ async function replaceRubinMenuContents(
     commands.addCommand(CommandIDs.rubinqueryrefresh, {
       label: 'Refresh query history',
       caption: 'Refresh query history',
-      execute: () => {
-        replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+      execute: async () => {
+        await replaceRubinMenuContents(
+          app,
+          docManager,
+          svcManager,
+          env,
+          rubinmenu
+        );
       }
     });
   }
@@ -403,72 +407,39 @@ function addHoverTooltipToMainMenu(
   jobref: string,
   menuIndex: number
 ): void {
-  // Wait for the menu to be rendered
-  setTimeout(() => {
-    const menuNode = menu.node;
-    if (menuNode) {
-      // Find the menu item element by command ID
-      const menuItem = menuNode.querySelector(
-        `[data-command="q-${jobref}"]`
-      ) as HTMLElement;
-      if (menuItem) {
-        console.log(`Found menu item for ${jobref}, adding hover listeners`);
-        // Add hover event listeners
-        menuItem.addEventListener('mouseenter', event => {
-          // Clear any pending hide timeout
-          if (tooltipHideTimeout) {
-            clearTimeout(tooltipHideTimeout);
-            tooltipHideTimeout = null;
-          }
-          showSQLTooltip(event, sqlText, jobref);
-        });
-
-        menuItem.addEventListener('mouseleave', () => {
-          // Add a small delay before hiding to allow mouse to move to tooltip
-          tooltipHideTimeout = window.setTimeout(() => {
-            hideSQLTooltip();
-          }, 100);
-        });
-
-        // Ensure click functionality is preserved
-        // The command system should handle clicks automatically, but let's add a click handler
-        // to hide the tooltip when clicked
-        menuItem.addEventListener('click', () => {
-          hideSQLTooltip();
-        });
-      } else {
-        console.log(`Menu item not found for ${jobref}, trying again...`);
-        // Try again with a longer timeout
-        setTimeout(() => {
-          const retryMenuItem = menuNode.querySelector(
-            `[data-command="q-${jobref}"]`
-          ) as HTMLElement;
-          if (retryMenuItem) {
-            console.log(
-              `Found menu item for ${jobref} on retry, adding hover listeners`
-            );
-            retryMenuItem.addEventListener('mouseenter', event => {
-              if (tooltipHideTimeout) {
-                clearTimeout(tooltipHideTimeout);
-                tooltipHideTimeout = null;
-              }
-              showSQLTooltip(event, sqlText, jobref);
-            });
-            retryMenuItem.addEventListener('mouseleave', () => {
-              tooltipHideTimeout = window.setTimeout(() => {
-                hideSQLTooltip();
-              }, 100);
-            });
-            retryMenuItem.addEventListener('click', () => {
-              hideSQLTooltip();
-            });
-          } else {
-            console.log(`Menu item still not found for ${jobref} after retry`);
-          }
-        }, 200);
+  // Use event delegation on the menu node instead of setTimeout
+  const menuNode = menu.node;
+  if (menuNode) {
+    // Add event delegation for hover events
+    menuNode.addEventListener('mouseenter', event => {
+      const target = event.target as HTMLElement;
+      if (target && target.getAttribute('data-command') === `q-${jobref}`) {
+        // Clear any pending hide timeout
+        if (tooltipHideTimeout) {
+          clearTimeout(tooltipHideTimeout);
+          tooltipHideTimeout = null;
+        }
+        showSQLTooltip(event, sqlText, jobref);
       }
-    }
-  }, 100);
+    });
+
+    menuNode.addEventListener('mouseleave', event => {
+      const target = event.target as HTMLElement;
+      if (target && target.getAttribute('data-command') === `q-${jobref}`) {
+        // Add a small delay before hiding to allow mouse to move to tooltip
+        tooltipHideTimeout = window.setTimeout(() => {
+          hideSQLTooltip();
+        }, 100);
+      }
+    });
+
+    menuNode.addEventListener('click', event => {
+      const target = event.target as HTMLElement;
+      if (target && target.getAttribute('data-command') === `q-${jobref}`) {
+        hideSQLTooltip();
+      }
+    });
+  }
 }
 
 /**
