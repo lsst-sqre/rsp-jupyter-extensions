@@ -32,7 +32,7 @@ function activateRSPExtension(
   statusBar: IStatusBar
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server environment...');
-  getServerEnvironment(app).then(env => {
+  getServerEnvironment(app).then(async env => {
     logMessage(
       LogLevels.DEBUG,
       env,
@@ -45,7 +45,15 @@ function activateRSPExtension(
     logMessage(LogLevels.INFO, env, '...checking for abnormal startup...');
     if (env.ABNORMAL_STARTUP === 'TRUE') {
       // Give the user a warning dialog
-      abnormalDialog(env);
+      try {
+        await abnormalDialog(env);
+      } catch (error) {
+        logMessage(
+          LogLevels.ERROR,
+          env,
+          `Error showing abnormal dialog: ${error}`
+        );
+      }
     }
     logMessage(
       LogLevels.INFO,
@@ -56,8 +64,16 @@ function activateRSPExtension(
     logMessage(LogLevels.INFO, env, '...activated...');
     logMessage(LogLevels.INFO, env, '...activating query extension...');
     if (env.RSP_SITE_TYPE === 'science' || env.RSP_SITE_TYPE === 'staff') {
-      activateRSPQueryExtension(app, mainMenu, docManager, env);
-      logMessage(LogLevels.INFO, env, '...activated...');
+      try {
+        await activateRSPQueryExtension(app, mainMenu, docManager, env);
+        logMessage(LogLevels.INFO, env, '...activated...');
+      } catch (error) {
+        logMessage(
+          LogLevels.ERROR,
+          env,
+          `Error activating query extension: ${error}`
+        );
+      }
     } else {
       logMessage(
         LogLevels.INFO,
