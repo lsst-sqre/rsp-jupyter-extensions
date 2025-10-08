@@ -273,6 +273,10 @@ async function getRecentQueryMenu(
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
   retval.title.label = 'Recent Queries';
+
+  // Store query data for tooltip functionality
+  const queryDataMap = new Map<string, { sqlText: string; jobref: string }>();
+
   try {
     const queries = await rubinQueryRecentHistory(svcManager, env);
     logMessage(
@@ -288,8 +292,8 @@ async function getRecentQueryMenu(
         commands.addCommand(submcmdId, {
           label: qr.jobref, // Show just the jobref as the label
           caption: qr.text, // Use the full SQL as the caption/tooltip
-          execute: () => {
-            openQueryFromJobref(
+          execute: async () => {
+            await openQueryFromJobref(
               app,
               docManager,
               svcManager,
@@ -300,14 +304,15 @@ async function getRecentQueryMenu(
           }
         });
       } // Not gonna worry about pruning no-longer-displayed commands.
+
+      // Store query data for tooltip functionality
+      queryDataMap.set(qr.jobref, { sqlText: qr.text, jobref: qr.jobref });
+
       // Create a direct menu item instead of a submenu
       retval.insertItem(menuindex, {
         type: 'command',
         command: submcmdId
       });
-
-      // Add hover tooltip functionality to the main menu item
-      addHoverTooltipToMainMenu(retval, qr.text, qr.jobref, menuindex);
 
       logMessage(
         LogLevels.DEBUG,
@@ -316,6 +321,9 @@ async function getRecentQueryMenu(
       );
       menuindex += 10;
     });
+
+    // Add single event delegation for all menu items
+    addHoverTooltipsToMenu(retval, queryDataMap);
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
@@ -340,12 +348,21 @@ async function rubinQueryAllHistory(
   };
   logMessage(LogLevels.INFO, env, 'Opening query-all notebook');
   const settings = svcManager.serverSettings;
-  apiRequest(endpoint, init, settings).then(res => {
+
+  try {
+    const res = await apiRequest(endpoint, init, settings);
     const path_u = res as unknown;
     const path_c = path_u as IPathContainer;
     const path = path_c.path;
     docManager.open(path);
-  });
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      env,
+      `Error opening query-all notebook: ${error}`
+    );
+    throw new Error(`Failed to open query-all notebook: ${error}`);
+  }
 }
 
 async function rubinTAPQuery(
@@ -362,21 +379,28 @@ async function rubinTAPQuery(
       logMessage(LogLevels.WARNING, env, "Query URL was null'");
       return;
     }
-    openQueryFromJobref(app, docManager, svcManager, env, jobref, rubinmenu);
+    await openQueryFromJobref(
+      app,
+      docManager,
+      svcManager,
+      env,
+      jobref,
+      rubinmenu
+    );
   } catch (error) {
     logMessage(LogLevels.ERROR, env, `Error performing query ${error}`);
     throw new Error(`Failed to perform query: ${error}`);
   }
 }
 
-function openQueryFromJobref(
+async function openQueryFromJobref(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse,
   jobref: string,
   rubinmenu: Menu
-): void {
+): Promise<void> {
   logMessage(LogLevels.INFO, env, `Opening query for ${jobref}`);
   const body = JSON.stringify({
     type: 'tap',
@@ -388,58 +412,173 @@ function openQueryFromJobref(
     body: body
   };
   const settings = svcManager.serverSettings;
-  apiRequest(endpoint, init, settings).then(res => {
+
+  try {
+    const res = await apiRequest(endpoint, init, settings);
     const r_u = res as unknown;
     const r_p = r_u as IPathContainer;
     const path = r_p.path;
     docManager.open(path);
-  });
-  // Opportunistic update of menu, since we just submitted a new query.
-  replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+
+    // Update menu in background (fire-and-forget) to avoid blocking UI
+    replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).catch(
+      error => {
+        logMessage(
+          LogLevels.WARNING,
+          env,
+          `Background menu refresh failed: ${error}`
+        );
+        // Don't rethrow - this is a non-critical background operation
+      }
+    );
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      env,
+      `Error opening query from jobref: ${error}`
+    );
+    throw new Error(`Failed to open query from jobref: ${error}`);
+  }
 }
 
 /**
- * Add hover tooltip functionality to a main menu item
+ * Add hover tooltip functionality to all menu items using event delegation
  */
-function addHoverTooltipToMainMenu(
+function addHoverTooltipsToMenu(
   menu: Menu,
-  sqlText: string,
-  jobref: string,
-  menuIndex: number
+  queryDataMap: Map<string, { sqlText: string; jobref: string }>
 ): void {
-  // Use event delegation on the menu node instead of setTimeout
   const menuNode = menu.node;
-  if (menuNode) {
-    // Add event delegation for hover events
-    menuNode.addEventListener('mouseenter', event => {
-      const target = event.target as HTMLElement;
-      if (target && target.getAttribute('data-command') === `q-${jobref}`) {
-        // Clear any pending hide timeout
-        if (tooltipHideTimeout) {
-          clearTimeout(tooltipHideTimeout);
-          tooltipHideTimeout = null;
-        }
-        showSQLTooltip(event, sqlText, jobref);
-      }
-    });
-
-    menuNode.addEventListener('mouseleave', event => {
-      const target = event.target as HTMLElement;
-      if (target && target.getAttribute('data-command') === `q-${jobref}`) {
-        // Add a small delay before hiding to allow mouse to move to tooltip
-        tooltipHideTimeout = window.setTimeout(() => {
-          hideSQLTooltip();
-        }, 100);
-      }
-    });
-
-    menuNode.addEventListener('click', event => {
-      const target = event.target as HTMLElement;
-      if (target && target.getAttribute('data-command') === `q-${jobref}`) {
-        hideSQLTooltip();
-      }
-    });
+  if (!menuNode) {
+    return;
   }
+
+  // Track current hovered menu item to prevent rapid toggling
+  let currentHoveredJobref: string | null = null;
+
+  // Single event delegation for all menu items
+  const handleMouseEnter = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target) {
+      return;
+    }
+
+    // Find the closest menu item element
+    const menuItem = target.closest('[data-command^="q-"]') as HTMLElement;
+
+    if (!menuItem) {
+      return;
+    }
+
+    const commandAttr = menuItem.getAttribute('data-command');
+
+    if (!commandAttr || !commandAttr.startsWith('q-')) {
+      return;
+    }
+
+    const jobref = commandAttr.substring(2); // Remove 'q-' prefix
+
+    const queryData = queryDataMap.get(jobref);
+
+    if (!queryData) {
+      return;
+    }
+
+    // If we're already hovering over this item, don't show tooltip again
+    if (currentHoveredJobref === jobref) {
+      return;
+    }
+
+    // Clear any pending hide timeout when entering new item
+    if (tooltipHideTimeout) {
+      clearTimeout(tooltipHideTimeout);
+      tooltipHideTimeout = null;
+    }
+
+    // Clear any pending show timeout from previous item
+    if (tooltipShowTimeout) {
+      clearTimeout(tooltipShowTimeout);
+      tooltipShowTimeout = null;
+    }
+
+    // Update current hovered item
+    currentHoveredJobref = jobref;
+
+    // Add a small delay before showing tooltip to prevent rapid toggling
+    tooltipShowTimeout = window.setTimeout(() => {
+      showSQLTooltip(event, queryData.sqlText, queryData.jobref, () => {
+        currentHoveredJobref = null;
+      });
+    }, 150); // Small delay to prevent flashy behavior
+  };
+
+  const handleMouseLeave = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target) {
+      return;
+    }
+
+    const menuItem = target.closest('[data-command^="q-"]') as HTMLElement;
+
+    if (!menuItem) {
+      return;
+    }
+
+    const commandAttr = menuItem.getAttribute('data-command');
+
+    if (!commandAttr || !commandAttr.startsWith('q-')) {
+      return;
+    }
+
+    const jobref = commandAttr.substring(2);
+
+    // Only process if we're leaving the item we're currently tracking
+    if (currentHoveredJobref !== jobref) {
+      return;
+    }
+
+    // DON'T clear the show timeout here - let it complete if user was hovering long enough
+    // Only set the hide timeout
+
+    // Clear any existing hide timeout before setting a new one
+    if (tooltipHideTimeout) {
+      clearTimeout(tooltipHideTimeout);
+      tooltipHideTimeout = null;
+    }
+
+    // Add a longer delay before hiding to allow mouse to move to tooltip
+    tooltipHideTimeout = window.setTimeout(() => {
+      hideSQLTooltip();
+      currentHoveredJobref = null;
+    }, 300); // Longer delay to allow mouse movement to tooltip
+  };
+
+  const handleClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target) {
+      return;
+    }
+
+    const menuItem = target.closest('[data-command^="q-"]') as HTMLElement;
+
+    if (!menuItem) {
+      return;
+    }
+
+    const commandAttr = menuItem.getAttribute('data-command');
+
+    if (!commandAttr || !commandAttr.startsWith('q-')) {
+      return;
+    }
+
+    hideSQLTooltip();
+    currentHoveredJobref = null;
+  };
+
+  // Add event listeners with capture to ensure they're processed
+  menuNode.addEventListener('mouseenter', handleMouseEnter, true);
+  menuNode.addEventListener('mouseleave', handleMouseLeave, true);
+  menuNode.addEventListener('click', handleClick, true);
 }
 
 /**
@@ -453,15 +592,23 @@ let globalTooltip: HTMLElement | null = null;
 let tooltipHideTimeout: number | null = null;
 
 /**
+ * Global tooltip show timeout
+ */
+let tooltipShowTimeout: number | null = null;
+
+/**
  * Show SQL tooltip on hover with syntax highlighting
  */
 function showSQLTooltip(
   event: MouseEvent,
   sqlText: string,
-  jobref: string
+  jobref: string,
+  resetHoveredJobref?: () => void
 ): void {
-  // Remove existing tooltip
-  hideSQLTooltip();
+  // Remove existing tooltip only if one exists
+  if (globalTooltip) {
+    hideSQLTooltip();
+  }
 
   // Create tooltip element
   globalTooltip = document.createElement('div');
@@ -526,19 +673,23 @@ function showSQLTooltip(
   globalTooltip.appendChild(sqlContainer);
   document.body.appendChild(globalTooltip);
 
-  // Position tooltip closer to the menu item for easier mouse access
+  // Position tooltip with better spacing for easier mouse access
   const rect = (event.target as HTMLElement).getBoundingClientRect();
   const tooltipRect = globalTooltip.getBoundingClientRect();
 
-  let left = rect.right - 2; // Position tooltip slightly overlapping for easier access
-  let top = rect.top;
+  // Position tooltip to the right of the menu item with some overlap for easier access
+  let left = rect.right - 10; // Small overlap for easier mouse movement
+  let top = rect.top - 5; // Slight vertical offset for better positioning
 
   // Adjust if tooltip would go off screen
   if (left + tooltipRect.width > window.innerWidth) {
-    left = rect.left - tooltipRect.width + 2; // Position tooltip slightly overlapping on the left
+    left = rect.left - tooltipRect.width + 10; // Position tooltip on the left with overlap
   }
   if (top + tooltipRect.height > window.innerHeight) {
     top = window.innerHeight - tooltipRect.height - 10;
+  }
+  if (top < 10) {
+    top = 10; // Ensure tooltip doesn't go above viewport
   }
 
   globalTooltip.style.left = `${left}px`;
@@ -554,8 +705,17 @@ function showSQLTooltip(
   });
 
   globalTooltip.addEventListener('mouseleave', () => {
-    // Hide tooltip when mouse leaves
-    hideSQLTooltip();
+    // Clear any existing hide timeout
+    if (tooltipHideTimeout) {
+      clearTimeout(tooltipHideTimeout);
+    }
+    // Add a small delay before hiding to prevent accidental hiding
+    tooltipHideTimeout = window.setTimeout(() => {
+      hideSQLTooltip();
+      if (resetHoveredJobref) {
+        resetHoveredJobref();
+      }
+    }, 100);
   });
 }
 
@@ -563,10 +723,14 @@ function showSQLTooltip(
  * Hide SQL tooltip
  */
 function hideSQLTooltip(): void {
-  // Clear any pending hide timeout
+  // Clear any pending timeouts
   if (tooltipHideTimeout) {
     clearTimeout(tooltipHideTimeout);
     tooltipHideTimeout = null;
+  }
+  if (tooltipShowTimeout) {
+    clearTimeout(tooltipShowTimeout);
+    tooltipShowTimeout = null;
   }
 
   if (globalTooltip) {
