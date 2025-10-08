@@ -25,6 +25,7 @@ import { LogLevels, logMessage } from './logger';
 import * as token from './tokens';
 import { IEnvResponse } from './environment';
 import { apiRequest } from './request';
+import { format as formatSQL } from 'sql-formatter';
 
 /**
  * The command IDs used by the plugin.
@@ -621,8 +622,10 @@ function showSQLTooltip(
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     padding: 16px;
-    max-width: 500px;
-    max-height: 300px;
+    min-width: 500px;
+    max-width: 700px;
+    min-height: 200px;
+    max-height: 500px;
     overflow: hidden;
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 12px;
@@ -649,7 +652,7 @@ function showSQLTooltip(
     border: 1px solid #e1e4e8;
     border-radius: 4px;
     overflow: auto;
-    max-height: 250px;
+    max-height: 450px;
   `;
 
   // Create pre element for SQL with syntax highlighting
@@ -665,8 +668,9 @@ function showSQLTooltip(
     color: #24292e;
   `;
 
-  // Apply syntax highlighting using the existing highlightSQLBasic function
-  sqlPre.innerHTML = highlightSQLBasic(sqlText);
+  // Format SQL first, then apply syntax highlighting
+  const formattedSQL = formatSQLQuery(sqlText);
+  sqlPre.innerHTML = highlightSQLBasic(formattedSQL);
 
   sqlContainer.appendChild(sqlPre);
   globalTooltip.appendChild(title);
@@ -783,11 +787,36 @@ export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
     border: 1px solid #e1e4e8;
   `;
 
-  // Apply syntax highlighting
-  sqlEl.innerHTML = highlightSQLBasic(sqlQuery);
+  // Format SQL first, then apply syntax highlighting
+  const formattedSQL = formatSQLQuery(sqlQuery);
+  sqlEl.innerHTML = highlightSQLBasic(formattedSQL);
   card.appendChild(sqlEl);
 
   return card;
+}
+
+/**
+ * Format SQL query with standard formatting rules
+ */
+function formatSQLQuery(sql: string): string {
+  try {
+    return formatSQL(sql, {
+      language: 'sql',
+      tabWidth: 2,
+      keywordCase: 'upper',
+      dataTypeCase: 'upper',
+      functionCase: 'upper',
+      identifierCase: 'preserve',
+      indentStyle: 'standard',
+      logicalOperatorNewline: 'before',
+      expressionWidth: 50,
+      linesBetweenQueries: 2
+    });
+  } catch (error) {
+    // If formatting fails, return original SQL
+    console.warn('SQL formatting failed:', error);
+    return sql;
+  }
 }
 
 /**
