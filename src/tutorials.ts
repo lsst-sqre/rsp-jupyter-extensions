@@ -142,7 +142,7 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
   }
 }
 
-function apiGetTutorialsHierarchy(
+async function apiGetTutorialsHierarchy(
   settings: ServerConnection.ISettings,
   env: IEnvResponse
 ): Promise<TutorialsHierarchy> {
@@ -156,28 +156,24 @@ function apiGetTutorialsHierarchy(
    * @returns a Promise resolved with the JSON response
    */
   // Fake out URL check in makeRequest
-  return apiRequest(
+  const data = await apiRequest(
     PageConfig.getBaseUrl() + 'rubin/tutorials',
     { method: 'GET' },
     settings
-  ).then(data => {
-    logMessage(
-      LogLevels.DEBUG,
-      env,
-      `Tutorial endpoint response: ${JSON.stringify(data, undefined, 2)}`
-    );
-    // Assure Typescript it will be the right shape.
-    const u_d = data as unknown;
-    const h_i = u_d as ITutorialsHierarchyResponse;
-    const tut = new TutorialsHierarchy(h_i);
-    logMessage(
-      LogLevels.DEBUG,
-      env,
-      'Created TutorialsHierarchy from response'
-    );
-    logMessage(LogLevels.DEBUG, env, '==============================');
-    return tut;
-  });
+  );
+
+  logMessage(
+    LogLevels.DEBUG,
+    env,
+    `Tutorial endpoint response: ${JSON.stringify(data, undefined, 2)}`
+  );
+  // Assure Typescript it will be the right shape.
+  const u_d = data as unknown;
+  const h_i = u_d as ITutorialsHierarchyResponse;
+  const tut = new TutorialsHierarchy(h_i);
+  logMessage(LogLevels.DEBUG, env, 'Created TutorialsHierarchy from response');
+  logMessage(LogLevels.DEBUG, env, '==============================');
+  return tut;
 }
 
 /**
@@ -193,12 +189,12 @@ function apiGetTutorialsHierarchy(
  *
  * @returns a Promise resolved with the JSON response
  */
-function apiPostTutorialsEntry(
+async function apiPostTutorialsEntry(
   settings: ServerConnection.ISettings,
   docManager: IDocumentManager,
   entry: TutorialsEntry,
   env: IEnvResponse
-): void {
+): Promise<void> {
   // Fake out URL check in makeRequest
   logMessage(
     LogLevels.DEBUG,
@@ -209,19 +205,25 @@ function apiPostTutorialsEntry(
       2
     )}`
   );
-  ServerConnection.makeRequest(
-    PageConfig.getBaseUrl() + 'rubin/tutorials',
-    { method: 'POST', body: JSON.stringify(entry) },
-    settings
-  ).then(response => {
+
+  try {
+    const response = await ServerConnection.makeRequest(
+      PageConfig.getBaseUrl() + 'rubin/tutorials',
+      { method: 'POST', body: JSON.stringify(entry) },
+      settings
+    );
+
     if (response.status === 409) {
       // File exists; prompt user
-      overwriteDialog(entry.dest, docManager, env).then(verb => {
+      try {
+        const verb = await overwriteDialog(entry.dest, docManager, env);
         logMessage(LogLevels.DEBUG, env, `Dialog result was ${verb}`);
+
         if (verb !== 'OVERWRITE') {
           // Don't do the thing!
           return;
         }
+
         const newEntryModel = {
           menu_name: entry.menu_name,
           action: entry.action,
@@ -231,12 +233,13 @@ function apiPostTutorialsEntry(
           dest: entry.dest
         } as ITutorialsEntryResponse;
         const newEntry = new TutorialsEntry(newEntryModel);
+
         // Resubmit response with request to overwrite file.
-        apiPostTutorialsEntry(settings, docManager, newEntry, env);
-        return;
-      });
-    }
-    if (response.status === 307 || response.status === 200) {
+        await apiPostTutorialsEntry(settings, docManager, newEntry, env);
+      } catch (error) {
+        logMessage(LogLevels.ERROR, env, `Error in overwrite dialog: ${error}`);
+      }
+    } else if (response.status === 307 || response.status === 200) {
       // File got copied.
       logMessage(LogLevels.DEBUG, env, `Opening file ${entry.dest}`);
       docManager.openOrReveal(entry.dest);
@@ -247,8 +250,13 @@ function apiPostTutorialsEntry(
         `Unexpected response status ${response.status}`
       );
     }
-    return;
-  });
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      env,
+      `Error in tutorials POST request: ${error}`
+    );
+  }
 }
 
 interface IDialogResult {
@@ -400,12 +408,21 @@ export function activateRSPTutorialsExtension(
     logMessage(LogLevels.DEBUG, env, `done with ${name}`);
   }
 
-  apiGetTutorialsHierarchy(settings, env).then(res => {
-    if (res) {
-      const o_res = res as TutorialsHierarchy;
-      buildTutorialsMenu('root', o_res, null, env);
+  (async () => {
+    try {
+      const res = await apiGetTutorialsHierarchy(settings, env);
+      if (res) {
+        const o_res = res as TutorialsHierarchy;
+        buildTutorialsMenu('root', o_res, null, env);
+      }
+    } catch (error) {
+      logMessage(
+        LogLevels.ERROR,
+        env,
+        `Error loading tutorials hierarchy: ${error}`
+      );
     }
-  });
+  })();
 
   logMessage(LogLevels.INFO, env, 'rsp-tutorials: ...loaded.');
 }

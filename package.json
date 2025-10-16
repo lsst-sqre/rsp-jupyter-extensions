@@ -58,7 +58,8 @@
         "@jupyterlab/application": "^4.0.0",
         "@jupyterlab/coreutils": "^6.0.0",
         "@jupyterlab/mainmenu": "^4.0.0",
-        "@jupyterlab/services": "^7.0.0"
+        "@jupyterlab/services": "^7.0.0",
+        "sql-formatter": "^15.6.10"
     },
     "devDependencies": {
         "@jupyterlab/builder": "^4.0.0",
@@ -108,7 +109,8 @@
             }
         },
         "extension": true,
-        "outputDir": "rsp_jupyter_extensions/labextension"
+        "outputDir": "rsp_jupyter_extensions/labextension",
+        "webpackConfig": "./webpack.config.js"
     },
     "eslintIgnore": [
         "node_modules",
@@ -117,7 +119,8 @@
         "**/*.d.ts",
         "tests",
         "**/__tests__",
-        "ui-tests"
+        "ui-tests",
+        "webpack.config.js"
     ],
     "eslintConfig": {
         "extends": [

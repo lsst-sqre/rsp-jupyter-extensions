@@ -25,6 +25,7 @@ import { LogLevels, logMessage } from './logger';
 import * as token from './tokens';
 import { IEnvResponse } from './environment';
 import { apiRequest } from './request';
+import { SQLHoverTooltip } from './sql-tooltip';
 
 /**
  * The command IDs used by the plugin.
@@ -60,12 +61,12 @@ class RecentQueryResponse implements IRecentQueryResponse {
 /**
  * Activate the extension.
  */
-export function activateRSPQueryExtension(
+export async function activateRSPQueryExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   env: IEnvResponse
-): void {
+): Promise<void> {
   logMessage(LogLevels.INFO, env, 'rsp-query...loading');
 
   const svcManager = app.serviceManager;
@@ -76,9 +77,7 @@ export function activateRSPQueryExtension(
   mainMenu.addMenu(rubinmenu);
   rubinmenu.title.label = 'Rubin';
 
-  replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).then(
-    () => {}
-  );
+  await replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
 
   logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
 }
@@ -114,8 +113,14 @@ async function replaceRubinMenuContents(
     commands.addCommand(CommandIDs.rubinqueryrefresh, {
       label: 'Refresh query history',
       caption: 'Refresh query history',
-      execute: () => {
-        replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+      execute: async () => {
+        await replaceRubinMenuContents(
+          app,
+          docManager,
+          svcManager,
+          env,
+          rubinmenu
+        );
       }
     });
   }
@@ -237,7 +242,8 @@ async function rubinQueryRecentHistory(
     );
     qr_c.forEach(qr => {
       const new_rqr: RecentQueryResponse = new RecentQueryResponse(qr);
-      new_rqr.text = pretty_split(qr.text, 80);
+      // Keep the original SQL text for tooltip display
+      new_rqr.text = qr.text;
       logMessage(
         LogLevels.DEBUG,
         env,
@@ -268,6 +274,10 @@ async function getRecentQueryMenu(
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
   retval.title.label = 'Recent Queries';
+
+  // Store query data for tooltip functionality
+  const queryDataMap = new Map<string, { sqlText: string; jobref: string }>();
+
   try {
     const queries = await rubinQueryRecentHistory(svcManager, env);
     logMessage(
@@ -281,9 +291,10 @@ async function getRecentQueryMenu(
       if (!commands.hasCommand(submcmdId)) {
         // If we haven't added this command before, do so now.
         commands.addCommand(submcmdId, {
-          label: qr.text,
-          execute: () => {
-            openQueryFromJobref(
+          label: qr.jobref, // Show just the jobref as the label
+          caption: qr.text, // Use the full SQL as the caption/tooltip
+          execute: async () => {
+            await openQueryFromJobref(
               app,
               docManager,
               svcManager,
@@ -294,29 +305,27 @@ async function getRecentQueryMenu(
           }
         });
       } // Not gonna worry about pruning no-longer-displayed commands.
-      // Submenu is a single-item menu
-      const subm = new Menu({ commands });
-      subm.title.label = qr.jobref;
-      subm.insertItem(0, {
+
+      // Store query data for tooltip functionality
+      queryDataMap.set(qr.jobref, { sqlText: qr.text, jobref: qr.jobref });
+
+      // Create a direct menu item instead of a submenu
+      retval.insertItem(menuindex, {
         type: 'command',
         command: submcmdId
       });
+
       logMessage(
         LogLevels.DEBUG,
         env,
-        `Added ${submcmdId} to submenu for ${qr.jobref} => ${subm.title.label}`
-      );
-      retval.insertItem(menuindex, {
-        type: 'submenu',
-        submenu: subm
-      });
-      logMessage(
-        LogLevels.DEBUG,
-        env,
-        `Added submenu ${qr.jobref} at menuindex ${menuindex} to ${retval.title.label}`
+        `Added ${submcmdId} to submenu for ${qr.jobref}`
       );
       menuindex += 10;
     });
+
+    // Add single event delegation for all menu items
+    const sqlTooltip = new SQLHoverTooltip(queryDataMap);
+    sqlTooltip.attachToMenu(retval);
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
@@ -341,12 +350,21 @@ async function rubinQueryAllHistory(
   };
   logMessage(LogLevels.INFO, env, 'Opening query-all notebook');
   const settings = svcManager.serverSettings;
-  apiRequest(endpoint, init, settings).then(res => {
+
+  try {
+    const res = await apiRequest(endpoint, init, settings);
     const path_u = res as unknown;
     const path_c = path_u as IPathContainer;
     const path = path_c.path;
     docManager.open(path);
-  });
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      env,
+      `Error opening query-all notebook: ${error}`
+    );
+    throw new Error(`Failed to open query-all notebook: ${error}`);
+  }
 }
 
 async function rubinTAPQuery(
@@ -363,21 +381,28 @@ async function rubinTAPQuery(
       logMessage(LogLevels.WARNING, env, "Query URL was null'");
       return;
     }
-    openQueryFromJobref(app, docManager, svcManager, env, jobref, rubinmenu);
+    await openQueryFromJobref(
+      app,
+      docManager,
+      svcManager,
+      env,
+      jobref,
+      rubinmenu
+    );
   } catch (error) {
     logMessage(LogLevels.ERROR, env, `Error performing query ${error}`);
     throw new Error(`Failed to perform query: ${error}`);
   }
 }
 
-function openQueryFromJobref(
+async function openQueryFromJobref(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse,
   jobref: string,
   rubinmenu: Menu
-): void {
+): Promise<void> {
   logMessage(LogLevels.INFO, env, `Opening query for ${jobref}`);
   const body = JSON.stringify({
     type: 'tap',
@@ -389,60 +414,41 @@ function openQueryFromJobref(
     body: body
   };
   const settings = svcManager.serverSettings;
-  apiRequest(endpoint, init, settings).then(res => {
+
+  try {
+    const res = await apiRequest(endpoint, init, settings);
     const r_u = res as unknown;
     const r_p = r_u as IPathContainer;
     const path = r_p.path;
     docManager.open(path);
-  });
-  // Opportunistic update of menu, since we just submitted a new query.
-  replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+
+    // Update menu in background (fire-and-forget) to avoid blocking UI
+    replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).catch(
+      error => {
+        logMessage(
+          LogLevels.WARNING,
+          env,
+          `Background menu refresh failed: ${error}`
+        );
+        // Don't rethrow - this is a non-critical background operation
+      }
+    );
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      env,
+      `Error opening query from jobref: ${error}`
+    );
+    throw new Error(`Failed to open query from jobref: ${error}`);
+  }
 }
 
-function pretty_split(input: string, width: number): string {
-  // Split on whitespace or commas by inserting newlines
-  if (input.length <= width) {
-    return input;
-  }
-  let output = '';
-  let head = '';
-  let rest = input;
-  for (;;) {
-    if (rest.length <= width) {
-      output += rest;
-      break;
-    }
-
-    // Set up for each pass through the loop
-    head = rest.substring(0, width);
-    rest = rest.substring(width);
-    const hlen = head.length - 1;
-    let found = false;
-
-    // Walk backwards through head looking for splittable point
-    for (let i = hlen; i >= 0; i--) {
-      const char = head.substring(i, i + 1);
-      if (char === ' ') {
-        // Replace space with newline
-        output += head.substring(0, i) + '\n';
-        found = true;
-        rest = head.substring(i + 1) + rest;
-        break;
-      }
-      if (char === ',') {
-        // Put newline after comma
-        output += head.substring(0, i + 1) + '\n';
-        found = true;
-        rest = head.substring(i + 1) + rest;
-        break;
-      }
-    }
-    if (found === false) {
-      // Break after width chars even if it's mid-word
-      output += head + '\n';
-    }
-  }
-  return output;
+/**
+ * Create a beautiful SQL query card for display
+ * @deprecated Use SQLHoverTooltip.createSQLCard instead
+ */
+export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
+  return SQLHoverTooltip.createSQLCard(sqlQuery, title);
 }
 
 /**
