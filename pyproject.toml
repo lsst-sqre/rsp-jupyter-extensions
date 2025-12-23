@@ -99,5 +99,9 @@ before-build-python = ["jlpm clean:all"]
 [tool.check-wheel-contents]
 ignore = ["W002"]
 
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+asyncio_mode = "strict"
+
 [tool.ruff]
 extend = "ruff-shared.toml"
