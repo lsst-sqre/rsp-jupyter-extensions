@@ -59,13 +59,28 @@ export function activateRSPPDFExportExtension(
     }
   });
 
-  const menu: Menu.IItemOptions[] = [{ command: CommandIDs.pdfExport }];
+  // Find the export menu.  If we can't, use the File menu itself.
+  const exportTo = mainMenu.fileMenu.items.find(
+    item =>
+      item.type === 'submenu' &&
+      item.submenu?.id === 'jp-mainmenu-file-notebookexport'
+  )?.submenu;
 
-  // Put it near the bottom of file menu
-  // Should inject into export menu instad?  But all that goes through
-  // nbconvert, so maybe not?
-  const rank = 140;
-  mainMenu.fileMenu.addGroup(menu, rank);
+  if (exportTo) {
+    exportTo.addItem({
+      command: CommandIDs.pdfExport,
+      args: {
+        format: 'PDF-typst',
+        label: 'PDF-typst',
+        isPalette: false
+      }
+    });
+  } else {
+    const menu: Menu.IItemOptions[] = [{ command: CommandIDs.pdfExport }];
+    // Put it near the bottom of File menu
+    const rank = 140;
+    mainMenu.fileMenu.addGroup(menu, rank);
+  }
 
   logMessage(LogLevels.INFO, env, 'rsp-pdfexport: ...loaded.');
 }
