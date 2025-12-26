@@ -7,22 +7,21 @@ from pathlib import Path
 
 def usage() -> None:
     """Print usage."""
-    print(f"Usage: {sys.argv[0]} compile file.typ\n", file=sys.stderr)
+    print(f"Usage: {sys.argv[0]} compile - file.pdf\n", file=sys.stderr)
 
 
 def main() -> None:
     """Pretend to compile .typ to .pdf."""
     if (
-        len(sys.argv) != 3
+        len(sys.argv) != 4
         or sys.argv[1] != "compile"
-        or not sys.argv[2].endswith(".typ")
+        or sys.argv[2] != "-"
+        or not sys.argv[3].endswith(".pdf")
     ):
         usage()
         sys.exit(1)
 
-    basename = sys.argv[2][: -len(".typ")]
-    pdf = basename + ".pdf"
-    Path(pdf).write_text("Ceci pas un PDF document.")
+    Path(sys.argv[3]).write_text("Ceci pas un PDF document.")
 
 
 if __name__ == "__main__":

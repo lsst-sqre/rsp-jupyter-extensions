@@ -119,7 +119,7 @@ select = ["ALL"]
 ]
 
 "rsp_jupyter_extensions/tests/data/*" = [
-    "T201",    # Our fake 'typst' uses print()
+    "T201",    # Our fake executables use print()
 ]
 
 # These are too useful as attributes or methods to allow the conflict with the

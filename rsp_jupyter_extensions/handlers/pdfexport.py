@@ -40,16 +40,20 @@ class PDFExportResponse:
 class PDFExportHandler(APIHandler):
     """Convert notebook to PDF.
 
-    This is much lighter-weight than using TeX+Pandoc or Chromium+Playwright
-    to achieve the same goal, as it uses typst, which can be installed as a
-    single binary, and callisto, which typst can download at runtime.
+    The current approach relies on pandoc, which is fairly heavyweight, but
+    at least it does't require a full TeX stack or Chromium+Playwright
+    installation.
+
+    Typst is a single binary.  If we reach an agreement with CST about their
+    inline images (or figure out a preprocessing step to strip them), we could
+    use typst and let it download callisto to do our notebook rendering, which
+    would be very fast and lightweight.
     """
 
     def initialize(self) -> None:
         """Set rootdir."""
         super().initialize()
         self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
-        self._typst = shutil.which("typst")
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:
@@ -84,9 +88,15 @@ class PDFExportHandler(APIHandler):
         return (await self._to_pdf_response(nb_path)).to_str()
 
     async def _to_pdf_response(self, nb_path: str) -> PDFExportResponse:
-        """Sanity-check the inputs, make the PDF, report success or failure."""
+        """Sanity-check the executables and inputs, make the PDF, report."""
         obj = PDFExportResponse()
-        if self._typst is None:
+        typst = shutil.which("typst")
+        pandoc = shutil.which("pandoc")
+        if pandoc is None:
+            path = os.getenv("PATH", "")
+            obj.error = f"No executable 'pandoc' found on PATH ({path})"
+            return obj
+        if typst is None:
             path = os.getenv("PATH", "")
             obj.error = f"No executable 'typst' found on PATH ({path})"
             return obj
@@ -101,28 +111,8 @@ class PDFExportHandler(APIHandler):
         try:
             basename = f"{nb.name[: -(len('.ipynb'))]}"
             pdf = nb.parent / f"{basename}.pdf"
-            typ = nb.parent / f"{basename}.typ"
             with contextlib.chdir(self._root_dir):
-                typtext = '#import "@preview/callisto:0.2.4"\n'
-                typtext += f'#callisto.render(nb: json("{nb.name}"))\n'
-                # I told you it was a short document.
-                typ.write_text(typtext)
-                proc = await asyncio.create_subprocess_exec(
-                    self._typst,
-                    "compile",
-                    str(typ),
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    raise RuntimeError(
-                        f"'{self._typst} compile {typ!s}' exited"
-                        f" with rc=${proc.returncode}\n"
-                        f" stdout={stdout.decode()}\n",
-                        f" stderr={stderr.decode()}",
-                    )
-                typ.unlink()
+                await self._try_pandoc(nb, pdf)
         except Exception as exc:
             self.log.exception(f"PDF conversion of {nb!s} failed")
             obj.error = f"PDF conversion of {nb!s} failed: {exc!s}"
@@ -130,3 +120,56 @@ class PDFExportHandler(APIHandler):
         # Success: no error, path points to PDF.
         obj.path = f"{pdf.relative_to(self._root_dir)!s}"
         return obj
+
+    async def _try_pandoc(self, nb: Path, pdf: Path) -> None:
+        # Asyncio subprocess makes chaining commands pretty
+        # grotesque, alas.
+        pipe_read, pipe_write = os.pipe()
+        await asyncio.create_subprocess_exec(
+            "pandoc", nb.name, "-w", "typst", stdout=pipe_write
+        )
+        os.close(pipe_write)
+        proc = await asyncio.create_subprocess_exec(
+            "typst",
+            "compile",
+            "-",
+            pdf.name,
+            stdin=pipe_read,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        os.close(pipe_read)
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"'typst compile - {pdf.name}' exited"
+                f" with rc={proc.returncode}\n"
+                f" stdout={stdout.decode()}\n",
+                f" stderr={stderr.decode()}",
+            )
+
+    async def _try_callisto(self, nb: Path, pdf: Path) -> None:
+        # This would be our preferred approach, but it dies with CST
+        # inline images.  If it works it's great and extremely lightweight,
+        # though.  Maybe we can reach a compromise with CST.
+        basename = f"{nb.name[: -(len('.ipynb'))]}"
+        typ = nb.parent / f"__{basename}.typ"
+        typtext = '#import "@preview/callisto:0.2.4"\n'
+        typtext += f'#callisto.render(nb: json("{nb.name}"))\n'
+        typ.write_text(typtext)
+        proc = await asyncio.create_subprocess_exec(
+            "typst",
+            "compile",
+            str(typ),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"'typst compile {typ!s}' exited"
+                f" with rc={proc.returncode}\n"
+                f" stdout={stdout.decode()}\n",
+                f" stderr={stderr.decode()}",
+            )
+        typ.unlink()

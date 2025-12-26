@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Fake 'pandoc' command for testing."""
+
+import sys
+
+
+def usage() -> None:
+    """Print usage."""
+    print(f"Usage: {sys.argv[0]} file.ipynb -w typst\n", file=sys.stderr)
+
+
+def main() -> None:
+    """Pretend to compile .typ to .pdf."""
+    if (
+        len(sys.argv) != 4
+        or not sys.argv[1].endswith(".ipynb")
+        or sys.argv[2] != "-w"
+        or sys.argv[3] != "typst"
+    ):
+        usage()
+        sys.exit(1)
+
+    print("I can't believe it's not typst.")
+
+
+if __name__ == "__main__":
+    main()
