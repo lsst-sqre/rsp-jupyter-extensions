@@ -110,64 +110,89 @@ class PDFExportHandler(APIHandler):
             return obj
         try:
             basename = f"{nb.name[: -(len('.ipynb'))]}"
-            pdf = nb.parent / f"{basename}.pdf"
-            with contextlib.chdir(self._root_dir):
-                await self._try_pandoc(nb, pdf)
+            with contextlib.chdir(nb.parent):
+                try:
+                    await self._try_callisto(basename)
+                except Exception:
+                    self.log.debug(
+                        f"PDF conversion (callisto) of {nb!s} failed;"
+                        " trying PDF conversion (pandoc)."
+                    )
+                    await self._try_pandoc(basename)
         except Exception as exc:
             self.log.exception(f"PDF conversion of {nb!s} failed")
             obj.error = f"PDF conversion of {nb!s} failed: {exc!s}"
             return obj
         # Success: no error, path points to PDF.
+        pdf = nb.parent / f"{basename}.pdf"
         obj.path = f"{pdf.relative_to(self._root_dir)!s}"
         return obj
 
-    async def _try_pandoc(self, nb: Path, pdf: Path) -> None:
-        # Asyncio subprocess makes chaining commands pretty
+    async def _try_pandoc(self, basename: str) -> None:
+        # A pipe might be prettier than an intermediate file, but
+        # asyncio subprocess makes chaining commands pretty
         # grotesque, alas.
-        pipe_read, pipe_write = os.pipe()
-        await asyncio.create_subprocess_exec(
-            "pandoc", nb.name, "-w", "typst", stdout=pipe_write
-        )
-        os.close(pipe_write)
-        proc = await asyncio.create_subprocess_exec(
+        cmd1 = [
+            "pandoc",
+            f"{basename}.ipynb",
+            "-w",
             "typst",
-            "compile",
-            "-",
-            pdf.name,
-            stdin=pipe_read,
+            "-o",
+            f"__{basename}.typ",
+        ]
+        cmd1str = " ".join(cmd1)
+        self.log.debug(f"Running '{cmd1str}'")
+        p1 = await asyncio.create_subprocess_exec(
+            *cmd1,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        os.close(pipe_read)
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
+        stdout, stderr = await p1.communicate()
+        if p1.returncode != 0:
             raise RuntimeError(
-                f"'typst compile - {pdf.name}' exited"
-                f" with rc={proc.returncode}\n"
+                f"'{cmd1str}' exited"
+                f" with rc={p1.returncode}\n"
                 f" stdout={stdout.decode()}\n",
                 f" stderr={stderr.decode()}",
             )
+        cmd2 = ["typst", "compile", f"__{basename}.typ", f"{basename}.pdf"]
+        cmd2str = " ".join(cmd2)
+        self.log.debug(f"Running '{cmd2str}'")
+        p2 = await asyncio.create_subprocess_exec(
+            *cmd2,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await p2.communicate()
+        if p2.returncode != 0:
+            raise RuntimeError(
+                f"'{cmd2str}' exited"
+                f" with rc={p2.returncode}\n"
+                f" stdout={stdout.decode()}\n",
+                f" stderr={stderr.decode()}",
+            )
+        Path(f"__{basename}.typ").unlink()
 
-    async def _try_callisto(self, nb: Path, pdf: Path) -> None:
+    async def _try_callisto(self, basename: str) -> None:
         # This would be our preferred approach, but it dies with CST
         # inline images.  If it works it's great and extremely lightweight,
         # though.  Maybe we can reach a compromise with CST.
-        basename = f"{nb.name[: -(len('.ipynb'))]}"
-        typ = nb.parent / f"__{basename}.typ"
+        typ = Path(f"__{basename}.typ")
         typtext = '#import "@preview/callisto:0.2.4"\n'
-        typtext += f'#callisto.render(nb: json("{nb.name}"))\n'
+        typtext += f'#callisto.render(nb: json("{basename}.ipynb"))\n'
         typ.write_text(typtext)
+        cmd = ["typst", "compile", typ.name, f"{basename}.pdf"]
+        cmdstr = " ".join(cmd)
+        self.log.debug(f"Running '{cmdstr}'")
         proc = await asyncio.create_subprocess_exec(
-            "typst",
-            "compile",
-            str(typ),
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await proc.communicate()
         if proc.returncode != 0:
             raise RuntimeError(
-                f"'typst compile {typ!s}' exited"
+                f"'{cmdstr}' exited"
                 f" with rc={proc.returncode}\n"
                 f" stdout={stdout.decode()}\n",
                 f" stderr={stderr.decode()}",

@@ -53,34 +53,20 @@ export function activateRSPPDFExportExtension(
 
   commands.addCommand(CommandIDs.pdfExport, {
     label: 'Export current notebook to PDF (typst)',
-    caption: 'Export current notebook to PDF with typst',
+    caption: 'Export current notebook to PDF via typst',
     execute: () => {
       pdfExport(app, docManager, svcManager, env, tracker);
     }
   });
 
-  // Find the export menu.  If we can't, use the File menu itself.
-  const exportTo = mainMenu.fileMenu.items.find(
-    item =>
-      item.type === 'submenu' &&
-      item.submenu?.id === 'jp-mainmenu-file-notebookexport'
-  )?.submenu;
-
-  if (exportTo) {
-    exportTo.addItem({
-      command: CommandIDs.pdfExport,
-      args: {
-        format: 'PDF-typst',
-        label: 'PDF-typst',
-        isPalette: false
-      }
-    });
-  } else {
-    const menu: Menu.IItemOptions[] = [{ command: CommandIDs.pdfExport }];
-    // Put it near the bottom of File menu
-    const rank = 140;
-    mainMenu.fileMenu.addGroup(menu, rank);
-  }
+  // We tried putting this into the Export as... menu, but those things all
+  // use nbconvert, and the behavior was inconsistent since we do not.  So
+  // we will instead group this separately.
+  // If nbconvert becomes able to create typst, though, we should reconsider.
+  const menu: Menu.IItemOptions[] = [{ command: CommandIDs.pdfExport }];
+  // Put it near the bottom of File menu
+  const rank = 140;
+  mainMenu.fileMenu.addGroup(menu, rank);
 
   logMessage(LogLevels.INFO, env, 'rsp-pdfexport: ...loaded.');
 }
