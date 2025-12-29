@@ -94,7 +94,8 @@ async function replaceRubinMenuContents(
   if (!commands.hasCommand(CommandIDs.rubinqueryitem)) {
     commands.addCommand(CommandIDs.rubinqueryitem, {
       label: 'Open from your query history...',
-      caption: 'Open notebook from supplied query jobref ID or URL',
+      caption:
+        'Open notebook from supplied query jobref ID, dataset:id, or URL',
       execute: () => {
         rubinTAPQuery(app, docManager, svcManager, env, rubinmenu);
       }

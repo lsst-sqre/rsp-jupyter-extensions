@@ -24,7 +24,7 @@ dependencies = [
     "httpx",
     "jinja2",
     "jupyter_server>=2.0.1,<3",
-    "lsst-rsp>=0.7.1",
+    "lsst-rsp@git+https://github.com/lsst-sqre/lsst-rsp@tickets/DM-53427",
     "pydantic",
     "requests",
     "xmltodict"
