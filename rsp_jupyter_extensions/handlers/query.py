@@ -8,14 +8,18 @@ import tornado
 import xmltodict
 from httpx import ReadTimeout
 from jupyter_server.base.handlers import APIHandler
-from lsst.rsp import get_query_history
+from lsst.rsp import (
+    RSPClient,
+    get_query_history,
+    get_service_url,
+    list_datasets,
+)
 
 from ..models.query import (
     TAPQuery,
     UnimplementedQueryResolutionError,
     UnsupportedQueryTypeError,
 )
-from ._rspclient import RSPClient
 from ._utils import _peel_route, _write_notebook_response
 
 
@@ -25,11 +29,13 @@ class QueryHandler(APIHandler):
     def initialize(self) -> None:
         """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
-        self._ts_client = RSPClient(base_path="times-square/api/v1/")
-        self._tap_client = RSPClient(base_path="/api/tap/")
+        self._ts_client = RSPClient("/times-square/api/v1/")
+        self._tap_client = RSPClient("/api/tap/")
+        self._dataset_client: dict[str, RSPClient] = {}
         self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
         self._cachefile = self._root_dir / ".cache" / "queries.json"
         self._initialize_cache()
+        self._initialize_dataset_clients()
 
     def _initialize_cache(self) -> None:
         """We get a new instance of the class every time the front end
@@ -51,6 +57,11 @@ class QueryHandler(APIHandler):
         self._cachefile.parent.mkdir(exist_ok=True, parents=True)
         self._cachefile.write_text(json.dumps(self._cache))
 
+    def _initialize_dataset_clients(self) -> None:
+        datasets = list_datasets()
+        for ds in datasets:
+            self._dataset_client[ds] = RSPClient(get_service_url("tap", ds))
+
     @property
     def rubinquery(self) -> dict[str, str]:
         """Rubin query params."""
@@ -63,8 +74,11 @@ class QueryHandler(APIHandler):
 
         "type" is currently limited to "tap".
 
-        For a TAP query, "value" is the URL or jobref ID referring to that
-        query.   The interpretation of "value" is query-type dependent.
+        The interpretation of "value" is query-type dependent.
+
+        For a TAP query, "value" is the URL, or the jobref ID (in which
+        case the endpoint /api/tap is assumed), or a string in the form
+        of "dataset:jobref_id", referring to that query.
 
         It will then use the value to resolve the template, and
         construct a filename resolved under $JUPYTER_SERVER_ROOT
@@ -92,24 +106,46 @@ class QueryHandler(APIHandler):
 
     async def _create_tap_query(self, q_value: str) -> str:
         # The value should be a URL or a jobref ID
-        this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "not-an-rsp")
-        if q_value.startswith(this_rsp):
+        # A jobref is always 16 alphanumeric characters.
+        # Therefore: if it contains a slash, it's a URL
+        if q_value.find("/") != -1:
             # This looks like a URL
+            # Trim trailing slashes
+            q_value = q_value.rstrip("/")
             url = q_value
-            q_id = q_value.split("/")[-1]  # Last component is the jobref ID
+            slashes = q_value.count("/")
+            if slashes == 0:
+                # Seriously?  It was just slashes to start with?
+                raise UnimplementedQueryResolutionError("")
+            q_pieces = q_value.split("/")
+            q_id = q_pieces[-1]  # Last component is the jobref ID
+            # This ought to be pretty rare; like, if that was a sane
+            # URL, it was something like ..../api/tap/async/abcde, and this
+            # will end up being "tap".
+            q_ds = q_pieces[-3] if slashes > 2 else "unknown"
+        # If it contains a colon, it's dataset:jobref_id.
+        elif q_value.find(":") != -1:
+            q_ds, q_id = q_value.split(":")
+            base_url = get_service_url("tap", q_ds)
+            url = f"{base_url}/async/{q_id}"
         else:
-            # It's a raw jobref ID
+            # No colon, so no dataset, so we assume the "/api/tap"
+            # endpoint.
+            this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "")
             url = f"{this_rsp}/api/tap/async/{q_value}"
             q_id = q_value
-        fname = self._root_dir / "notebooks" / "queries" / f"tap_{q_id}.ipynb"
+            q_ds = "tap"
+        fname = (
+            self._root_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
+        )
         if fname.is_file():
             nb = fname.read_text()
         else:
-            nb = self._get_tap_query_notebook(url)
+            nb = await self._get_tap_query_notebook(url)
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(nb, fname)
 
-    def _get_ts_query_notebook(
+    async def _get_ts_query_notebook(
         self,
         org: str,
         repo: str,
@@ -123,9 +159,9 @@ class QueryHandler(APIHandler):
         # Retrieve that URL and return the textual response, which is the
         # string representing the rendered notebook "in unicode", which
         # means "a string represented in the default encoding".
-        return self._ts_client.get(rendered_url, params=params).text
+        return (await self._ts_client.get(rendered_url, params=params)).text
 
-    def _get_nublado_seeds_notebook(
+    async def _get_nublado_seeds_notebook(
         self, notebook: str, params: dict[str, str]
     ) -> str:
         """Partially-curried function with invariant parameters filled in."""
@@ -133,24 +169,24 @@ class QueryHandler(APIHandler):
         repo = os.getenv("NUBLADO_SEEDS_REPO", "nublado-seeds")
         directory = os.getenv("NUBLADO_SEEDS_DIR", "tap")
 
-        return self._get_ts_query_notebook(
+        return await self._get_ts_query_notebook(
             org, repo, directory, notebook, params
         )
 
-    def _get_tap_query_notebook(self, url: str) -> str:
+    async def _get_tap_query_notebook(self, url: str) -> str:
         """Even-more-curried helper function for TAP query notebook."""
         notebook = "query"
         # The only parameter we have is query_url, which is the TAP query
         # URL
         params = {"query_url": url}
 
-        return self._get_nublado_seeds_notebook(notebook, params)
+        return await self._get_nublado_seeds_notebook(notebook, params)
 
-    def _get_query_all_notebook(self) -> str:
+    async def _get_query_all_notebook(self) -> str:
         """Even-more-curried helper function for TAP history notebook."""
         notebook = "history"
         params: dict[str, str] = {}
-        return self._get_nublado_seeds_notebook(notebook, params)
+        return await self._get_nublado_seeds_notebook(notebook, params)
 
     @tornado.web.authenticated
     async def get(self, *args: str, **kwargs: str) -> None:
@@ -205,7 +241,7 @@ class QueryHandler(APIHandler):
                 # get_query_history can be weirdly slow
                 self.write(json.dumps([]))
                 return
-            qtext = self._get_query_text_list(jobs)
+            qtext = await self._get_query_text_list(jobs)
             q_dicts = [x.model_dump() for x in qtext]
             self.write(json.dumps(q_dicts))
         if len(components) == 1 and components[0] != "history":
@@ -228,13 +264,13 @@ class QueryHandler(APIHandler):
         """
         try:
             jobs = await get_query_history(count)
-            self._get_query_text_list(jobs)
+            await self._get_query_text_list(jobs)
         except ReadTimeout:
             # get_query_history can be weirdly slow
             pass
 
     async def _generate_query_all_notebook(self) -> str:
-        output = self._get_query_all_notebook()
+        output = await self._get_query_all_notebook()
         fname = (
             self._root_dir
             / "notebooks"
@@ -244,7 +280,7 @@ class QueryHandler(APIHandler):
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(output, fname)
 
-    def _get_query_text_list(self, job_ids: list[str]) -> list[TAPQuery]:
+    async def _get_query_text_list(self, job_ids: list[str]) -> list[TAPQuery]:
         """For each job ID, get the query text.  This will be returned
         to the UI to be used as a hover tooltip.
 
@@ -255,15 +291,24 @@ class QueryHandler(APIHandler):
         self.log.info(f"Requesting query history for {job_ids}")
         for job in job_ids:
             try:
-                retval.append(self._get_query_text_job(job))
+                retval.append(await self._get_query_text_job(job))
             except Exception:
                 self.log.exception(f"job {job} text retrieval failed")
         return retval
 
-    def _get_query_text_job(self, job: str) -> TAPQuery:
+    async def _get_query_text_job(self, job: str) -> TAPQuery:
         if job in self._cache:
             return TAPQuery(jobref=job, text=self._cache[job])
-        resp = self._tap_client.get(f"async/{job}")
+        # If there is no colon, it's whatever is behind /api/tap.
+        if job.find(":") == -1:
+            resp = await self._tap_client.get(f"async/{job}")
+        else:
+            # We have a dataset, and presumably a matching client.
+            ds, job_id = job.split(":")
+            client = self._dataset_client.get(ds)
+            if not client:
+                raise RuntimeError(f"No client for dataset '{ds}'")
+            resp = await client.get(f"async/{job_id}")
         resp.raise_for_status()
         # If we didn't get a 200, resp.text probably won't parse, and
         # we will raise that.

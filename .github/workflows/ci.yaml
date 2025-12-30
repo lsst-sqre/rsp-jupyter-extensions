@@ -95,7 +95,7 @@ jobs:
            "name": "python",
            "nbconvert_exporter": "python",
            "pygments_lexer": "ipython3",
-           "version": "3.11.10"
+           "version": "3.12.12"
           }
          },
          "nbformat": 4,
@@ -135,7 +135,7 @@ jobs:
     - name: Install Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
         architecture: 'x64'
     - uses: actions/download-artifact@v4
       with:
@@ -251,7 +251,7 @@ jobs:
            "name": "python",
            "nbconvert_exporter": "python",
            "pygments_lexer": "ipython3",
-           "version": "3.11.10"
+           "version": "3.12.12"
           }
          },
          "nbformat": 4,

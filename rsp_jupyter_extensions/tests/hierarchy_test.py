@@ -268,10 +268,10 @@ def test_bad_construction() -> None:
 
         name: str
         value: dict[str, Any]
-        match: str
+        match: str | None
 
     inp = [
-        TestInput(name="missing_toplevel", value={}, match=""),
+        TestInput(name="missing_toplevel", value={}, match=None),
         TestInput(
             name="extra_fields",
             value={
@@ -296,7 +296,7 @@ def test_bad_construction() -> None:
             _ = Hierarchy.from_primitive(tst.value)
 
     inp = [
-        TestInput(name="missing_toplevel", value={}, match=""),
+        TestInput(name="missing_toplevel", value={}, match=None),
         TestInput(
             name="malformed_entry",
             value={
