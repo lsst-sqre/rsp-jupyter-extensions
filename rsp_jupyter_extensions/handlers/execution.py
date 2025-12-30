@@ -52,7 +52,10 @@ class ExecutionHandler(APIHandler):
             "X-Clear-Local-Site-Packages", ""
         ).lower()
         clr_pkg = False
-        if clr_pkg_hdr == "true":
+        if self.request.headers.get(
+            "X-Clear-Local-Site-Packages", ""
+        ).lower().strip() == "true":
+            do_remove_local_packages = True
             clr_pkg = True
         # Do The Deed
         output_str = self._execute_nb(
