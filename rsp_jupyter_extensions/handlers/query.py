@@ -110,12 +110,23 @@ class QueryHandler(APIHandler):
         # Therefore: if it contains a slash, it's a URL
         if q_value.find("/") != -1:
             # This looks like a URL
+            # Trim trailing slashes
+            q_value = q_value.rstrip("/")
             url = q_value
-            q_id = q_value.split("/")[-1]  # Last component is the jobref ID
+            slashes = q_value.count("/")
+            if slashes == 0:
+                # Seriously?  It was just slashes to start with?
+                raise UnimplementedQueryResolutionError("")
+            q_pieces = q_value.split("/")
+            q_id = q_pieces[-1]  # Last component is the jobref ID
+            # This ought to be pretty rare; like, if that was a sane
+            # URL, it was something like ..../api/tap/async/abcde, and this
+            # will end up being "tap".
+            q_ds = q_pieces[-3] if slashes > 2 else "unknown"
         # If it contains a colon, it's dataset:jobref_id.
         elif q_value.find(":") != -1:
-            dataset, q_id = q_value.split(":")
-            base_url = get_service_url("tap", dataset)
+            q_ds, q_id = q_value.split(":")
+            base_url = get_service_url("tap", q_ds)
             url = f"{base_url}/async/{q_id}"
         else:
             # No colon, so no dataset, so we assume the "/api/tap"
@@ -123,7 +134,10 @@ class QueryHandler(APIHandler):
             this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "")
             url = f"{this_rsp}/api/tap/async/{q_value}"
             q_id = q_value
-        fname = self._root_dir / "notebooks" / "queries" / f"tap_{q_id}.ipynb"
+            q_ds = "tap"
+        fname = (
+            self._root_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
+        )
         if fname.is_file():
             nb = fname.read_text()
         else:
@@ -291,7 +305,10 @@ class QueryHandler(APIHandler):
         else:
             # We have a dataset, and presumably a matching client.
             ds, job_id = job.split(":")
-            resp = await self._dataset_client[ds].get(f"async/{job_id}")
+            client = self._dataset_client.get(ds)
+            if not client:
+                raise RuntimeError(f"No client for dataset '{ds}'")
+            resp = await client.get(f"async/{job_id}")
         resp.raise_for_status()
         # If we didn't get a 200, resp.text probably won't parse, and
         # we will raise that.
