@@ -1,6 +1,5 @@
 """Handler Module to provide an endpoint for notebook execution."""
 
-import contextlib
 import json
 import os
 import shutil
@@ -48,24 +47,23 @@ class ExecutionHandler(APIHandler):
         """
         input_str = self.request.body.decode("utf-8")
         kernel_name = self.request.headers.get("X-Kernel-Name", None)
-        clr_pkg_hdr = self.request.headers.get(
-            "X-Clear-Local-Site-Packages", ""
-        ).lower()
-        clr_pkg = False
-        if self.request.headers.get(
-            "X-Clear-Local-Site-Packages", ""
-        ).lower().strip() == "true":
+        do_remove_local_packages = False
+        if (
+            self.request.headers.get("X-Clear-Local-Site-Packages", "")
+            .lower()
+            .strip()
+            == "true"
+        ):
             do_remove_local_packages = True
-            clr_pkg = True
         # Do The Deed
         output_str = self._execute_nb(
             input_str=input_str,
             kernel_name=kernel_name,
-            clear_site_packages=clr_pkg,
+            clear_site_packages=do_remove_local_packages,
         )
         self.write(output_str)
 
-    def _clear_site_packages(self) -> None:
+    def _clear_site_packages(self, kernel_name: str | None = None) -> None:
         homedir = os.getenv("HOME", "")
         if not homedir or homedir == "/":
             return
@@ -73,9 +71,12 @@ class ExecutionHandler(APIHandler):
         if not top.is_dir():
             return
         victims = list(top.glob("python*/site-packages"))
+
         for sitep in victims:
-            with contextlib.suppress(Exception):
-                shutil.rmtree(sitep, ignore_errors=True)
+            try:
+                shutil.rmtree(sitep)
+            except Exception:
+                self.log.exception("rmtree failed")
 
     def _execute_nb(
         self,
@@ -105,7 +106,7 @@ class ExecutionHandler(APIHandler):
         nb = nbformat.reads(nb_str, NBFORMAT_VERSION)
 
         if clear_site_packages:
-            self._clear_site_packages()
+            self._clear_site_packages(kernel_name)
 
         if kernel_name is not None:
             executor = nbconvert.preprocessors.ExecutePreprocessor(
