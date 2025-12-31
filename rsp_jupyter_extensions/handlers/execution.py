@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from traceback import format_exception
 
@@ -72,11 +73,16 @@ class ExecutionHandler(APIHandler):
             return
         victims = list(top.glob("python*/site-packages"))
 
+        def rmtree_error_handler(
+            func: Callable, file: str, exc: BaseException
+        ) -> None:
+            logger = self.log
+            logger.warning(
+                f"Function '{func!s}' on file '{file}' failed: {exc!s}"
+            )
+
         for sitep in victims:
-            try:
-                shutil.rmtree(sitep)
-            except Exception:
-                self.log.exception("rmtree failed")
+            shutil.rmtree(sitep, onexc=rmtree_error_handler)
 
     def _execute_nb(
         self,
