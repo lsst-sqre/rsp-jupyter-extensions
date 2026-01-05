@@ -123,9 +123,9 @@ async function pdfExport(
       if (!error) {
         // This shouldn't happen; the backend checks that one of path or
         // error is present.
-        await PDFError('unknown error', env);
+        await PDFError('unknown error');
       } else {
-        await PDFError(error, env);
+        await PDFError(error);
       }
     }
   } catch (error) {
@@ -138,33 +138,12 @@ async function pdfExport(
   }
 }
 
-export async function PDFError(err: string, env: IEnvResponse): Promise<void> {
-  const options = {
+export async function PDFError(err: string): Promise<void> {
+  await showDialog({
     title: 'PDF Conversion Error',
     body: err,
-    focusNodeSelector: 'input',
     buttons: [Dialog.warnButton({ label: 'OK' })]
-  };
-  try {
-    const result = await showDialog(options);
-    if (!result) {
-      logMessage(LogLevels.DEBUG, env, 'No result from PDFErrorDialog');
-      return;
-    }
-    logMessage(LogLevels.DEBUG, env, `Result from PDFErrorDialog: ${result}`);
-    if (!result.value) {
-      logMessage(LogLevels.DEBUG, env, 'No result.value from PDFErrorDialog');
-      return;
-    }
-    if (!result.button) {
-      logMessage(LogLevels.DEBUG, env, 'No result.button from PDFErrorDialog');
-      return;
-    }
-    return;
-  } catch (error) {
-    console.error(`Error showing abnormal PDF error dialog ${error}`);
-    throw new Error(`Failed to show PDF error dialog: ${error}`);
-  }
+  });
 }
 
 /**

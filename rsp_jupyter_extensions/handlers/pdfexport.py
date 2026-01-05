@@ -109,7 +109,7 @@ class PDFExportHandler(APIHandler):
             obj.error = f"File {nb} does not end with .ipynb; not a notebook"
             return obj
         try:
-            basename = f"{nb.name[: -(len('.ipynb'))]}"
+            basename = nb.stem
             with contextlib.chdir(nb.parent):
                 try:
                     await self._try_callisto(basename)
@@ -152,8 +152,8 @@ class PDFExportHandler(APIHandler):
             raise RuntimeError(
                 f"'{cmd1str}' exited"
                 f" with rc={p1.returncode}\n"
-                f" stdout={stdout.decode()}\n",
-                f" stderr={stderr.decode()}",
+                f" stdout={stdout.decode()}\n"
+                f" stderr={stderr.decode()}"
             )
         cmd2 = ["typst", "compile", f"__{basename}.typ", f"{basename}.pdf"]
         cmd2str = " ".join(cmd2)
@@ -168,8 +168,8 @@ class PDFExportHandler(APIHandler):
             raise RuntimeError(
                 f"'{cmd2str}' exited"
                 f" with rc={p2.returncode}\n"
-                f" stdout={stdout.decode()}\n",
-                f" stderr={stderr.decode()}",
+                f" stdout={stdout.decode()}\n"
+                f" stderr={stderr.decode()}"
             )
         Path(f"__{basename}.typ").unlink()
 
@@ -194,7 +194,7 @@ class PDFExportHandler(APIHandler):
             raise RuntimeError(
                 f"'{cmdstr}' exited"
                 f" with rc={proc.returncode}\n"
-                f" stdout={stdout.decode()}\n",
-                f" stderr={stderr.decode()}",
+                f" stdout={stdout.decode()}\n"
+                f" stderr={stderr.decode()}"
             )
         typ.unlink()
