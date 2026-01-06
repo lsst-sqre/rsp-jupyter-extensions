@@ -9,9 +9,13 @@ import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import { IDocumentManager } from '@jupyterlab/docmanager';
 
+import { INotebookTracker } from '@jupyterlab/notebook';
+
 import { getServerEnvironment } from './environment';
 
 import { activateRSPDisplayVersionExtension } from './displayversion';
+
+import { activateRSPPDFExportExtension } from './pdfexport';
 
 import { activateRSPQueryExtension } from './query';
 
@@ -29,7 +33,8 @@ function activateRSPExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  statusBar: IStatusBar
+  statusBar: IStatusBar,
+  tracker: INotebookTracker
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server environment...');
   getServerEnvironment(app).then(async env => {
@@ -62,6 +67,17 @@ function activateRSPExtension(
     );
     activateRSPDisplayVersionExtension(app, statusBar, env);
     logMessage(LogLevels.INFO, env, '...activated...');
+    logMessage(LogLevels.INFO, env, '...activating pdfexport extension...');
+    try {
+      activateRSPPDFExportExtension(app, mainMenu, docManager, env, tracker);
+      logMessage(LogLevels.INFO, env, '...activated...');
+    } catch (error) {
+      logMessage(
+        LogLevels.ERROR,
+        env,
+        `Error activating pdfexport extension: ${error}`
+      );
+    }
     logMessage(LogLevels.INFO, env, '...activating query extension...');
     if (env.RSP_SITE_TYPE === 'science' || env.RSP_SITE_TYPE === 'staff') {
       try {
@@ -78,7 +94,7 @@ function activateRSPExtension(
       logMessage(
         LogLevels.INFO,
         env,
-        `...skipping query extension because site type is '${env.RSP_SITE_TYPE}'...`
+        `...skipping query extension: site type is '${env.RSP_SITE_TYPE}'...`
       );
     }
     logMessage(LogLevels.INFO, env, '...activated...');
@@ -103,7 +119,7 @@ function activateRSPExtension(
 const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
-  requires: [IMainMenu, IDocumentManager, IStatusBar],
+  requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
   autoStart: true
 };
 

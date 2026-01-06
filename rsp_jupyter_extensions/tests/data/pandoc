@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Fake 'pandoc' command for testing."""
+
+import sys
+from pathlib import Path
+
+
+def usage() -> None:
+    """Print usage."""
+    print(
+        f"Usage: {sys.argv[0]} file.ipynb -w typst -o __file.typ\n",
+        file=sys.stderr,
+    )
+
+
+def main() -> None:
+    """Pretend to compile .typ to .pdf.
+
+    Obnoxiously enforce the way we will call it from our converter.
+    """
+    if (
+        len(sys.argv) != 6
+        or not sys.argv[1].endswith(".ipynb")
+        or sys.argv[2] != "-w"
+        or sys.argv[3] != "typst"
+        or sys.argv[4] != "-o"
+        or not sys.argv[5].startswith("__")
+        or not sys.argv[5].endswith(".typ")
+        or sys.argv[1][:-6] != sys.argv[5][2:-4]
+    ):
+        usage()
+        sys.exit(1)
+
+    Path(sys.argv[4]).write_text("I can't believe it's not typst.")
+
+
+if __name__ == "__main__":
+    main()

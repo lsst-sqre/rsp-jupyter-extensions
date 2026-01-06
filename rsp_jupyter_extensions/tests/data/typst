@@ -1,0 +1,35 @@
+#!/usr/bin/env python3
+"""Fake 'typst' command for testing."""
+
+import sys
+from pathlib import Path
+
+
+def usage() -> None:
+    """Print usage."""
+    print(
+        f"Usage: {sys.argv[0]} compile __file.typ file.pdf\n", file=sys.stderr
+    )
+
+
+def main() -> None:
+    """Pretend to compile .typ to .pdf.
+
+    Obnoxiously enforce the way we will call it from our converter.
+    """
+    if (
+        len(sys.argv) != 4
+        or sys.argv[1] != "compile"
+        or not sys.argv[2].startswith("__")
+        or not sys.argv[2].endswith(".typ")
+        or not sys.argv[3].endswith(".pdf")
+        or sys.argv[3][:-4] != sys.argv[2][2:-4]
+    ):
+        usage()
+        sys.exit(1)
+
+    Path(sys.argv[3]).write_text("Ceci pas un PDF document.")
+
+
+if __name__ == "__main__":
+    main()

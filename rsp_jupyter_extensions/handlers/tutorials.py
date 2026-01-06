@@ -6,6 +6,7 @@ import datetime
 import json
 import os
 import shutil
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,7 +14,6 @@ from tempfile import TemporaryDirectory
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-import lsst.rsp.startup.storage.command as cmd  # type: ignore[import-untyped]
 import requests
 import tornado
 from jupyter_server.base.handlers import APIHandler
@@ -61,17 +61,20 @@ def _get_tag() -> str:
 
 
 def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
-    runner = cmd.Command()
-    proc = runner.run(
-        "git",
-        "clone",
-        "--depth",
-        "1",
-        repo_url,
-        "-b",
-        branch,
-        dirname,
+    proc = subprocess.run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            repo_url,
+            "-b",
+            branch,
+            dirname,
+        ],
+        capture_output=True,
         timeout=60,
+        check=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git clone {repo_url}@{branch} failed")
