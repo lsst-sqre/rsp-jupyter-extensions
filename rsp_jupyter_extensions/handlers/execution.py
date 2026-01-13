@@ -6,6 +6,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 from traceback import format_exception
+from urllib.parse import parse_qs
 
 import nbconvert
 import nbformat
@@ -52,18 +53,13 @@ class ExecutionHandler(APIHandler):
         do_remove_local_packages = False
         kernel_name: str | None = None
         if query:
-            # We're not going to bother with full decoding; the only
-            # supported parameters are "kernel_name" and
-            # "clear_local_site_packages" and the underscore is not
-            # escaped.
-            params = query.split("&")
-            for param in params:
-                key, val = param.split("=")
+            params = parse_qs(query)
+            for key, val in params.items():
                 if key == "kernel_name":
-                    kernel_name = val
+                    kernel_name = val[0]
                     continue
                 if key == "clear_local_site_packages":
-                    if val.lower().strip() == "true":
+                    if val[0].lower().strip() == "true":
                         do_remove_local_packages = True
         if kernel_name is None:
             # Check for an older client sending the kernel name in a header.
