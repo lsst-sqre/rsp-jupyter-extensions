@@ -38,24 +38,33 @@ class ExecutionHandler(APIHandler):
            The second form is used less often, but is useful for passing
            resources to the notebook that are not part of the notebook itself.
 
-        **Request headers.**
-        Set the ``X-Kernel-Name`` header to the name of the kernel to use for
+        **Request query parameters.**
+        Set the ``kernel_name`` parameter to the name of the kernel to use for
         execution.
 
-        Set the ``X-Clear-Local-Site-Packages`` header to "true" (in any case)
-        in order to remove any locally-installed packages prior to notebook
-        execution.
+        Set the ``clear_local_site_packages`` parameter to "true" (in any
+        case) in order to remove any locally-installed packages prior
+        to notebook execution.
+
         """
         input_str = self.request.body.decode("utf-8")
-        kernel_name = self.request.headers.get("X-Kernel-Name", None)
+        query = self.request.query
         do_remove_local_packages = False
-        if (
-            self.request.headers.get("X-Clear-Local-Site-Packages", "")
-            .lower()
-            .strip()
-            == "true"
-        ):
-            do_remove_local_packages = True
+        kernel_name: str | None = None
+        if query:
+            # We're not going to bother with full decoding; the only
+            # supported parameters are "kernel_name" and
+            # "clear_local_site_packages" and the underscore is not
+            # escaped.
+            params = query.split("&")
+            for param in params:
+                key, val = param.split("=")
+                if key == "kernel_name":
+                    kernel_name = val
+                    continue
+                if key == "clear_local_site_packages":
+                    if val.lower().strip() == "true":
+                        do_remove_local_packages = True
         # Do The Deed
         output_str = self._execute_nb(
             input_str=input_str,

@@ -65,7 +65,7 @@ async def test_execution_handler_post_success(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -102,7 +102,7 @@ async def test_execution_handler_post_with_resources(
         "execution",
         method="POST",
         body=json.dumps(request_body),
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -147,7 +147,7 @@ async def test_execution_handler_post_execution_error(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -193,7 +193,7 @@ async def test_execution_handler_post_generic_error(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -232,7 +232,7 @@ async def test_execution_handler_post_no_kernel_name(
         '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}'
     )
 
-    # POST without X-Kernel-Name header
+    # POST without kernel_name param
     response = await jp_fetch(
         "rubin", "execution", method="POST", body=notebook_str
     )
@@ -274,23 +274,23 @@ async def test_execution_handler_remove_site_packages(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
     pdirs = list(tdir.glob("python*/site-packages/"))
     assert len(pdirs) == 2
 
-    # Now retry, specifying the header but not the right value
+    # Now retry, specifying the parameter but not the right value
 
     response = await jp_fetch(
         "rubin",
         "execution",
         method="POST",
         body=notebook_str,
-        headers={
-            "X-Kernel-Name": "python3",
-            "X-Clear-Local-Site-Packages": "floof",
+        params={
+            "kernel_name": "python3",
+            "clear_local_site_packages": "floof",
         },
     )
 
@@ -298,15 +298,15 @@ async def test_execution_handler_remove_site_packages(
     pdirs = list(tdir.glob("python*/site-packages/"))
     assert len(pdirs) == 2
 
-    # Retry with the header set to "false"
+    # Retry with the param set to "false"
     response = await jp_fetch(
         "rubin",
         "execution",
         method="POST",
         body=notebook_str,
-        headers={
-            "X-Kernel-Name": "python3",
-            "X-Clear-Local-Site-Packages": "false",
+        params={
+            "kernel_name": "python3",
+            "clear_local_site_packages": "false",
         },
     )
 
@@ -320,9 +320,9 @@ async def test_execution_handler_remove_site_packages(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={
-            "X-Kernel-Name": "python3",
-            "X-Clear-Local-Site-Packages": "TrUe",
+        params={
+            "kernel_name": "python3",
+            "clear_local_site_packages": "TrUe",
         },
     )
 
@@ -375,9 +375,9 @@ async def test_execution_handler_rmtree_error(
             "execution",
             method="POST",
             body=notebook_str,
-            headers={
-                "X-Kernel-Name": "python3",
-                "X-Clear-Local-Site-Packages": "True",
+            params={
+                "kernel_name": "python3",
+                "clear_local_site_packages": "True",
             },
         )
 
