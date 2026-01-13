@@ -65,6 +65,11 @@ class ExecutionHandler(APIHandler):
                 if key == "clear_local_site_packages":
                     if val.lower().strip() == "true":
                         do_remove_local_packages = True
+        if kernel_name is None:
+            # Check for an older client sending the kernel name in a header.
+            # We can drop this once all nublado clients are updated to send
+            # kernel name in query parameters.
+            kernel_name = self.request.headers.get("X-Kernel-Name", None)
         # Do The Deed
         output_str = self._execute_nb(
             input_str=input_str,
