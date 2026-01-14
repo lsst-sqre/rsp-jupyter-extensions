@@ -1,7 +1,10 @@
 """Test execution handler functionality."""
 
 import json
+import logging
+import shutil
 from collections.abc import Callable, Generator
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,7 +65,7 @@ async def test_execution_handler_post_success(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -99,7 +102,7 @@ async def test_execution_handler_post_with_resources(
         "execution",
         method="POST",
         body=json.dumps(request_body),
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -144,7 +147,7 @@ async def test_execution_handler_post_execution_error(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -190,7 +193,7 @@ async def test_execution_handler_post_generic_error(
         "execution",
         method="POST",
         body=notebook_str,
-        headers={"X-Kernel-Name": "python3"},
+        params={"kernel_name": "python3"},
     )
 
     assert response.code == 200
@@ -229,7 +232,7 @@ async def test_execution_handler_post_no_kernel_name(
         '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}'
     )
 
-    # POST without X-Kernel-Name header
+    # POST without kernel_name param
     response = await jp_fetch(
         "rubin", "execution", method="POST", body=notebook_str
     )
@@ -237,3 +240,152 @@ async def test_execution_handler_post_no_kernel_name(
     assert response.code == 200
     mock_class, _ = mock_executor
     mock_class.assert_called_once_with()
+
+
+async def test_execution_handler_remove_site_packages(
+    jp_fetch: Callable,
+    mock_nbformat_reads: MagicMock,
+    mock_executor: tuple[MagicMock, MagicMock],
+    mock_exporter: tuple[MagicMock, MagicMock],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Set up environment
+    homedir = tmp_path / "home" / "irian"
+    homedir.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(homedir))
+    tdir = homedir / ".local" / "lib"
+    for pver in ["3.8", "3.13"]:
+        sp = tdir / f"python{pver}" / "site-packages"
+        sp.mkdir(parents=True)
+    pdirs = list(tdir.glob("python*/site-packages/"))
+    assert len(pdirs) == 2
+
+    _, executor_instance = mock_executor
+    # Set up the mock to simulate successful execution
+    executor_instance.preprocess.return_value = None
+
+    notebook_str = (
+        '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}'
+    )
+
+    response = await jp_fetch(
+        "rubin",
+        "execution",
+        method="POST",
+        body=notebook_str,
+        params={"kernel_name": "python3"},
+    )
+
+    assert response.code == 200
+    pdirs = list(tdir.glob("python*/site-packages/"))
+    assert len(pdirs) == 2
+
+    # Now retry, specifying the parameter but not the right value
+
+    response = await jp_fetch(
+        "rubin",
+        "execution",
+        method="POST",
+        body=notebook_str,
+        params={
+            "kernel_name": "python3",
+            "clear_local_site_packages": "floof",
+        },
+    )
+
+    assert response.code == 200
+    pdirs = list(tdir.glob("python*/site-packages/"))
+    assert len(pdirs) == 2
+
+    # Retry with the param set to "false"
+    response = await jp_fetch(
+        "rubin",
+        "execution",
+        method="POST",
+        body=notebook_str,
+        params={
+            "kernel_name": "python3",
+            "clear_local_site_packages": "false",
+        },
+    )
+
+    assert response.code == 200
+    pdirs = list(tdir.glob("python*/site-packages/"))
+    assert len(pdirs) == 2
+
+    # Try again only this time, remove the directories
+    response = await jp_fetch(
+        "rubin",
+        "execution",
+        method="POST",
+        body=notebook_str,
+        params={
+            "kernel_name": "python3",
+            "clear_local_site_packages": "TrUe",
+        },
+    )
+
+    assert response.code == 200
+    pdirs = list(tdir.glob("python*/site-packages/"))
+    assert len(pdirs) == 0
+
+
+# @pytest.mark.filterwarnings doesn't suppress warning output.
+# Neither does capsys.
+async def test_execution_handler_rmtree_error(
+    jp_fetch: Callable,
+    mock_nbformat_reads: MagicMock,
+    mock_executor: tuple[MagicMock, MagicMock],
+    mock_exporter: tuple[MagicMock, MagicMock],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Set up environment
+    homedir = tmp_path / "home" / "irian"
+    homedir.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(homedir))
+    sitep = homedir / ".local" / "lib" / "python3.13" / "site-packages"
+    sitep.mkdir(parents=True)
+    (sitep / "good").mkdir()
+    (sitep / "bad").mkdir()
+    (sitep / "good" / "good").touch()
+    (sitep / "bad" / "bad").touch()
+    # Make "bad" unwriteable.
+    # Note that we have to have a directory with no write bit, because
+    # unlinking a file requires write on the file's directory, not on
+    # the file itself.
+    (sitep / "bad" / "bad").chmod(0o400)
+    (sitep / "bad").chmod(0o500)
+    spfiles = list(sitep.glob("**/*"))
+    assert len(spfiles) == 4
+
+    _, executor_instance = mock_executor
+    # Set up the mock to simulate successful execution
+    executor_instance.preprocess.return_value = None
+
+    notebook_str = (
+        '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}'
+    )
+
+    with caplog.at_level(logging.WARNING):
+        response = await jp_fetch(
+            "rubin",
+            "execution",
+            method="POST",
+            body=notebook_str,
+            params={
+                "kernel_name": "python3",
+                "clear_local_site_packages": "True",
+            },
+        )
+
+    assert response.code == 200
+    assert "Permission denied: 'bad'" in caplog.text
+
+    # Clean up; not sure all OSes will be sufficiently violent about
+    # tempdirs with weird permissions.
+    (sitep / "bad").chmod(mode=0o755)
+    (sitep / "bad" / "bad").chmod(mode=0o644)
+    shutil.rmtree(sitep)

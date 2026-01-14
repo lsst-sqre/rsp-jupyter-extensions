@@ -1,7 +1,12 @@
 """Handler Module to provide an endpoint for notebook execution."""
 
 import json
+import os
+import shutil
+from collections.abc import Callable
+from pathlib import Path
 from traceback import format_exception
+from urllib.parse import parse_qs
 
 import nbconvert
 import nbformat
@@ -34,19 +39,68 @@ class ExecutionHandler(APIHandler):
            The second form is used less often, but is useful for passing
            resources to the notebook that are not part of the notebook itself.
 
-        **Request headers.**
-        Set the ``X-Kernel-Name`` header to the name of the kernel to use for
+        **Request query parameters.**
+        Set the ``kernel_name`` parameter to the name of the kernel to use for
         execution.
+
+        Set the ``clear_local_site_packages`` parameter to "true" (in any
+        case) in order to remove any locally-installed packages prior
+        to notebook execution.
+
         """
         input_str = self.request.body.decode("utf-8")
-        kernel_name = self.request.headers.get("X-Kernel-Name", None)
+        query = self.request.query
+        do_remove_local_packages = False
+        kernel_name: str | None = None
+        if query:
+            params = parse_qs(query)
+            for key, val in params.items():
+                if key == "kernel_name":
+                    kernel_name = val[0]
+                    continue
+                if key == "clear_local_site_packages":
+                    if val[0].lower().strip() == "true":
+                        do_remove_local_packages = True
+        if kernel_name is None:
+            # Check for an older client sending the kernel name in a header.
+            # We can drop this once all nublado clients are updated to send
+            # kernel name in query parameters.
+            kernel_name = self.request.headers.get("X-Kernel-Name", None)
         # Do The Deed
         output_str = self._execute_nb(
-            input_str=input_str, kernel_name=kernel_name
+            input_str=input_str,
+            kernel_name=kernel_name,
+            clear_site_packages=do_remove_local_packages,
         )
         self.write(output_str)
 
-    def _execute_nb(self, *, input_str: str, kernel_name: str | None) -> str:
+    def _clear_site_packages(self, kernel_name: str | None = None) -> None:
+        homedir = os.getenv("HOME", "")
+        if not homedir or homedir == "/":
+            return
+        top = Path(homedir) / ".local" / "lib"
+        if not top.is_dir():
+            return
+        victims = list(top.glob("python*/site-packages"))
+
+        def rmtree_error_handler(
+            func: Callable, file: str, exc: BaseException
+        ) -> None:
+            logger = self.log
+            logger.warning(
+                f"Function '{func!s}' on file '{file}' failed: {exc!s}"
+            )
+
+        for sitep in victims:
+            shutil.rmtree(sitep, onexc=rmtree_error_handler)
+
+    def _execute_nb(
+        self,
+        *,
+        input_str: str,
+        kernel_name: str | None,
+        clear_site_packages: bool = False,
+    ) -> str:
         # We will try to decode it as if it were a resource-bearing document.
         #  If that fails, we will assume it to be a bare notebook string.
         #
@@ -66,6 +120,10 @@ class ExecutionHandler(APIHandler):
             resources = None
             nb_str = input_str
         nb = nbformat.reads(nb_str, NBFORMAT_VERSION)
+
+        if clear_site_packages:
+            self._clear_site_packages(kernel_name)
+
         if kernel_name is not None:
             executor = nbconvert.preprocessors.ExecutePreprocessor(
                 kernel_name=kernel_name
