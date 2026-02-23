@@ -30,7 +30,7 @@ export function activateRSPDisplayVersionExtension(
   const image_description = cfg.image.description || '';
   const image_digest = cfg.image.digest;
   const image_spec = cfg.image.spec;
-  const hostname = dsc.environment_name;
+  const hostname = dsc.environment_name; // Not supposed to use it this way.
   const container_size = cfg.container_size || '';
   let size = '';
   if (container_size === '') {

@@ -1,15 +1,40 @@
+import { JupyterFrontEnd } from '@jupyterlab/application';
 import { showDialog, Dialog } from '@jupyterlab/apputils';
+import { PageConfig } from '@jupyterlab/coreutils';
+import { apiRequest } from './request';
+
 import { INubladoConfigResponse } from './config';
-import { IEnvResponse } from './environment';
 import { LogLevels, logMessage } from './logger';
 
+export interface IAbnormalResponse {
+  ABNORMAL_STARTUP?: string;
+  ABNORMAL_STARTUP_ERRORCODE?: string;
+  ABNORMAL_STARTUP_ERRNO?: string;
+  ABNORMAL_STARTUP_STRERROR?: string;
+  ABNORMAL_STARTUP_MESSAGE?: string;
+}
+
+export async function getAbnormalStartup(
+  app: JupyterFrontEnd
+): Promise<IAbnormalResponse> {
+  const endpoint = PageConfig.getBaseUrl() + 'rubin/abnormal';
+  const init = {
+    method: 'GET'
+  };
+  const svcManager = app.serviceManager;
+  const settings = svcManager.serverSettings;
+
+  const resp = await apiRequest(endpoint, init, settings);
+  return resp as IAbnormalResponse;
+}
+
 export async function abnormalDialog(
-  env: IEnvResponse,
+  abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse
 ): Promise<void> {
   const options = {
     title: 'Abnormal Lab Start',
-    body: getDialogBody(env),
+    body: getDialogBody(abnormal),
     focusNodeSelector: 'input',
     buttons: [Dialog.warnButton({ label: 'OK' })]
   };
@@ -35,23 +60,23 @@ export async function abnormalDialog(
   }
 }
 
-function getDialogBody(env: IEnvResponse): string {
+function getDialogBody(abnormal: IAbnormalResponse): string {
   let errno = -1;
-  if (env.ABNORMAL_STARTUP_ERRNO) {
-    errno = parseInt(env.ABNORMAL_STARTUP_ERRNO);
+  if (abnormal.ABNORMAL_STARTUP_ERRNO) {
+    errno = parseInt(abnormal.ABNORMAL_STARTUP_ERRNO);
   }
   let errorcode = 'EUNKNOWN';
-  if (env.ABNORMAL_STARTUP_ERRORCODE) {
-    errorcode = env.ABNORMAL_STARTUP_ERRORCODE;
+  if (abnormal.ABNORMAL_STARTUP_ERRORCODE) {
+    errorcode = abnormal.ABNORMAL_STARTUP_ERRORCODE;
   }
 
   let strerror = 'unknown error';
-  if (env.ABNORMAL_STARTUP_STRERROR) {
-    strerror = env.ABNORMAL_STARTUP_STRERROR;
+  if (abnormal.ABNORMAL_STARTUP_STRERROR) {
+    strerror = abnormal.ABNORMAL_STARTUP_STRERROR;
   }
   let msg = '???';
-  if (env.ABNORMAL_STARTUP_MESSAGE) {
-    msg = env.ABNORMAL_STARTUP_MESSAGE;
+  if (abnormal.ABNORMAL_STARTUP_MESSAGE) {
+    msg = abnormal.ABNORMAL_STARTUP_MESSAGE;
   }
   let body = getSupplementalBody(errorcode);
   body =
@@ -80,21 +105,15 @@ function getSupplementalBody(errorcode: string): string {
   switch (errorcode) {
     case 'EACCES':
       return no_permission;
-      break;
     case 'ENOSPC':
       return no_storage;
-      break;
     case 'EROFS':
       return no_permission;
-      break;
     case 'EDQUOT':
       return no_quota;
-      break;
     case 'EBADENV':
       return no_environment;
-      break;
     default:
       return no_idea;
-      break;
   }
 }

@@ -11,11 +11,11 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { INotebookTracker } from '@jupyterlab/notebook';
 
+import { getAbnormalStartup, IAbnormalResponse } from './abnormal';
+
 import { getServerConfig, INubladoConfigResponse } from './config';
 
 import { queryRepertoire, IRepertoireResponse } from './discovery';
-
-import { getServerEnvironment, IEnvResponse } from './environment';
 
 import { activateRSPDisplayVersionExtension } from './displayversion';
 
@@ -49,14 +49,18 @@ function activateRSPExtension(
       `...cfg: ${JSON.stringify(cfg, undefined, 2)}...`
     );
     logMessage(LogLevels.INFO, cfg, '...got server config');
-    logMessage(LogLevels.INFO, cfg, '...getting server environment...');
-    const env = await getServerEnvironment(app);
-    logMessage(
-      LogLevels.DEBUG,
-      cfg,
-      `...env: ${JSON.stringify(env, undefined, 2)}...`
-    );
-    logMessage(LogLevels.INFO, cfg, '...got server environment');
+    logMessage(LogLevels.INFO, cfg, '...getting abnormal startup info...');
+    const abnormal = await getAbnormalStartup(app);
+    if (abnormal.ABNORMAL_STARTUP) {
+      logMessage(
+        LogLevels.WARNING,
+        cfg,
+        `...abnormal: ${JSON.stringify(abnormal, undefined, 2)}...`
+      );
+    } else {
+      logMessage(LogLevels.DEBUG, cfg, '...no abnormal startup detected...');
+    }
+    logMessage(LogLevels.INFO, cfg, '...got abnormal startup info');
     logMessage(LogLevels.INFO, cfg, '...getting service discovery...');
     const dsc = await queryRepertoire(cfg);
     logMessage(
@@ -72,7 +76,7 @@ function activateRSPExtension(
         docManager,
         statusBar,
         tracker,
-        env,
+        abnormal,
         cfg,
         dsc
       );
@@ -92,17 +96,17 @@ async function activateIndividualExtensions(
   docManager: IDocumentManager,
   statusBar: IStatusBar,
   tracker: INotebookTracker,
-  env: IEnvResponse,
+  abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse,
   dsc: IRepertoireResponse
 ): Promise<void> {
   logMessage(LogLevels.INFO, cfg, '...activating savequit extension...');
   activateRSPSavequitExtension(app, mainMenu, docManager, dsc, cfg);
   logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
-  if (env.ABNORMAL_STARTUP === 'TRUE') {
+  if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog
     try {
-      await abnormalDialog(env, cfg);
+      await abnormalDialog(abnormal, cfg);
     } catch (error) {
       logMessage(
         LogLevels.ERROR,

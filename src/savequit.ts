@@ -170,7 +170,7 @@ async function justQuit(
   cfg: INubladoConfigResponse
 ): Promise<any> {
   infoDialog(cfg);
-  // This should come from an endpoint UI, once we add it.
+  // This should come from an endpoint UI, once we add it to discovery.
   let targetEndpoint = 'https://' + dsc.environment_name;
   if (logout) {
     targetEndpoint = targetEndpoint + '/logout';

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import urllib
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +42,7 @@ class QueryHandler(APIHandler):
             )
         except Exception:
             self.log.warning("Cannot initialize discovery client")
-        self._tap_client: httpx.AsyncClient | None = None
+        self._default_tap_client: httpx.AsyncClient | None = None
         self._ts_client: httpx.AsyncClient | None = None
         self._dataset_tap_client: dict[str, httpx.AsyncClient] = {}
         self._home = Path(os.environ["HOME"])
@@ -100,22 +101,29 @@ class QueryHandler(APIHandler):
             self.log.warning("Cannot discover times-square endpoint")
             return
         url = await self._discovery.url_for_internal("times-square")
+        self.log.debug(f"Times-square URL: {url}")
         if url:
-            self.ts_client = self._make_client(url)
+            self._ts_client = self._make_client(url)
+        else:
+            self.log.warning("Could not get URL for times-square client.")
+            self._ts_client = None
 
     async def _initialize_dataset_tap_clients(self) -> None:
         if self._discovery is None:
             self.log.warning("Cannot discover dataset endpoints")
             return
         datasets = await self._discovery.datasets()
+        self.log.debug(f"Discovered datasets: {datasets}")
         for ds in datasets:
+            self.log.debug(f"Getting TAP client for {ds}")
             url = await self._discovery.url_for_data("tap", ds)
             if url:
                 self._dataset_tap_client[ds] = self._make_client(url)
-                if self._tap_client is None:
+                if self._default_tap_client is None:
+                    self.log.debug(f"Setting default TAP dataset to {ds}")
                     # The first one we find is the "default" tap client.
                     # We use this if dataset is not specified.
-                    self._tap_client = self._dataset_tap_client[ds]
+                    self._default_tap_client = self._dataset_tap_client[ds]
                     self._default_dataset = ds
         if self._default_dataset is None:
             self.log.warning("Failed to discover any datasets")
@@ -123,8 +131,8 @@ class QueryHandler(APIHandler):
     def _make_client(self, url: str) -> httpx.AsyncClient:
         headers = {
             "Authorization": f"Bearer {self._token}",
-            "Content-Type": "application/json",
         }
+        self.log.debug(f"Creating client for {url}")
         return httpx.AsyncClient(
             headers=headers, base_url=url, follow_redirects=True
         )
@@ -177,6 +185,7 @@ class QueryHandler(APIHandler):
         if self._discovery is None:
             self.log.warning("Cannot create TAP query")
             return ""
+        client: httpx.AsyncClient | None = None
         if q_value.find("/") != -1:
             # This looks like a URL
             # Trim trailing slashes
@@ -195,17 +204,35 @@ class QueryHandler(APIHandler):
         # If it contains a colon, it's dataset:jobref_id.
         elif q_value.find(":") != -1:
             q_ds, q_id = q_value.split(":")
-            base_url = self._discovery.url_for_data("tap", q_ds)
+            if q_ds not in self._dataset_tap_client:
+                errstr = f"No TAP client for dataset {q_ds}"
+                self.log.error(errstr)
+                raise UnimplementedQueryResolutionError(errstr)
+            client = self._dataset_tap_client[q_ds]
         else:
             # No colon, so no dataset, so we assume our default tap client.
-            if self._default_dataset is None:
+            if (
+                self._default_dataset is None
+                or self._default_tap_client is None
+            ):
                 errstr = f"Cannot determine default dataset for {q_value}"
                 self.log.error(errstr)
                 raise UnimplementedQueryResolutionError(errstr)
             q_ds = self._default_dataset
-            base_url = self._discovery.url_for_data("tap", q_ds)
+            client = self._default_tap_client
             q_id = q_value
-        url = f"{base_url}/async/{q_id}"
+        if client is None or client.base_url is None:
+            # Because of the way we make clients, this will not actually
+            # happen.
+            errstr = f"Cannot determine base URL for ds {q_ds}"
+            self.log.error(errstr)
+            raise UnimplementedQueryResolutionError(errstr)
+        base_url = str(client.base_url)
+        self.log.debug(
+            f"Extracted base URL {base_url} from TAP client for {q_ds}"
+        )
+        q_url = f"/async/{q_id}"
+        url = urllib.parse.urljoin(base_url, q_url)
         fname = self._home / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
         if fname.is_file():
             nb = fname.read_text()
@@ -315,6 +342,7 @@ class QueryHandler(APIHandler):
                 self.log.exception("get_query_history failed:")
                 self.write(json.dumps([]))
                 return
+            self.log.debug(f"Jobs found: {jobs}")
             qtext = await self._get_query_text_list(jobs)
             q_dicts = [x.model_dump() for x in qtext]
             self.write(json.dumps(q_dicts))
@@ -367,6 +395,7 @@ class QueryHandler(APIHandler):
         there will be little-to-no usage of old-style no-dataset query
         ids.
         """
+        self.log.debug("Entering get_query_history()")
         params = {"last": str(limit)} if limit > 0 else {}
         history: dict[str, Any] = {}
         jobs: list[dict[str, Any]] = []
@@ -377,13 +406,18 @@ class QueryHandler(APIHandler):
                 tasks[dataset] = tg.create_task(
                     client.get("async", params=params)
                 )
+                self.log.debug(
+                    f"task created: dataset {dataset}, params {params}"
+                )
         # The async with implicitly waits for all the tasks at context
         # manager exit.
         # Chew through task results and add each jobref to the history dict.
         for dataset, task in tasks.items():
             resp = task.result()
             status = resp.status_code
+            self.log.debug(f"task: {dataset} -> status code {status}")
             if status < 400:
+                self.log.debug(f"Getting history for task {dataset}")
                 history[dataset] = xmltodict.parse(
                     resp.text, force_list=("uws:jobref",)
                 )
@@ -399,6 +433,7 @@ class QueryHandler(APIHandler):
                     for entry in history_ds["uws:jobs"]["uws:jobref"]:
                         # Annotate job with dataset name
                         entry["__dataset__"] = dataset
+                        self.log.debug(f"job for {dataset} -> {entry}")
                         jobs.append(entry)
         # As far as we can tell, uws:creationTime can simply be lexically
         # sorted and will produce the proper ordering.  If somehow it is
@@ -411,8 +446,12 @@ class QueryHandler(APIHandler):
             ),
             reverse=True,
         )
+        self.log.debug(
+            f"job ids: {[(x['__dataset__'], x['@id']) for x in jobs]}"
+        )
         # Finally, trim list to limit size if there is one.
         last_limit = jobs[:limit] if limit > 0 else jobs
+        self.log.debug(f"Truncated jobs: {last_limit}")
         # Return the list as dataset:query_id; this is where we use
         # the annotation we just stuck to each job.
         return [f"{x['__dataset__']}:{x['@id']}" for x in last_limit]
@@ -462,15 +501,25 @@ class QueryHandler(APIHandler):
             return TAPQuery(jobref=job, text=self._cache[job])
         # If there is no colon, it's whatever is behind /api/tap.
         if job.find(":") == -1:
-            if self._tap_client is None:
-                raise MissingClientError(f"No client to handle job {job}")
-            resp = await self._tap_client.get(f"async/{job}")
+            if self._default_tap_client is None:
+                raise MissingClientError(
+                    f"No default client to handle job {job}"
+                )
+            self.log.debug(
+                f"Getting job {job} with client for ds {self._default_dataset}"
+                f" with base URL {self._default_tap_client.base_url!s}"
+            )
+            resp = await self._default_tap_client.get(f"/async/{job}")
         else:
             # We have a dataset, and presumably a matching client.
             ds, job_id = job.split(":")
             client = self._dataset_tap_client.get(ds)
             if not client:
                 raise MissingClientError(f"No client for dataset '{ds}'")
+            self.log.debug(
+                f"Getting job {job} with client for ds {ds}"
+                f" with base URL {client.base_url!s}"
+            )
             resp = await client.get(f"async/{job_id}")
         resp.raise_for_status()
         # If we didn't get a 200, resp.text probably won't parse, and

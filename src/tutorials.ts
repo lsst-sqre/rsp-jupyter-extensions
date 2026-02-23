@@ -151,7 +151,7 @@ async function apiGetTutorialsHierarchy(
    *
    * @param settings - the settings for the current notebook server
    *
-   * @param env - the server environment
+   * @param cfg - the Nublado configuration
    *
    * @returns a Promise resolved with the JSON response
    */
@@ -185,7 +185,7 @@ async function apiGetTutorialsHierarchy(
  *
  * @param entry - the entry corresponding to the file to work with
  *
- * @param env - the server environment
+ * @param cfg - the Nublado configuration
  *
  * @returns a Promise resolved with the JSON response
  */
