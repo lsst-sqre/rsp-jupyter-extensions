@@ -3,7 +3,6 @@
 import json
 import os
 from pathlib import Path
-from typing import Any
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
@@ -15,8 +14,9 @@ class EnvironmentHandler(APIHandler):
     settings.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def initialize(self) -> None:
+        super().initialize()
+        self.log.info("Initializing EnvironmentHandler")
         self.env: dict[str, str] = {}
         self._refresh_env()
 

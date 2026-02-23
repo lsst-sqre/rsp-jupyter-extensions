@@ -64,6 +64,9 @@ jobs:
         TUTORIAL_NOTEBOOKS_DIR: "/home/runner/work/git/tutorial-notebooks"
         AUTO_REPO_SPECS: "https://github.com/rubin-dp0/tutorial-notebooks@prod"
       run: |
+        echo "cwd is $(pwd)"
+        sudo mkdir -p /etc/nublado/config
+        sudo cp rsp_jupyter_extensions/tests/data/etc/nublado/config/lab-config.json /etc/nublado/config/lab-config.json
         mkdir -p /home/runner/work/git/tutorial-notebooks
         cat << EOF > /home/runner/work/git/tutorial-notebooks/hello.ipynb
         {
@@ -208,12 +211,11 @@ jobs:
         IMAGE_DESCRIPTION: "w_2024_47 experimental"
         IMAGE_DIGEST: "e51a5b52ea0149c2d8a66dbef7ccb0cdb31470ed74025f7922e46555e96aa30a"
         JUPYTER_IMAGE_SPEC: "us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/sciplat-lab:exp_w_2024_47_tut_ext@sha256:e51a5b52ea0149c2d8a66dbef7ccb0cdb31470ed74025f7922e46555e96aa30a"
-        EXTERNAL_INSTANCE_URL: "http://localhost:8080"
         CONTAINER_SIZE: "Small (1.0 CPU, 4Gi RAM)"
         # Used by savequit
         JUPYTERHUB_USER: "irian"
         JUPYTERHUB_API_TOKEN: "some-token"
-        JUPYTERHUB_API_URL: "http://localhost:8080/nb/hub/api"
+        JUPYTERHUB_API_URL: "http://localhost:8888/nb/hub/api"
         JUPYTERHUB_API_SERVICE_PREFIX: "/nb/user/${JUPYTERHUB_USER}/"
         # Used by tutorials
         HOME: "/home/runner/work"

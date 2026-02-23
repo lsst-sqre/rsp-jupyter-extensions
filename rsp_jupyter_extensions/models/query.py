@@ -15,6 +15,10 @@ class UnimplementedQueryResolutionError(Exception):
     """Request for a query where the parameters are not resolvable."""
 
 
+class MissingClientError(Exception):
+    """Request for data via a client we do not have."""
+
+
 class TAPQuery(BaseModel):
     """TAP query mapping jobref ID to query text."""
 

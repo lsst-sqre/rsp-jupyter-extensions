@@ -1,41 +1,62 @@
 """Handler Module to provide an endpoint for templated queries."""
 
+import asyncio
 import json
 import os
 from pathlib import Path
+from typing import Any
 
+import httpx
 import tornado
 import xmltodict
-from httpx import ReadTimeout
 from jupyter_server.base.handlers import APIHandler
-from lsst.rsp import (
-    RSPClient,
-    get_query_history,
-    get_service_url,
-    list_datasets,
-)
+from rubin.repertoire import DiscoveryClient
 
 from ..models.query import (
+    MissingClientError,
     TAPQuery,
     UnimplementedQueryResolutionError,
     UnsupportedQueryTypeError,
 )
-from ._utils import _peel_route, _write_notebook_response
+from ._utils import (
+    _get_access_token,
+    _get_config,
+    _peel_route,
+    _write_notebook_response,
+)
 
 
 class QueryHandler(APIHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:
-        """Get a client to talk to Times Square and TAP APIs."""
+        """Get clients to talk to Times Square and TAP APIs."""
         super().initialize()
-        self._ts_client = RSPClient("/times-square/api/v1/")
-        self._tap_client = RSPClient("/api/tap/")
-        self._dataset_client: dict[str, RSPClient] = {}
-        self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
-        self._cachefile = self._root_dir / ".cache" / "queries.json"
+        self.log.info("Initializing QueryHandler.")
+        self._config = _get_config()
+        self._discovery: DiscoveryClient | None = None
+        try:
+            self._discovery = DiscoveryClient(
+                base_url=self._config["repertoire_base_url"]
+            )
+        except Exception:
+            self.log.warning("Cannot initialize discovery client")
+        self._tap_client: httpx.AsyncClient | None = None
+        self._ts_client: httpx.AsyncClient | None = None
+        self._dataset_tap_client: dict[str, httpx.AsyncClient] = {}
+        self._home = Path(os.environ["HOME"])
+        self._cachefile = self._home / ".cache" / "queries.json"
+        self._token = _get_access_token()
+        self._default_dataset: str | None = None
         self._initialize_cache()
-        self._initialize_dataset_clients()
+        # We would like to initialize the clients here, but there are
+        # sync/async issues with doing so.  Specifically, we will have
+        # a running event loop here, but this isn't an async function,
+        # even though it really is running asynchronously inside
+        # tornado.
+        #
+        # Thus we're going to cheat a little and see whether the clients
+        # are initialized yet whenever we get a GET or POST.
 
     def _initialize_cache(self) -> None:
         """We get a new instance of the class every time the front end
@@ -57,15 +78,56 @@ class QueryHandler(APIHandler):
         self._cachefile.parent.mkdir(exist_ok=True, parents=True)
         self._cachefile.write_text(json.dumps(self._cache))
 
-    def _initialize_dataset_clients(self) -> None:
-        datasets = list_datasets()
-        for ds in datasets:
-            self._dataset_client[ds] = RSPClient(get_service_url("tap", ds))
+    async def _initialize_clients(self) -> None:
+        try:
+            await self._initialize_ts_client()
+            await self._initialize_dataset_tap_clients()
+        except Exception:
+            # We should catch this rather than blowing up, even though
+            # something is badly wrong.
+            #
+            # If it fails, the query history menu won't populate, and
+            # probably you can't get a templated notebook, but that basically
+            # means the query menus won't work but should have no effect
+            # on the rest of our functionality, so perhaps we shouldn't crash
+            # loading the rest of the extension.
+            self.log.warning(
+                "Initializing query clients failed (continuing anyway):"
+            )
 
-    @property
-    def rubinquery(self) -> dict[str, str]:
-        """Rubin query params."""
-        return self.settings["rubinquery"]
+    async def _initialize_ts_client(self) -> None:
+        if self._discovery is None:
+            self.log.warning("Cannot discover times-square endpoint")
+            return
+        url = await self._discovery.url_for_internal("times-square")
+        if url:
+            self.ts_client = self._make_client(url)
+
+    async def _initialize_dataset_tap_clients(self) -> None:
+        if self._discovery is None:
+            self.log.warning("Cannot discover dataset endpoints")
+            return
+        datasets = await self._discovery.datasets()
+        for ds in datasets:
+            url = await self._discovery.url_for_data("tap", ds)
+            if url:
+                self._dataset_tap_client[ds] = self._make_client(url)
+                if self._tap_client is None:
+                    # The first one we find is the "default" tap client.
+                    # We use this if dataset is not specified.
+                    self._tap_client = self._dataset_tap_client[ds]
+                    self._default_dataset = ds
+        if self._default_dataset is None:
+            self.log.warning("Failed to discover any datasets")
+
+    def _make_client(self, url: str) -> httpx.AsyncClient:
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+        }
+        return httpx.AsyncClient(
+            headers=headers, base_url=url, follow_redirects=True
+        )
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:
@@ -77,17 +139,21 @@ class QueryHandler(APIHandler):
         The interpretation of "value" is query-type dependent.
 
         For a TAP query, "value" is the URL, or the jobref ID (in which
-        case the endpoint /api/tap is assumed), or a string in the form
-        of "dataset:jobref_id", referring to that query.
+        case the first dataset we discovered is assumed), or a string in the
+        form of "dataset:jobref_id", referring to that query.
 
         It will then use the value to resolve the template, and
-        construct a filename resolved under $JUPYTER_SERVER_ROOT
-        (self._rootdir, and in the RSP, the same as $HOME).  If that
-        file exists, we will return it, on the grounds that the user
-        has done this particular query before and we want to keep any
-        changes made.  Otherwise we will write a file with the query
-        template resolved, so the user can run it to retrieve results.
+        construct a filename resolved under $HOME.
+
+        If that file exists, we will return it, on the grounds that
+        the user has done this particular query before and we want to
+        keep any changes made.  Otherwise we will write a file with
+        the query template resolved, so the user can run it to
+        retrieve results.
         """
+        if self._default_dataset is None:
+            await self._initialize_clients()
+
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
         q_type = input_document["type"]
@@ -108,6 +174,9 @@ class QueryHandler(APIHandler):
         # The value should be a URL or a jobref ID
         # A jobref is always 16 alphanumeric characters.
         # Therefore: if it contains a slash, it's a URL
+        if self._discovery is None:
+            self.log.warning("Cannot create TAP query")
+            return ""
         if q_value.find("/") != -1:
             # This looks like a URL
             # Trim trailing slashes
@@ -126,18 +195,18 @@ class QueryHandler(APIHandler):
         # If it contains a colon, it's dataset:jobref_id.
         elif q_value.find(":") != -1:
             q_ds, q_id = q_value.split(":")
-            base_url = get_service_url("tap", q_ds)
-            url = f"{base_url}/async/{q_id}"
+            base_url = self._discovery.url_for_data("tap", q_ds)
         else:
-            # No colon, so no dataset, so we assume the "/api/tap"
-            # endpoint.
-            this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "")
-            url = f"{this_rsp}/api/tap/async/{q_value}"
+            # No colon, so no dataset, so we assume our default tap client.
+            if self._default_dataset is None:
+                errstr = f"Cannot determine default dataset for {q_value}"
+                self.log.error(errstr)
+                raise UnimplementedQueryResolutionError(errstr)
+            q_ds = self._default_dataset
+            base_url = self._discovery.url_for_data("tap", q_ds)
             q_id = q_value
-            q_ds = "tap"
-        fname = (
-            self._root_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
-        )
+        url = f"{base_url}/async/{q_id}"
+        fname = self._home / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
         if fname.is_file():
             nb = fname.read_text()
         else:
@@ -159,6 +228,8 @@ class QueryHandler(APIHandler):
         # Retrieve that URL and return the textual response, which is the
         # string representing the rendered notebook "in unicode", which
         # means "a string represented in the default encoding".
+        if self._ts_client is None:
+            raise MissingClientError("No client for times-square")
         return (await self._ts_client.get(rendered_url, params=params)).text
 
     async def _get_nublado_seeds_notebook(
@@ -194,11 +265,13 @@ class QueryHandler(APIHandler):
         # The only supported querytype for now is "tap"
         #
         # GET .../<qtype>/<id> will act as if we'd posted a query with
-        #     qytpe and id
+        #     qtype and id
         # GET .../<qtype>/history/<n> will request the last n queries of
         #     that type.
         # GET .../<qtype>/notebooks/query_all will create and open a notebook
         #     that will ask for all queries and yield their jobids.
+        if self._default_dataset is None:
+            await self._initialize_clients()
 
         path = self.request.path
         stem = "/rubin/query"
@@ -236,9 +309,10 @@ class QueryHandler(APIHandler):
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
             try:
-                jobs = await get_query_history(count)
-            except ReadTimeout:
-                # get_query_history can be weirdly slow
+                jobs = await self.get_query_history(count)
+            except Exception:
+                # get_query_history can sometimes be weirdly slow
+                self.log.exception("get_query_history failed:")
                 self.write(json.dumps([]))
                 return
             qtext = await self._get_query_text_list(jobs)
@@ -253,6 +327,96 @@ class QueryHandler(APIHandler):
             self.write(await self._generate_query_all_notebook())
             return
 
+    async def get_query_history(self, limit: int = 5) -> list[str]:
+        """Retrieve last ``limit`` query jobref ids.  If limit is not
+        specified, or limit<1, retrieve all query jobref ids.
+
+        Parameters
+        ----------
+        limit
+            Maximum number of query IDs to return.  If limit < 1, return
+        all query IDs.
+
+        Returns
+        -------
+        list[str]
+            A list of strings in the format dataset:query_id.
+
+        Notes
+        -----
+        This formerly assumed the TAP endpoint was at "/api/tap", but now it
+        relies on service discovery to find datasets.
+
+        Because we are looking for the last ``limit`` jobref IDs, we must
+        retrieve that many from each endpoint, and then sort by query date,
+        and then truncate our list to size ``limit``.
+
+        The strings returned will be in the format dataset:query_id; the
+        caller must then check for a colon in the value, and use the
+        dataset to choose the appropriate TAP client to send the actual
+        query to.
+
+        For backwards compatibility, we must assume that if the query
+        string does not contain a colon, we mean to use "/api/tap".
+        Fortunately, thus far, service discovery in that case would find
+        (as of 2 March 2026) the dp1 client, which actually is at "/api/tap",
+        and, as the most recent dataset, is the likeliest to be what the
+        user meant anyway.
+
+        We expect that by the time the number of datasets gets confusing,
+        there will be little-to-no usage of old-style no-dataset query
+        ids.
+        """
+        params = {"last": str(limit)} if limit > 0 else {}
+        history: dict[str, Any] = {}
+        jobs: list[dict[str, Any]] = []
+        tasks: dict[str, asyncio.Task] = {}
+        # parallelize it
+        async with asyncio.TaskGroup() as tg:
+            for dataset, client in self._dataset_tap_client.items():
+                tasks[dataset] = tg.create_task(
+                    client.get("async", params=params)
+                )
+        # The async with implicitly waits for all the tasks at context
+        # manager exit.
+        # Chew through task results and add each jobref to the history dict.
+        for dataset, task in tasks.items():
+            resp = task.result()
+            status = resp.status_code
+            if status < 400:
+                history[dataset] = xmltodict.parse(
+                    resp.text, force_list=("uws:jobref",)
+                )
+            else:
+                self.log.warning(
+                    f"Job list request for dataset {dataset} failed"
+                    f" with status {status}"
+                )
+        # Attach a dataset name to each job.
+        for dataset, history_ds in history.items():
+            if "uws: jobs" in history_ds:
+                if "uws:jobref" in history_ds["uws:jobs"]:
+                    for entry in history_ds["uws:jobs"]["uws:jobref"]:
+                        # Annotate job with dataset name
+                        entry["__dataset__"] = dataset
+                        jobs.append(entry)
+        # As far as we can tell, uws:creationTime can simply be lexically
+        # sorted and will produce the proper ordering.  If somehow it is
+        # missing (it should not be), we assign it the Unix Epoch, which
+        # will presumably be "older than anything else".  This just gets us
+        # the jobs sorted by creation time.
+        jobs.sort(
+            key=lambda x: x.get(
+                "uws:creationTime", "1970-01-01T00:00:00.000Z"
+            ),
+            reverse=True,
+        )
+        # Finally, trim list to limit size if there is one.
+        last_limit = jobs[:limit] if limit > 0 else jobs
+        # Return the list as dataset:query_id; this is where we use
+        # the annotation we just stuck to each job.
+        return [f"{x['__dataset__']}:{x['@id']}" for x in last_limit]
+
     async def refresh_query_history(self, count: int = 5) -> None:
         """Get_query_history, but throw away the results.
 
@@ -263,19 +427,16 @@ class QueryHandler(APIHandler):
         recent query history.
         """
         try:
-            jobs = await get_query_history(count)
+            jobs = await self.get_query_history(count)
             await self._get_query_text_list(jobs)
-        except ReadTimeout:
-            # get_query_history can be weirdly slow
-            pass
+        except Exception:
+            # get_query_history can sometimes be weirdly slow
+            self.log.exception("Opportunistic query refresh failed")
 
     async def _generate_query_all_notebook(self) -> str:
         output = await self._get_query_all_notebook()
         fname = (
-            self._root_dir
-            / "notebooks"
-            / "queries"
-            / "tap_query_history.ipynb"
+            self._home / "notebooks" / "queries" / "tap_query_history.ipynb"
         )
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(output, fname)
@@ -301,13 +462,15 @@ class QueryHandler(APIHandler):
             return TAPQuery(jobref=job, text=self._cache[job])
         # If there is no colon, it's whatever is behind /api/tap.
         if job.find(":") == -1:
+            if self._tap_client is None:
+                raise MissingClientError(f"No client to handle job {job}")
             resp = await self._tap_client.get(f"async/{job}")
         else:
             # We have a dataset, and presumably a matching client.
             ds, job_id = job.split(":")
-            client = self._dataset_client.get(ds)
+            client = self._dataset_tap_client.get(ds)
             if not client:
-                raise RuntimeError(f"No client for dataset '{ds}'")
+                raise MissingClientError(f"No client for dataset '{ds}'")
             resp = await client.get(f"async/{job_id}")
         resp.raise_for_status()
         # If we didn't get a 200, resp.text probably won't parse, and

@@ -11,7 +11,11 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { INotebookTracker } from '@jupyterlab/notebook';
 
-import { getServerEnvironment } from './environment';
+import { getServerConfig, INubladoConfigResponse } from './config';
+
+import { queryRepertoire, IRepertoireResponse } from './discovery';
+
+import { getServerEnvironment, IEnvResponse } from './environment';
 
 import { activateRSPDisplayVersionExtension } from './displayversion';
 
@@ -36,81 +40,138 @@ function activateRSPExtension(
   statusBar: IStatusBar,
   tracker: INotebookTracker
 ): void {
-  logMessage(LogLevels.INFO, null, 'getting server environment...');
-  getServerEnvironment(app).then(async env => {
+  logMessage(LogLevels.INFO, null, 'rsp-jupyter-extensions: loading...');
+  logMessage(LogLevels.INFO, null, '...getting server config...');
+  getServerConfig(app).then(async cfg => {
     logMessage(
       LogLevels.DEBUG,
-      env,
+      cfg,
+      `...cfg: ${JSON.stringify(cfg, undefined, 2)}...`
+    );
+    logMessage(LogLevels.INFO, cfg, '...got server config');
+    logMessage(LogLevels.INFO, cfg, '...getting server environment...');
+    const env = await getServerEnvironment(app);
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
       `...env: ${JSON.stringify(env, undefined, 2)}...`
     );
-    logMessage(LogLevels.INFO, env, '...got server environment');
-    logMessage(LogLevels.INFO, env, 'rsp-lab-extension: loading...');
-    logMessage(LogLevels.INFO, env, '...activating savequit extension...');
-    activateRSPSavequitExtension(app, mainMenu, docManager, env);
-    logMessage(LogLevels.INFO, env, '...checking for abnormal startup...');
-    if (env.ABNORMAL_STARTUP === 'TRUE') {
-      // Give the user a warning dialog
-      try {
-        await abnormalDialog(env);
-      } catch (error) {
-        logMessage(
-          LogLevels.ERROR,
-          env,
-          `Error showing abnormal dialog: ${error}`
-        );
-      }
-    }
+    logMessage(LogLevels.INFO, cfg, '...got server environment');
+    logMessage(LogLevels.INFO, cfg, '...getting service discovery...');
+    const dsc = await queryRepertoire(cfg);
     logMessage(
-      LogLevels.INFO,
-      env,
-      '...activating displayversion extension...'
+      LogLevels.DEBUG,
+      cfg,
+      `...dsc: ${JSON.stringify(dsc, undefined, 2)}...`
     );
-    activateRSPDisplayVersionExtension(app, statusBar, env);
-    logMessage(LogLevels.INFO, env, '...activated...');
-    logMessage(LogLevels.INFO, env, '...activating pdfexport extension...');
+    logMessage(LogLevels.INFO, cfg, '...got service discovery...');
     try {
-      activateRSPPDFExportExtension(app, mainMenu, docManager, env, tracker);
-      logMessage(LogLevels.INFO, env, '...activated...');
+      await activateIndividualExtensions(
+        app,
+        mainMenu,
+        docManager,
+        statusBar,
+        tracker,
+        env,
+        cfg,
+        dsc
+      );
+    } catch (error) {
+      logMessage(
+        LogLevels.WARNING,
+        cfg,
+        `...activating extensions failed: ${error}...`
+      );
+    }
+  });
+}
+
+async function activateIndividualExtensions(
+  app: JupyterFrontEnd,
+  mainMenu: IMainMenu,
+  docManager: IDocumentManager,
+  statusBar: IStatusBar,
+  tracker: INotebookTracker,
+  env: IEnvResponse,
+  cfg: INubladoConfigResponse,
+  dsc: IRepertoireResponse
+): Promise<void> {
+  logMessage(LogLevels.INFO, cfg, '...activating savequit extension...');
+  activateRSPSavequitExtension(app, mainMenu, docManager, dsc, cfg);
+  logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
+  if (env.ABNORMAL_STARTUP === 'TRUE') {
+    // Give the user a warning dialog
+    try {
+      await abnormalDialog(env, cfg);
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
-        env,
-        `Error activating pdfexport extension: ${error}`
+        cfg,
+        `Error showing abnormal dialog: ${error}`
       );
     }
-    logMessage(LogLevels.INFO, env, '...activating query extension...');
-    if (env.RSP_SITE_TYPE === 'science' || env.RSP_SITE_TYPE === 'staff') {
-      try {
-        await activateRSPQueryExtension(app, mainMenu, docManager, env);
-        logMessage(LogLevels.INFO, env, '...activated...');
-      } catch (error) {
-        logMessage(
-          LogLevels.ERROR,
-          env,
-          `Error activating query extension: ${error}`
-        );
-      }
-    } else {
+  }
+  logMessage(LogLevels.INFO, cfg, '...activating displayversion extension...');
+  try {
+    activateRSPDisplayVersionExtension(app, statusBar, cfg, dsc);
+    logMessage(LogLevels.INFO, cfg, '...activated...');
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      cfg,
+      `Error activating displayversion extension: ${error}`
+    );
+  }
+  logMessage(LogLevels.INFO, cfg, '...activating pdfexport extension...');
+  try {
+    activateRSPPDFExportExtension(app, mainMenu, docManager, tracker, cfg);
+    logMessage(LogLevels.INFO, cfg, '...activated...');
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      cfg,
+      `Error activating pdfexport extension: ${error}`
+    );
+  }
+  if (cfg.enable_rubin_query_menu) {
+    logMessage(LogLevels.INFO, cfg, '...activating query extension...');
+    try {
+      await activateRSPQueryExtension(app, mainMenu, docManager, cfg);
+      logMessage(LogLevels.INFO, cfg, '...activated...');
+    } catch (error) {
       logMessage(
-        LogLevels.INFO,
-        env,
-        `...skipping query extension: site type is '${env.RSP_SITE_TYPE}'...`
+        LogLevels.ERROR,
+        cfg,
+        `Error activating query extension: ${error}`
       );
     }
-    logMessage(LogLevels.INFO, env, '...activated...');
-    logMessage(LogLevels.INFO, env, '...activating tutorials extension...');
-    if (env.RSP_SITE_TYPE === 'science') {
-      activateRSPTutorialsExtension(app, mainMenu, docManager, env);
-      logMessage(LogLevels.INFO, env, '...activated...');
-    } else {
+  } else {
+    logMessage(
+      LogLevels.INFO,
+      cfg,
+      '...skipping query extension (disabled in config)...'
+    );
+  }
+  if (cfg.enable_tutorials_menu) {
+    logMessage(LogLevels.INFO, cfg, '...activating tutorials extension...');
+    try {
+      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg);
+      logMessage(LogLevels.INFO, cfg, '...activated...');
+    } catch (error) {
       logMessage(
-        LogLevels.INFO,
-        env,
-        `...skipping tutorials extension because site type is '${env.RSP_SITE_TYPE}'...`
+        LogLevels.ERROR,
+        cfg,
+        `Error activating tutorials extension: ${error}`
       );
     }
-    logMessage(LogLevels.INFO, env, '...loaded rsp-lab-extension.');
-  });
+  } else {
+    logMessage(
+      LogLevels.INFO,
+      cfg,
+      '...skipping tutorials extension (disabled in config)...'
+    );
+  }
+  logMessage(LogLevels.INFO, cfg, '...loaded rsp-jupyter-extensions.');
 }
 
 /**

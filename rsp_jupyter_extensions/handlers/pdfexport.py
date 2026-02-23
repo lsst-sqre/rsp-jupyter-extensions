@@ -53,6 +53,7 @@ class PDFExportHandler(APIHandler):
     def initialize(self) -> None:
         """Set rootdir."""
         super().initialize()
+        self.log.info("Initializing PDFExportHandler.")
         self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
 
     @tornado.web.authenticated

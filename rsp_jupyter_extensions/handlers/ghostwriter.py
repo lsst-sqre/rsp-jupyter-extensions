@@ -27,6 +27,10 @@ class GhostwriterHandler(JupyterHandler):
     use to receive a redirection.
     """
 
+    def initialize(self) -> None:
+        super().initialize()
+        self.log.info("Initializing GhostwriterHandler.")
+
     def prepare(self) -> None:  # type: ignore[override]
         """Issue a redirect based on the request path."""
         # the implicit None return can also function as a null coroutine,

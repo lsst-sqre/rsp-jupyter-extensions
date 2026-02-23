@@ -20,9 +20,9 @@ NBFORMAT_VERSION = 4
 class ExecutionHandler(APIHandler):
     """RSP templated Execution Handler."""
 
-    @property
-    def rubinexecution(self) -> dict[str, str]:
-        return self.settings["rubinexecution"]
+    def initialize(self) -> None:
+        super().initialize()
+        self.log.info("Initializing ExecutionHandler")
 
     @tornado.web.authenticated
     def post(self) -> None:

@@ -1,9 +1,8 @@
 """Backend for Gafaelfawr-aware replacement for Hub menu items."""
 
 import os
-from typing import Any
 
-import requests
+import httpx
 import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join as ujoin
@@ -15,15 +14,12 @@ class HubHandler(APIHandler):
     instance) but we could extend this to do anything in the Hub REST API.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-
-    @property
-    def lsstquery(self) -> str:
-        return self.settings["lsstquery"]
+    def initialize(self) -> None:
+        super().initialize()
+        self.log.info("Initializing HubHandler.")
 
     @tornado.web.authenticated
-    def delete(self) -> None:
+    async def delete(self) -> None:
         """
         Send a DELETE to the Hub API, which will result in this Lab
         instance being terminated (potentially, along with its namespace).
@@ -47,4 +43,5 @@ class HubHandler(APIHandler):
         # Boom goes the dynamite.
         self.log.info(f"Requesting hub shutdown from {endpoint}")
         headers = {"Authorization": f"token {token}"}
-        requests.delete(endpoint, headers=headers, timeout=30)
+        async with httpx.AsyncClient() as client:
+            await client.delete(endpoint, headers=headers, timeout=30)

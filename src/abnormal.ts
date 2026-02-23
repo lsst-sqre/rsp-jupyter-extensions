@@ -1,8 +1,12 @@
 import { showDialog, Dialog } from '@jupyterlab/apputils';
+import { INubladoConfigResponse } from './config';
 import { IEnvResponse } from './environment';
 import { LogLevels, logMessage } from './logger';
 
-export async function abnormalDialog(env: IEnvResponse): Promise<void> {
+export async function abnormalDialog(
+  env: IEnvResponse,
+  cfg: INubladoConfigResponse
+): Promise<void> {
   const options = {
     title: 'Abnormal Lab Start',
     body: getDialogBody(env),
@@ -12,16 +16,16 @@ export async function abnormalDialog(env: IEnvResponse): Promise<void> {
   try {
     const result = await showDialog(options);
     if (!result) {
-      logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result from queryDialog');
       return;
     }
-    logMessage(LogLevels.DEBUG, env, `Result from queryDialog: ${result}`);
+    logMessage(LogLevels.DEBUG, cfg, `Result from queryDialog: ${result}`);
     if (!result.value) {
-      logMessage(LogLevels.DEBUG, env, 'No result.value from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.value from queryDialog');
       return;
     }
     if (!result.button) {
-      logMessage(LogLevels.DEBUG, env, 'No result.button from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.button from queryDialog');
       return;
     }
     return;

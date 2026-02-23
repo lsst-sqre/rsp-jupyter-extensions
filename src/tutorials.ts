@@ -20,7 +20,7 @@ import { Menu } from '@lumino/widgets';
 import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import * as token from './tokens';
-import { IEnvResponse } from './environment';
+import { INubladoConfigResponse } from './config';
 import { LogLevels, logMessage } from './logger';
 import { apiRequest } from './request';
 
@@ -70,24 +70,24 @@ interface ITutorialsHierarchyResponse {
 class TutorialsHierarchy implements ITutorialsHierarchyResponse {
   entries: { [name: string]: TutorialsEntry } | null = null;
   subhierarchies: { [name: string]: TutorialsHierarchy } | null = null;
-  env: IEnvResponse | null = null;
+  cfg: INubladoConfigResponse | null = null;
 
   constructor(
     inp: ITutorialsHierarchyResponse,
     name: string | null = null,
-    env: IEnvResponse | null = null
+    cfg: INubladoConfigResponse | null = null
   ) {
     if (name === null) {
       name = '<unnamed>';
     }
-    this.env = env;
-    logMessage(LogLevels.INFO, this.env, `Building hierarchy ${name}`);
+    this.cfg = cfg;
+    logMessage(LogLevels.INFO, this.cfg, `Building hierarchy ${name}`);
     if (inp.entries !== null) {
       for (const entry in inp.entries) {
-        logMessage(LogLevels.DEBUG, this.env, `${name} -> entry ${entry}`);
+        logMessage(LogLevels.DEBUG, this.cfg, `${name} -> entry ${entry}`);
         const e_obj = inp.entries[entry];
         if (e_obj === null) {
-          logMessage(LogLevels.DEBUG, this.env, `skipping null entry ${entry}`);
+          logMessage(LogLevels.DEBUG, this.cfg, `skipping null entry ${entry}`);
           continue;
         }
         if (this.entries === null) {
@@ -95,7 +95,7 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
         }
         logMessage(
           LogLevels.DEBUG,
-          this.env,
+          this.cfg,
           `adding entry ${entry}: ${JSON.stringify(e_obj, undefined, 2)}`
         );
         this.entries[entry] = new TutorialsEntry(e_obj);
@@ -103,26 +103,26 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
     }
     if (inp.subhierarchies !== null) {
       const sublist = Object.keys(inp.subhierarchies);
-      logMessage(LogLevels.DEBUG, this.env, `Subhierarchies: ${sublist}`);
+      logMessage(LogLevels.DEBUG, this.cfg, `Subhierarchies: ${sublist}`);
       for (const subh of sublist) {
         if (inp.subhierarchies === null) {
           logMessage(
             LogLevels.WARNING,
-            this.env,
+            this.cfg,
             `Somehow, subhierarchies is null at ${name}`
           );
           continue;
         }
         logMessage(
           LogLevels.DEBUG,
-          this.env,
+          this.cfg,
           `${name} -> subhierarchy ${subh}`
         );
         const s_obj = inp.subhierarchies[subh];
         if (s_obj === null) {
           logMessage(
             LogLevels.DEBUG,
-            this.env,
+            this.cfg,
             `skipping null subhierarchy ${subh}`
           );
           continue;
@@ -132,19 +132,19 @@ class TutorialsHierarchy implements ITutorialsHierarchyResponse {
         }
         logMessage(
           LogLevels.DEBUG,
-          env,
+          cfg,
           `recurse: new subhierarchy of ${name} ${subh}`
         );
         this.subhierarchies[subh] = new TutorialsHierarchy(s_obj, subh);
       }
     }
-    logMessage(LogLevels.DEBUG, env, `hierarchy ${name} built`);
+    logMessage(LogLevels.DEBUG, cfg, `hierarchy ${name} built`);
   }
 }
 
 async function apiGetTutorialsHierarchy(
   settings: ServerConnection.ISettings,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<TutorialsHierarchy> {
   /**
    * Make a request to our endpoint to get the tutorial hierarchy
@@ -164,15 +164,15 @@ async function apiGetTutorialsHierarchy(
 
   logMessage(
     LogLevels.DEBUG,
-    env,
+    cfg,
     `Tutorial endpoint response: ${JSON.stringify(data, undefined, 2)}`
   );
   // Assure Typescript it will be the right shape.
   const u_d = data as unknown;
   const h_i = u_d as ITutorialsHierarchyResponse;
   const tut = new TutorialsHierarchy(h_i);
-  logMessage(LogLevels.DEBUG, env, 'Created TutorialsHierarchy from response');
-  logMessage(LogLevels.DEBUG, env, '==============================');
+  logMessage(LogLevels.DEBUG, cfg, 'Created TutorialsHierarchy from response');
+  logMessage(LogLevels.DEBUG, cfg, '==============================');
   return tut;
 }
 
@@ -193,12 +193,12 @@ async function apiPostTutorialsEntry(
   settings: ServerConnection.ISettings,
   docManager: IDocumentManager,
   entry: TutorialsEntry,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<void> {
   // Fake out URL check in makeRequest
   logMessage(
     LogLevels.DEBUG,
-    env,
+    cfg,
     `Sending POST to tutorials endpoint with data ${JSON.stringify(
       entry,
       undefined,
@@ -216,8 +216,8 @@ async function apiPostTutorialsEntry(
     if (response.status === 409) {
       // File exists; prompt user
       try {
-        const verb = await overwriteDialog(entry.dest, docManager, env);
-        logMessage(LogLevels.DEBUG, env, `Dialog result was ${verb}`);
+        const verb = await overwriteDialog(entry.dest, docManager, cfg);
+        logMessage(LogLevels.DEBUG, cfg, `Dialog result was ${verb}`);
 
         if (verb !== 'OVERWRITE') {
           // Don't do the thing!
@@ -235,25 +235,25 @@ async function apiPostTutorialsEntry(
         const newEntry = new TutorialsEntry(newEntryModel);
 
         // Resubmit response with request to overwrite file.
-        await apiPostTutorialsEntry(settings, docManager, newEntry, env);
+        await apiPostTutorialsEntry(settings, docManager, newEntry, cfg);
       } catch (error) {
-        logMessage(LogLevels.ERROR, env, `Error in overwrite dialog: ${error}`);
+        logMessage(LogLevels.ERROR, cfg, `Error in overwrite dialog: ${error}`);
       }
     } else if (response.status === 307 || response.status === 200) {
       // File got copied.
-      logMessage(LogLevels.DEBUG, env, `Opening file ${entry.dest}`);
+      logMessage(LogLevels.DEBUG, cfg, `Opening file ${entry.dest}`);
       docManager.openOrReveal(entry.dest);
     } else {
       logMessage(
         LogLevels.WARNING,
-        env,
+        cfg,
         `Unexpected response status ${response.status}`
       );
     }
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
-      env,
+      cfg,
       `Error in tutorials POST request: ${error}`
     );
   }
@@ -268,7 +268,7 @@ interface IDialogResult {
 async function overwriteDialog(
   dest: string,
   manager: IDocumentManager,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<string | void> {
   const dialogOptions = {
     title: 'Target file exists',
@@ -277,26 +277,26 @@ async function overwriteDialog(
   };
 
   try {
-    logMessage(LogLevels.DEBUG, env, 'Showing overwrite dialog');
+    logMessage(LogLevels.DEBUG, cfg, 'Showing overwrite dialog');
     const result: IDialogResult = await showDialog(dialogOptions);
     if (!result) {
-      logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result from queryDialog');
       return;
     }
-    logMessage(LogLevels.DEBUG, env, 'Result from overwriteDialog: ', result);
+    logMessage(LogLevels.DEBUG, cfg, 'Result from overwriteDialog: ', result);
     if (!result.button) {
-      logMessage(LogLevels.DEBUG, env, 'No result.button from overwriteDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.button from overwriteDialog');
       return;
     }
     if (result.button.label === 'OVERWRITE') {
       logMessage(
         LogLevels.DEBUG,
-        env,
+        cfg,
         `Got result ${result.button.label} from overwriteDialog`
       );
       return result.button.label;
     }
-    logMessage(LogLevels.DEBUG, env, 'Did not get overwriteDialog: OVERWRITE');
+    logMessage(LogLevels.DEBUG, cfg, 'Did not get overwriteDialog: OVERWRITE');
     return;
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
@@ -308,9 +308,9 @@ export function activateRSPTutorialsExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): void {
-  logMessage(LogLevels.INFO, env, 'rsp-tutorials: loading...');
+  logMessage(LogLevels.INFO, cfg, 'rsp-tutorials: loading...');
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
 
@@ -318,28 +318,28 @@ export function activateRSPTutorialsExtension(
     name: string,
     hierarchy: ITutorialsHierarchyResponse,
     parentmenu: Menu | null,
-    env: IEnvResponse
+    cfg: INubladoConfigResponse
   ): void {
-    logMessage(LogLevels.DEBUG, env, `building tutorials menu for ${name}`);
+    logMessage(LogLevels.DEBUG, cfg, `building tutorials menu for ${name}`);
     if (parentmenu === null) {
       // Set up submenu
       const { commands } = app;
       const tutorialsmenu = new Menu({ commands });
       tutorialsmenu.title.label = 'Tutorials';
       parentmenu = tutorialsmenu;
-      logMessage(LogLevels.DEBUG, env, 'set up top level Tutorials menu');
+      logMessage(LogLevels.DEBUG, cfg, 'set up top level Tutorials menu');
       mainMenu.addMenu(tutorialsmenu);
     } else {
       logMessage(
         LogLevels.DEBUG,
-        env,
+        cfg,
         `supplied parent menu=${parentmenu.title.label}`
       );
     }
     const parent = parentmenu.title.label;
     logMessage(
       LogLevels.DEBUG,
-      env,
+      cfg,
       `building tutorials menu ${name}, parent=${parent}`
     );
 
@@ -349,33 +349,33 @@ export function activateRSPTutorialsExtension(
         const s_obj = hierarchy.subhierarchies[subh];
         // Skip null or empty entries
         if (s_obj === null) {
-          logMessage(LogLevels.DEBUG, env, `skipping empty hierarchy ${subh}`);
+          logMessage(LogLevels.DEBUG, cfg, `skipping empty hierarchy ${subh}`);
           continue;
         }
         if (s_obj.entries === null && s_obj.subhierarchies === null) {
           logMessage(
             LogLevels.DEBUG,
-            env,
+            cfg,
             `Skipping hierarchy ${subh} with no entries or subhierarchies`
           );
           continue;
         }
-        logMessage(LogLevels.DEBUG, env, `adding submenu ${subh} to ${parent}`);
+        logMessage(LogLevels.DEBUG, cfg, `adding submenu ${subh} to ${parent}`);
         const { commands } = app;
         const smenu = new Menu({ commands });
         smenu.title.label = subh;
         parentmenu.addItem({ submenu: smenu, type: 'submenu' });
-        logMessage(LogLevels.DEBUG, env, `recurse: hierarchy ${subh}`);
+        logMessage(LogLevels.DEBUG, cfg, `recurse: hierarchy ${subh}`);
         // Now recurse down new menu/subhierarchy
-        buildTutorialsMenu(subh, s_obj, smenu, env);
+        buildTutorialsMenu(subh, s_obj, smenu, cfg);
         logMessage(
           LogLevels.DEBUG,
-          env,
+          cfg,
           `recursion done; emerged from ${subh}`
         );
       }
     }
-    logMessage(LogLevels.DEBUG, env, `done with subhierarchies for ${name}`);
+    logMessage(LogLevels.DEBUG, cfg, `done with subhierarchies for ${name}`);
 
     if (hierarchy.entries !== null) {
       parentmenu.addItem({ type: 'separator' });
@@ -385,7 +385,7 @@ export function activateRSPTutorialsExtension(
         const cmdId = `${entry_obj.parent}/${entry_obj.menu_name}`;
         logMessage(
           LogLevels.DEBUG,
-          env,
+          cfg,
           `creating command ${cmdId} for entry ${JSON.stringify(
             entry,
             undefined,
@@ -395,36 +395,36 @@ export function activateRSPTutorialsExtension(
         commands.addCommand(cmdId, {
           label: entry,
           execute: () => {
-            apiPostTutorialsEntry(settings, docManager, entry_obj, env);
+            apiPostTutorialsEntry(settings, docManager, entry_obj, cfg);
           }
         });
-        logMessage(LogLevels.DEBUG, env, `adding item ${cmdId} to ${parent}`);
+        logMessage(LogLevels.DEBUG, cfg, `adding item ${cmdId} to ${parent}`);
         parentmenu.addItem({
           command: cmdId,
           type: 'command'
         });
       }
     }
-    logMessage(LogLevels.DEBUG, env, `done with ${name}`);
+    logMessage(LogLevels.DEBUG, cfg, `done with ${name}`);
   }
 
   (async () => {
     try {
-      const res = await apiGetTutorialsHierarchy(settings, env);
+      const res = await apiGetTutorialsHierarchy(settings, cfg);
       if (res) {
         const o_res = res as TutorialsHierarchy;
-        buildTutorialsMenu('root', o_res, null, env);
+        buildTutorialsMenu('root', o_res, null, cfg);
       }
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
-        env,
+        cfg,
         `Error loading tutorials hierarchy: ${error}`
       );
     }
   })();
 
-  logMessage(LogLevels.INFO, env, 'rsp-tutorials: ...loaded.');
+  logMessage(LogLevels.INFO, cfg, 'rsp-tutorials: ...loaded.');
 }
 
 /**
