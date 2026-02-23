@@ -83,7 +83,7 @@ export async function activateRSPQueryExtension(
     logMessage(
       LogLevels.ERROR,
       cfg,
-      'Failed to replace Rubin menu contents: {error}'
+      'Failed to replace Rubin menu contents: ${error}'
     );
   }
 
@@ -104,8 +104,8 @@ async function replaceRubinMenuContents(
       label: 'Open from your query history...',
       caption:
         'Open notebook from supplied query jobref ID, dataset:id, or URL',
-      execute: () => {
-        rubinTAPQuery(app, docManager, svcManager, rubinmenu, cfg);
+      execute: async () => {
+        await rubinTAPQuery(app, docManager, svcManager, rubinmenu, cfg);
       }
     });
   }
@@ -113,8 +113,8 @@ async function replaceRubinMenuContents(
     commands.addCommand(CommandIDs.rubinquerynb, {
       label: 'All queries',
       caption: 'Open notebook requesting all query history',
-      execute: () => {
-        rubinQueryAllHistory(app, docManager, svcManager, cfg);
+      execute: async () => {
+        await rubinQueryAllHistory(app, docManager, svcManager, cfg);
       }
     });
   }

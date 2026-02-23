@@ -59,7 +59,7 @@ def _browser_path_to_tree(path: str) -> str:
     will open the corresponding file.
     """
     pref = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "")
-    return f"{pref}/tree/{path}"
+    return f"{pref.rstrip('/')}/tree/{path}"
 
 
 def _write_notebook_response(nb_text: str, target: Path) -> str:
