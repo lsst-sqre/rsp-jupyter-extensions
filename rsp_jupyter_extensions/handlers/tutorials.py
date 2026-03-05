@@ -14,7 +14,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
-import requests
+import httpx
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
@@ -27,8 +27,7 @@ from ..models.tutorials import (
     TagError,
     UserEnvironmentError,
 )
-
-# _find_repo and _get_tag might belong in lsst.rsp.
+from ._utils import _browser_path_to_file, _file_to_browser_path, _get_config
 
 
 def _find_repo() -> str | None:
@@ -42,11 +41,11 @@ def _find_repo() -> str | None:
 
 
 def _get_tag() -> str:
-    image = os.getenv("JUPYTER_IMAGE_SPEC")
-    if not image:
-        raise UserEnvironmentError(
-            "Environment variable 'JUPYTER_IMAGE_SPEC' is not set"
-        )
+    try:
+        cfg_obj = _get_config()
+        image = cfg_obj["image"]["spec"]
+    except Exception:
+        raise UserEnvironmentError("Could not determine image spec") from None
     colon = image.find(":")
     atsign = image.find("@")
     if colon < 0 or atsign <= colon:
@@ -81,10 +80,7 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
 
 
 def _get_homedir() -> Path:
-    homedir = os.getenv("HOME")
-    if not homedir:
-        raise UserEnvironmentError("home directory is not set")
-    return Path(homedir)
+    return Path(os.environ["HOME"])  # $HOME must be set for lab to launch.
 
 
 # RSP-specific tutorial locations
@@ -121,7 +117,11 @@ def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
         tut_obj = json.loads(stash.read_text())
     except json.decoder.JSONDecodeError:
         return None
-    resident_tag = os.getenv("IMAGE_DESCRIPTION", "resident")
+    try:
+        cfg_obj = _get_config()
+        resident_tag = cfg_obj["image"]["description"]
+    except Exception:
+        resident_tag = "resident"
     if (
         "subhierarchies" not in tut_obj
         or resident_tag not in tut_obj["subhierarchies"]
@@ -135,30 +135,27 @@ def _reabsolutize_path(path: Path) -> Path:
         return path
     # We need to re-absolutize it so it doesn't get written to wherever
     # the Lab extension is running from.
-    homedir = _get_homedir()
-    return homedir / path
+    return _browser_path_to_file(str(path))
 
 
-def _copy_content(entry: HierarchyEntry) -> None:
+async def _copy_content(entry: HierarchyEntry) -> None:
     # Note that we assume we've already decided we want to do this (that is,
     # the check for Disposition and a file conflict has already happened).
     #
     # Also, these objects are typically notebooks and should not have
-    # outputs in them, so taking the care to stream them or use
-    # shutil.copy() is a little silly.  If they don't easily fit into
-    # memory, something else is wrong.
-    #
-    # We're also assuming that relative paths are relative to $HOME.
+    # outputs in them.  If they don't easily fit into memory, something
+    # else is wrong.
     dest = _reabsolutize_path(entry.dest)
     dest.parent.mkdir(exist_ok=True, parents=True)
     if entry.action == Actions.FETCH:
         if not isinstance(entry.src, str):
             # The typing should already be correct because of our model
-            # validation, but mypy needs some convincing.
+            # validation, but ruff needs some convincing.
             entry.src = str(entry.src)
-        resp = requests.get(entry.src, stream=True, timeout=30)
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            resp = await client.get(entry.src, timeout=30)
         with dest.open("wb") as fd:
-            for chunk in resp.iter_content(chunk_size=int(1e6)):
+            for chunk in resp.iter_bytes(chunk_size=int(1e6)):
                 fd.write(chunk)
     else:
         if not isinstance(entry.src, Path):
@@ -168,27 +165,16 @@ def _copy_content(entry: HierarchyEntry) -> None:
 
 
 def _check_containment(dest: Path) -> None:
-    homedir = _get_homedir()
-    # We are making the assumption that non-absolute paths are relative
-    # to $HOME.  This is correct for the RSP.
+    """Check whether the path is reachable in the file browser."""
     abs_dest = _reabsolutize_path(dest)
-    try:
-        _ = abs_dest.relative_to(homedir)
-    except ValueError as exc:
+    route = _file_to_browser_path(abs_dest)
+    if route is None:
         raise HierarchyError(
-            f"'{abs_dest!s}' is not contained by '{homedir}'"
-        ) from exc
+            f"'{abs_dest!s}' is not reachable in the file browser"
+        )
 
 
-def _get_notebook_path(dest: Path) -> str:
-    homedir = _get_homedir()
-    # We also assume that JupyterLab is running with --notebook-dir=${HOME}
-    if dest.is_absolute():
-        return str(dest.relative_to(homedir))
-    return str(dest)
-
-
-def _copy_and_guide(input_document: dict[str, Any]) -> _UIGuidance:
+async def _copy_and_guide(input_document: dict[str, Any]) -> _UIGuidance:
     entry = HierarchyEntry.from_primitive(input_document)
     dest = Path(entry.dest)
     dest = _reabsolutize_path(dest)
@@ -205,14 +191,14 @@ def _copy_and_guide(input_document: dict[str, Any]) -> _UIGuidance:
         else:
             # Otherwise, just fall through and overwrite the file.
             pass
-    _copy_content(entry)
+    await _copy_content(entry)
     # We don't want to issue the redirect, because we don't want to
     # mess with opening a new window in the JupyterLab API.  Instead,
     # we should just return a 200 with the destination field filled out
     # with a path relative to the notebook dir, which we can assume to
     # be ${HOME}, and let the UI extension handle opening the file it
     # finds there.
-    guide = _get_notebook_path(entry.dest)
+    guide = _file_to_browser_path(entry.dest)
     return _UIGuidance(status_code=200, dest=guide)
 
 
@@ -233,8 +219,9 @@ class TutorialsMenuHandler(APIHandler):
     require a container restart to update those values.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def initialize(self) -> None:
+        super().initialize()
+        self.log.info("Initializing TutorialsMenuHandler.")
         self.tutorials: Hierarchy | None = None
         self._populate_tutorials()
 
@@ -262,7 +249,7 @@ class TutorialsMenuHandler(APIHandler):
         stashfile.write_text(json.dumps(self.tutorials.to_primitive()))
 
     @tornado.web.authenticated
-    def get(self) -> None:
+    async def get(self) -> None:
         """Retrieve information about our tutorials."""
         self.log.info("Sending Tutorials menu information")
         if self.tutorials is None:  # It shouldn't be.
@@ -271,12 +258,12 @@ class TutorialsMenuHandler(APIHandler):
         self.write(json.dumps(self.tutorials.to_primitive()))
 
     @tornado.web.authenticated
-    def post(self) -> None:
+    async def post(self) -> None:
         """Do the copy and return guide to the UI."""
         self.log.info("Received POST request for tutorial copy")
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
-        guide = _copy_and_guide(input_document)
+        guide = await _copy_and_guide(input_document)
         self.log.debug(f"Copy/guide got: {guide}")
         if guide.dest is None:
             dest = input_document["dest"]
@@ -314,10 +301,7 @@ class TutorialsMenuHandler(APIHandler):
             self.log.debug("get_gh: No repository found")
             return Hierarchy()
         repo_url, branch = repo.split("@")
-        if not branch:
-            # This is to placate mypy: _find_repo() will append @main
-            # if needed
-            branch = "main"
+        branch = branch or "main"
         if not use_cache:
             self.log.debug("get_gh: New clone")
             self.log.debug(f"Cloning {repo_url} branch {branch} to {dirname}")
@@ -335,9 +319,18 @@ class TutorialsMenuHandler(APIHandler):
             )
 
         def _xform(src: Path) -> Path:
-            homedir = _get_homedir()
+            start_dir = Path(_get_homedir())
+            try:
+                cfg = _get_config()
+                if cfg["file_browser_root"] == "root":
+                    start_dir = Path("/")
+            except Exception:
+                self.log.warning(
+                    "Failed to read config; assuming file browser root is"
+                    " homedir."
+                )
             rest = src.relative_to(dir_obj)
-            return (tutorial_dir / rest).relative_to(Path(homedir))
+            return (tutorial_dir / rest).relative_to(Path(start_dir))
 
         return self._build_hierarchy(
             dir_obj,

@@ -1,0 +1,27 @@
+{
+  "container_size": "Large (4.0 CPU, 16Gi RAM)",
+  "debug": false,
+  "enable_rubin_query_menu": true,
+  "enable_tutorials_menu": true,
+  "file_browser_root": "home",
+  "home_relative_to_file_browser_root": "",
+  "image": {
+    "description": "Daily 2026_02_25",
+    "digest": "sha256:d33d99270c2757fe7251fa2d5256abd0ada28f43a03ff16528706763bf3ff31a",
+    "spec": "us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/sciplat-lab:d_2026_02_25@sha256:d33d99270c2757fe7251fa2d5256abd0ada28f43a03ff16528706763bf3ff31a"
+  },
+  "jupyterlab_config_dir": "/opt/lsst/software/jupyterlab",
+  "repertoire_base_url": "https://example.com/repertoire",
+  "reset_user_env": false,
+  "resources": {
+    "limits": {
+      "cpu": 4.0,
+      "memory": 17179869184
+    },
+    "requests": {
+      "cpu": 1.0,
+      "memory": 4294967296
+    }
+  },
+  "runtime_mounts_dir": "/opt/lsst/software/jupyterlab"
+}

@@ -1,4 +1,4 @@
-import { IEnvResponse } from './environment';
+import { INubladoConfigResponse } from './config';
 
 enum LogLevels {
   DEBUG = 'debug',
@@ -9,11 +9,11 @@ enum LogLevels {
 
 export function logMessage(
   level: LogLevels,
-  env: IEnvResponse | null = null,
+  cfg: INubladoConfigResponse | null = null,
   message: string,
   ...optionalParams: any[]
 ) {
-  if (level === LogLevels.DEBUG && env && env.DEBUG) {
+  if (level === LogLevels.DEBUG && cfg && cfg.debug) {
     console.log(message, ...optionalParams);
   } else if (level === LogLevels.INFO) {
     console.log(message, ...optionalParams);

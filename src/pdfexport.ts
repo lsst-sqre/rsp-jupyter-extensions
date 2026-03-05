@@ -20,8 +20,8 @@ import { PageConfig } from '@jupyterlab/coreutils';
 import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
-import { IEnvResponse } from './environment';
 import { apiRequest } from './request';
+import { INubladoConfigResponse } from './config';
 
 /**
  * The command IDs used by the plugin.
@@ -42,10 +42,10 @@ export function activateRSPPDFExportExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  env: IEnvResponse,
-  tracker: INotebookTracker
+  tracker: INotebookTracker,
+  cfg: INubladoConfigResponse
 ): void {
-  logMessage(LogLevels.INFO, null, 'rsp-pdfexport: loading...');
+  logMessage(LogLevels.INFO, cfg, 'rsp-pdfexport: loading...');
 
   const svcManager = app.serviceManager;
 
@@ -55,7 +55,7 @@ export function activateRSPPDFExportExtension(
     label: 'Export current notebook to PDF (typst)',
     caption: 'Export current notebook to PDF via typst',
     execute: () => {
-      pdfExport(app, docManager, svcManager, env, tracker);
+      pdfExport(app, docManager, svcManager, tracker, cfg);
     }
   });
 
@@ -68,25 +68,25 @@ export function activateRSPPDFExportExtension(
   const rank = 140;
   mainMenu.fileMenu.addGroup(menu, rank);
 
-  logMessage(LogLevels.INFO, env, 'rsp-pdfexport: ...loaded.');
+  logMessage(LogLevels.INFO, cfg, 'rsp-pdfexport: ...loaded.');
 }
 
 async function pdfExport(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse,
-  tracker: INotebookTracker
+  tracker: INotebookTracker,
+  cfg: INubladoConfigResponse
 ): Promise<void> {
   // Find current notebook
   if (!tracker) {
-    logMessage(LogLevels.WARNING, env, 'Tracker is undefined');
+    logMessage(LogLevels.WARNING, cfg, 'Tracker is undefined');
     return;
   }
   const current = tracker.currentWidget;
   if (!current) {
     // Nothing to work with
-    logMessage(LogLevels.DEBUG, env, 'No current notebook');
+    logMessage(LogLevels.DEBUG, cfg, 'No current notebook');
     return;
   }
   const { context } = current;
@@ -114,7 +114,7 @@ async function pdfExport(
     const error = r_p.error;
     logMessage(
       LogLevels.DEBUG,
-      env,
+      cfg,
       `Got query response ${JSON.stringify(r_p, undefined, 2)}`
     );
     if (path) {
@@ -131,7 +131,7 @@ async function pdfExport(
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
-      env,
+      cfg,
       `Error converting ${path} to PDF: ${error}`
     );
     throw new Error(`Failed to convert ${path} to PDF: ${error}`);

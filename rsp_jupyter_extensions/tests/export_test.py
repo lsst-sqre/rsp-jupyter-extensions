@@ -23,31 +23,30 @@ from rsp_jupyter_extensions.handlers.pdfexport import PDFExportHandler
 def _fake_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
+    """Simulate an RSP filesystem.  We cannot use pyfakefs because
+    something about either contextlib or shutil doesn't play well with it.
+    """
     data_dir = Path(__file__).parent / "data"
-    t_home = Path(tmp_path) / "home" / "hambone"
-    t_home.mkdir(parents=True)
+    for directory in ("etc", "home", "usr"):
+        shutil.copytree(data_dir / directory, tmp_path / directory)
+    t_home = tmp_path / "home" / "irian"
     homedir = str(t_home)
-    monkeypatch.setenv("JUPYTER_SERVER_ROOT", homedir)
-    exp_path = tmp_path / "bin"
-    exp_path.mkdir()
+    monkeypatch.setenv("HOME", homedir)
+    exp_path = tmp_path / "usr" / "local" / "bin"
     # Make that the first thing in PATH
     path = os.getenv("PATH", "")
     monkeypatch.setenv("PATH", f"{exp_path!s}:{path}")
-    # Copy fake "typst" to fake_root/bin.
-    typst = exp_path / "typst"
-    pandoc = exp_path / "pandoc"
-    shutil.copy2((data_dir / "typst"), typst)
-    shutil.copy2((data_dir / "pandoc"), pandoc)
-    # Copy fake notebook to fake_root/homedir
-    shutil.copy2(data_dir / "nb.ipynb", t_home)
     yield
     # Pretend we have some cleanup to make linter happy
-    if (exp_path / "typst").exists():
+    typst = exp_path / "typst"
+    if typst.exists():
+        _ = os.getenv("PATH", "")
         if typst.is_dir():
             typst.rmdir()
         else:
             typst.unlink()
-    if (exp_path / "pandoc").exists():
+    pandoc = exp_path / "pandoc"
+    if pandoc.exists():
         if pandoc.is_dir():
             pandoc.rmdir()
         else:
@@ -62,7 +61,7 @@ class _FakeConnect(tornado.httputil.HTTPConnection):
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_export() -> None:
-    homedir = os.getenv("JUPYTER_SERVER_ROOT", "")
+    homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -72,7 +71,7 @@ async def test_export() -> None:
         )
 
         # Happy path
-        bindir = Path(homedir).parent.parent / "bin"
+        bindir = Path(homedir).parent.parent / "usr" / "local" / "bin"
         pathdir = os.getenv("PATH", "").split(":")[0]
         assert pathdir == str(bindir)
         resp = await handler._to_pdf_response("nb.ipynb")
@@ -84,7 +83,7 @@ async def test_export() -> None:
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_missing_notebook() -> None:
-    homedir = os.getenv("JUPYTER_SERVER_ROOT", "")
+    homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -102,7 +101,7 @@ async def test_missing_notebook() -> None:
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_output_is_directory() -> None:
-    homedir = os.getenv("JUPYTER_SERVER_ROOT", "")
+    homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -128,7 +127,7 @@ async def test_output_is_directory() -> None:
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_input_is_not_notebook() -> None:
-    homedir = os.getenv("JUPYTER_SERVER_ROOT", "")
+    homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -148,7 +147,7 @@ async def test_input_is_not_notebook() -> None:
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_no_typst() -> None:
-    homedir = os.getenv("JUPYTER_SERVER_ROOT", "")
+    homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -158,7 +157,9 @@ async def test_no_typst() -> None:
         )
 
         # No typst
-        (Path(homedir).parent.parent / "bin" / "typst").unlink()
+        (
+            Path(homedir).parent.parent / "usr" / "local" / "bin" / "typst"
+        ).unlink()
         if shutil.which("typst") is not None:
             pytest.skip("typst is really installed")
         resp = await handler._to_pdf_response("nb.ipynb")
@@ -169,7 +170,7 @@ async def test_no_typst() -> None:
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_no_pandoc() -> None:
-    homedir = os.getenv("JUPYTER_SERVER_ROOT", "")
+    homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -179,7 +180,9 @@ async def test_no_pandoc() -> None:
         )
 
         # No pandoc
-        (Path(homedir).parent.parent / "bin" / "pandoc").unlink()
+        (
+            Path(homedir).parent.parent / "usr" / "local" / "bin" / "pandoc"
+        ).unlink()
         if shutil.which("pandoc") is not None:
             pytest.skip("pandoc is really installed")
         resp = await handler._to_pdf_response("nb.ipynb")

@@ -4,7 +4,7 @@ help:
 	@echo "make init - Set up dev environment"
 	@echo "make typing - Run typechecker for Python and Typescript"
 	@echo "make lint - Lint Python and Typescript"
-	@echo "make test - Run Python unit tests"
+	@echo "make test - Run Python unit tests and check browser startup"
 
 .PHONY: init
 init:
@@ -25,3 +25,4 @@ lint:
 .PHONY: test
 test:
 	pytest -vvv rsp_jupyter_extensions
+	python -m jupyterlab.browser_check

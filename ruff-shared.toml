@@ -99,6 +99,7 @@ select = ["ALL"]
     "PT012",   # way too aggressive about limiting pytest.raises blocks
     "S101",    # tests should use assert
     "S106",    # tests are allowed to hard-code dummy passwords
+    "S108",    # tests are allowed to use literal "/tmp"
     "S301",    # allow tests for whether code can be pickled
     "SLF001",  # tests are allowed to access private members
 ]

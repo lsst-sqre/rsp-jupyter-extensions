@@ -10,11 +10,11 @@ import { IStatusBar } from '@jupyterlab/statusbar';
 
 import DisplayLabVersion from './DisplayLabVersion';
 
-import { IEnvResponse } from './environment';
-
 import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
+import { INubladoConfigResponse } from './config';
+import { IRepertoireResponse } from './discovery';
 
 /**
  * Activate the extension.
@@ -22,41 +22,39 @@ import * as token from './tokens';
 export function activateRSPDisplayVersionExtension(
   app: JupyterFrontEnd,
   statusBar: IStatusBar,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse,
+  dsc: IRepertoireResponse
 ): void {
-  logMessage(LogLevels.INFO, env, 'rsp-displayversion: loading...');
+  logMessage(LogLevels.INFO, cfg, 'rsp-displayversion: loading...');
 
-  const image_description = env.IMAGE_DESCRIPTION || '';
-  const image_digest = env.IMAGE_DIGEST;
-  const image_spec = env.JUPYTER_IMAGE_SPEC;
-  const instance_url = new URL(env.EXTERNAL_INSTANCE_URL || '');
-  const hostname = ' ' + instance_url.hostname;
-  const container_size = env.CONTAINER_SIZE || '';
+  const image_description = cfg.image.description || '';
+  const image_digest = cfg.image.digest;
+  const image_spec = cfg.image.spec;
+  const hostname = dsc.environment_name; // Not supposed to use it this way.
+  const container_size = cfg.container_size || '';
   let size = '';
   if (container_size === '') {
-    size = ' (' + env.CPU_LIMIT + ' CPU, ' + env.MEM_LIMIT + ' B)';
+    size =
+      ' (' +
+      cfg.resources.limits.cpu +
+      ' CPU, ' +
+      cfg.resources.limits.memory +
+      ' B)';
   } else {
     size = ' ' + container_size;
   }
   let digest_str = '';
   let imagename = '';
   if (image_spec) {
-    /* First try to get digest out of image spec (nublado v3) */
     const imagearr = image_spec.split('/');
-    const pullname = imagearr[imagearr.length - 1];
-    const partsarr = pullname.split('@');
-    if (partsarr.length === 2) {
-      /* Split name and sha; "sha256:" is seven characters */
-      digest_str = ' [' + partsarr[1].substring(7, 7 + 8) + '...]';
+    const pullname_digest = imagearr[imagearr.length - 1];
+    const partsarr = pullname_digest.split('@');
+    if (partsarr.length > 0) {
       imagename = ' (' + partsarr[0] + ')';
-    } else {
-      /* Nothing to split; image name is the name we pulled by */
-      imagename = ' (' + pullname + ')';
     }
-    if (digest_str === '' && image_digest) {
-      /* No digest in spec?  Well, did we set IMAGE_DIGEST?
-         Yes, if we are nubladov2. */
-      digest_str = ' [' + image_digest.substring(0, 8) + '...]';
+    if (image_digest) {
+      // "sha256:" is seven characters
+      digest_str = ' [' + image_digest.substring(7, 7 + 8) + '...]';
     }
     const label = image_description + digest_str + imagename + size + hostname;
 
@@ -73,7 +71,7 @@ export function activateRSPDisplayVersionExtension(
     });
   }
 
-  logMessage(LogLevels.INFO, env, 'rsp-displayversion: ... loaded');
+  logMessage(LogLevels.INFO, cfg, 'rsp-displayversion: ... loaded');
 }
 
 /**

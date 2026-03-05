@@ -16,12 +16,13 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { PageConfig } from '@jupyterlab/coreutils';
 
-import { ServiceManager, ServerConnection } from '@jupyterlab/services';
+import { ServerConnection } from '@jupyterlab/services';
 
 import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
-import { IEnvResponse } from './environment';
+import { INubladoConfigResponse } from './config';
+import { IRepertoireResponse } from './discovery';
 
 /**
  * The command IDs used by the plugin.
@@ -39,35 +40,34 @@ export function activateRSPSavequitExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  env: IEnvResponse
+  dsc: IRepertoireResponse,
+  cfg: INubladoConfigResponse
 ): void {
   logMessage(LogLevels.INFO, null, 'rsp-savequit: loading...');
-
-  const svcManager = app.serviceManager;
 
   const { commands } = app;
 
   commands.addCommand(CommandIDs.justQuit, {
     label: 'Exit Without Saving',
     caption: 'Destroy container',
-    execute: () => {
-      justQuit(app, docManager, svcManager, false, env);
+    execute: async () => {
+      await justQuit(app, false, dsc, cfg);
     }
   });
 
   commands.addCommand(CommandIDs.saveQuit, {
     label: 'Save All and Exit',
     caption: 'Save open notebooks and destroy container',
-    execute: () => {
-      saveAndQuit(app, docManager, svcManager, false, env);
+    execute: async () => {
+      await saveAndQuit(app, docManager, false, dsc, cfg);
     }
   });
 
   commands.addCommand(CommandIDs.saveLogout, {
     label: 'Save All, Exit, and Log Out',
     caption: 'Save open notebooks, destroy container, and log out',
-    execute: () => {
-      saveAndQuit(app, docManager, svcManager, true, env);
+    execute: async () => {
+      await saveAndQuit(app, docManager, true, dsc, cfg);
     }
   });
 
@@ -81,12 +81,12 @@ export function activateRSPSavequitExtension(
   const rank = 150;
   mainMenu.fileMenu.addGroup(menu, rank);
 
-  logMessage(LogLevels.INFO, env, 'rsp-savequit: ...loaded.');
+  logMessage(LogLevels.INFO, cfg, 'rsp-savequit: ...loaded.');
 }
 
-function hubDeleteRequest(
+async function hubDeleteRequest(
   app: JupyterFrontEnd,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<Response> {
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
@@ -96,17 +96,16 @@ function hubDeleteRequest(
   };
   logMessage(
     LogLevels.DEBUG,
-    env,
+    cfg,
     `savequit: hubRequest URL: ${endpoint} | Settings: ${settings}`
   );
-  return ServerConnection.makeRequest(endpoint, init, settings);
+  return await ServerConnection.makeRequest(endpoint, init, settings);
 }
 
-function saveAll(
+async function saveAll(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<any> {
   const promises: Promise<any>[] = [];
   for (const widget of app.shell.widgets('main')) {
@@ -115,14 +114,14 @@ function saveAll(
       if (context) {
         logMessage(
           LogLevels.DEBUG,
-          env,
+          cfg,
           `Saving context for widget: ${{ id: widget.id }}`
         );
         promises.push(context.save());
       } else {
         logMessage(
           LogLevels.WARNING,
-          env,
+          cfg,
           `No context for widget: ${{ id: widget.id }}`
         );
       }
@@ -130,7 +129,7 @@ function saveAll(
   }
   logMessage(
     LogLevels.DEBUG,
-    env,
+    cfg,
     'Waiting for all save-document promises to resolve.'
   );
   let r = Promise.resolve(1);
@@ -141,61 +140,54 @@ function saveAll(
   return r;
 }
 
-function saveAndQuit(
+async function saveAndQuit(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager,
   logout: boolean,
-  env: IEnvResponse
+  dsc: IRepertoireResponse,
+  cfg: INubladoConfigResponse
 ): Promise<any> {
-  infoDialog(env);
-  const retval = Promise.resolve(saveAll(app, docManager, svcManager, env));
+  infoDialog(cfg);
+  const retval = Promise.resolve(saveAll(app, docManager, cfg));
   retval.then(res => {
-    return justQuit(app, docManager, svcManager, logout, env);
+    return justQuit(app, logout, dsc, cfg);
   });
   retval.catch(err => {
     logMessage(
       LogLevels.WARNING,
-      env,
+      cfg,
       `savequit: saveAll failed: ${err.message}`
     );
   });
-  logMessage(LogLevels.INFO, env, 'savequit: Save and Quit complete.');
+  logMessage(LogLevels.INFO, cfg, 'savequit: Save and Quit complete.');
   return retval;
 }
 
-function justQuit(
+async function justQuit(
   app: JupyterFrontEnd,
-  docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager,
   logout: boolean,
-  env: IEnvResponse
+  dsc: IRepertoireResponse,
+  cfg: INubladoConfigResponse
 ): Promise<any> {
-  infoDialog(env);
-  let targetEndpoint = `${env.EXTERNAL_INSTANCE_URL}`;
+  infoDialog(cfg);
+  // This should come from an endpoint UI, once we add it to discovery.
+  let targetEndpoint = 'https://' + dsc.environment_name;
   if (logout) {
     targetEndpoint = targetEndpoint + '/logout';
   }
-  return Promise.resolve(
-    hubDeleteRequest(app, env)
-      .then(() => {
-        logMessage(LogLevels.INFO, env, 'Quit complete.');
-      })
-      .then(() => {
-        window.location.replace(targetEndpoint);
-      })
-  );
+  await hubDeleteRequest(app, cfg);
+  logMessage(LogLevels.INFO, cfg, 'Quit complete.');
+  window.location.replace(targetEndpoint);
 }
 
-function infoDialog(env: IEnvResponse): Promise<void> {
+async function infoDialog(cfg: INubladoConfigResponse): Promise<void> {
   const options = {
     title: 'Redirecting to landing page',
     body: 'JupyterLab cleaning up and redirecting to landing page.',
     buttons: [Dialog.okButton({ label: 'Got it!' })]
   };
-  return showDialog(options).then(() => {
-    logMessage(LogLevels.DEBUG, env, 'Info dialog panel displayed');
-  });
+  await showDialog(options);
+  logMessage(LogLevels.DEBUG, cfg, 'Info dialog panel displayed');
 }
 
 /**

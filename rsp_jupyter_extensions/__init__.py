@@ -1,6 +1,7 @@
 from jupyter_server.utils import url_path_join as ujoin
 
-from .handlers.environment import EnvironmentHandler
+from .handlers.abnormal import AbnormalStartupHandler
+from .handlers.config import ConfigHandler
 from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
 from .handlers.hub import HubHandler
@@ -34,7 +35,8 @@ def _setup_handlers(server_app) -> None:  # type: ignore
     """Sets up the route handlers to call the appropriate functionality."""
     web_app = server_app.web_app
     extmap = {
-        r"/rubin/environment": EnvironmentHandler,
+        r"/rubin/abnormal": AbnormalStartupHandler,
+        r"/rubin/config": ConfigHandler,
         r"/rubin/execution": ExecutionHandler,
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
@@ -49,7 +51,8 @@ def _setup_handlers(server_app) -> None:  # type: ignore
     base_url = web_app.settings["base_url"]
     # And now add the handlers.
     handlers = [(ujoin(base_url, x), extmap[x]) for x in extmap]
-    server_app.log.info(f"RJE Handlers: {handlers}")
+    print_handlers = [ (x[0], x[1].__name__.split(".")[-1]) for x in handlers ]
+    server_app.log.info(f"RJE Handlers: {print_handlers}")
     web_app.add_handlers(host_pattern, handlers)
 
 
