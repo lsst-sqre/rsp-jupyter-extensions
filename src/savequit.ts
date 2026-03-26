@@ -16,7 +16,7 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { PageConfig } from '@jupyterlab/coreutils';
 
-import { ServiceManager, ServerConnection } from '@jupyterlab/services';
+import { ServerConnection } from '@jupyterlab/services';
 
 import { LogLevels, logMessage } from './logger';
 
@@ -43,15 +43,13 @@ export function activateRSPSavequitExtension(
 ): void {
   logMessage(LogLevels.INFO, null, 'rsp-savequit: loading...');
 
-  const svcManager = app.serviceManager;
-
   const { commands } = app;
 
   commands.addCommand(CommandIDs.justQuit, {
     label: 'Exit Without Saving',
     caption: 'Destroy container',
     execute: () => {
-      justQuit(app, docManager, svcManager, false, env);
+      justQuit(app, false, env);
     }
   });
 
@@ -59,7 +57,7 @@ export function activateRSPSavequitExtension(
     label: 'Save All and Exit',
     caption: 'Save open notebooks and destroy container',
     execute: () => {
-      saveAndQuit(app, docManager, svcManager, false, env);
+      saveAndQuit(app, docManager, false, env);
     }
   });
 
@@ -67,7 +65,7 @@ export function activateRSPSavequitExtension(
     label: 'Save All, Exit, and Log Out',
     caption: 'Save open notebooks, destroy container, and log out',
     execute: () => {
-      saveAndQuit(app, docManager, svcManager, true, env);
+      saveAndQuit(app, docManager, true, env);
     }
   });
 
@@ -84,7 +82,7 @@ export function activateRSPSavequitExtension(
   logMessage(LogLevels.INFO, env, 'rsp-savequit: ...loaded.');
 }
 
-function hubDeleteRequest(
+async function hubDeleteRequest(
   app: JupyterFrontEnd,
   env: IEnvResponse
 ): Promise<Response> {
@@ -99,13 +97,12 @@ function hubDeleteRequest(
     env,
     `savequit: hubRequest URL: ${endpoint} | Settings: ${settings}`
   );
-  return ServerConnection.makeRequest(endpoint, init, settings);
+  return await ServerConnection.makeRequest(endpoint, init, settings);
 }
 
-function saveAll(
+async function saveAll(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager,
   env: IEnvResponse
 ): Promise<any> {
   const promises: Promise<any>[] = [];
@@ -141,17 +138,16 @@ function saveAll(
   return r;
 }
 
-function saveAndQuit(
+async function saveAndQuit(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager,
   logout: boolean,
   env: IEnvResponse
 ): Promise<any> {
   infoDialog(env);
-  const retval = Promise.resolve(saveAll(app, docManager, svcManager, env));
-  retval.then(res => {
-    return justQuit(app, docManager, svcManager, logout, env);
+  const retval = Promise.resolve(saveAll(app, docManager, env));
+  retval.then(_ => {
+    return justQuit(app, logout, env);
   });
   retval.catch(err => {
     logMessage(
@@ -164,10 +160,8 @@ function saveAndQuit(
   return retval;
 }
 
-function justQuit(
+async function justQuit(
   app: JupyterFrontEnd,
-  docManager: IDocumentManager,
-  svcManager: ServiceManager.IManager,
   logout: boolean,
   env: IEnvResponse
 ): Promise<any> {
@@ -176,26 +170,19 @@ function justQuit(
   if (logout) {
     targetEndpoint = targetEndpoint + '/logout';
   }
-  return Promise.resolve(
-    hubDeleteRequest(app, env)
-      .then(() => {
-        logMessage(LogLevels.INFO, env, 'Quit complete.');
-      })
-      .then(() => {
-        window.location.replace(targetEndpoint);
-      })
-  );
+  await hubDeleteRequest(app, env);
+  logMessage(LogLevels.INFO, env, 'Quit complete.');
+  window.location.replace(targetEndpoint);
 }
 
-function infoDialog(env: IEnvResponse): Promise<void> {
+async function infoDialog(env: IEnvResponse): Promise<void> {
   const options = {
     title: 'Redirecting to landing page',
     body: 'JupyterLab cleaning up and redirecting to landing page.',
     buttons: [Dialog.okButton({ label: 'Got it!' })]
   };
-  return showDialog(options).then(() => {
-    logMessage(LogLevels.DEBUG, env, 'Info dialog panel displayed');
-  });
+  await showDialog(options);
+  logMessage(LogLevels.DEBUG, env, 'Info dialog panel displayed');
 }
 
 /**

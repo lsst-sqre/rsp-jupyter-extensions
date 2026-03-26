@@ -7,18 +7,16 @@ export interface IJSONResponse {
   };
 }
 
-export function apiRequest(
+export async function apiRequest(
   url: string,
   init: RequestInit,
   settings: ServerConnection.ISettings
 ): Promise<IJSONResponse> {
   // Fake out URL check in makeRequest
-  return ServerConnection.makeRequest(url, init, settings).then(response => {
-    if (response.status !== 200) {
-      return response.json().then(data => {
-        throw new ServerConnection.ResponseError(response, data.message);
-      });
-    }
-    return response.json();
-  });
+  const resp = await ServerConnection.makeRequest(url, init, settings);
+  const resp_j = await resp.json();
+  if (resp.status !== 200) {
+    throw new ServerConnection.ResponseError(resp, resp_j.message);
+  }
+  return resp_j;
 }

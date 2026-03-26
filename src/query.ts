@@ -106,7 +106,7 @@ async function replaceRubinMenuContents(
       label: 'All queries',
       caption: 'Open notebook requesting all query history',
       execute: () => {
-        rubinQueryAllHistory(app, docManager, svcManager, env);
+        rubinQueryAllHistory(docManager, svcManager, env);
       }
     });
   }
@@ -339,7 +339,6 @@ async function getRecentQueryMenu(
 }
 
 async function rubinQueryAllHistory(
-  app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse

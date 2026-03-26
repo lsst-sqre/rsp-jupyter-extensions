@@ -55,14 +55,15 @@ export function activateRSPPDFExportExtension(
     label: 'Export current notebook to PDF (typst)',
     caption: 'Export current notebook to PDF via typst',
     execute: () => {
-      pdfExport(app, docManager, svcManager, env, tracker);
+      pdfExport(docManager, svcManager, env, tracker);
     }
   });
 
   // We tried putting this into the Export as... menu, but those things all
   // use nbconvert, and the behavior was inconsistent since we do not.  So
   // we will instead group this separately.
-  // If nbconvert becomes able to create typst, though, we should reconsider.
+  // If nbconvert becomes able to create typst, though (perhaps from our
+  // own efforts), we should reconsider.
   const menu: Menu.IItemOptions[] = [{ command: CommandIDs.pdfExport }];
   // Put it near the bottom of File menu
   const rank = 140;
@@ -72,7 +73,6 @@ export function activateRSPPDFExportExtension(
 }
 
 async function pdfExport(
-  app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   env: IEnvResponse,

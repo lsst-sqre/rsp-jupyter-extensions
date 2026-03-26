@@ -20,7 +20,7 @@ import * as token from './tokens';
  * Activate the extension.
  */
 export function activateRSPDisplayVersionExtension(
-  app: JupyterFrontEnd,
+  _: JupyterFrontEnd,
   statusBar: IStatusBar,
   env: IEnvResponse
 ): void {

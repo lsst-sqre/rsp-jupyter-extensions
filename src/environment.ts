@@ -22,7 +22,7 @@ interface IEnvResponse {
   DEBUG?: string;
 }
 
-export function getServerEnvironment(
+export async function getServerEnvironment(
   app: JupyterFrontEnd
 ): Promise<IEnvResponse> {
   const endpoint = PageConfig.getBaseUrl() + 'rubin/environment';
@@ -32,9 +32,9 @@ export function getServerEnvironment(
   const svcManager = app.serviceManager;
   const settings = svcManager.serverSettings;
 
-  return apiRequest(endpoint, init, settings).then(env => {
-    return env as IEnvResponse;
-  });
+  const resp = await apiRequest(endpoint, init, settings);
+  const u_resp = resp as unknown;
+  return u_resp as IEnvResponse;
 }
 
 export type { IJSONResponse };
