@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="1" failures="0" errors="0" time="1.098">
-  <testsuite name="rsp-jupyter-extensions" errors="0" failures="0" skipped="0" timestamp="2025-08-26T16:29:54" time="0.859" tests="1">
+<testsuites name="jest tests" tests="1" failures="0" errors="0" time="1.585">
+  <testsuite name="rsp-jupyter-extensions" errors="0" failures="0" skipped="0" timestamp="2026-03-26T20:10:59" time="1.111" tests="1">
     <testcase classname="rsp-jupyter-extensions should be tested" name="rsp-jupyter-extensions should be tested" time="0.001">
     </testcase>
   </testsuite>
