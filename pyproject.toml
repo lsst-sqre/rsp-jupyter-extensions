@@ -36,6 +36,7 @@ test = [
     "coverage",
     "mypy",
     "pre-commit",
+    "pyfakefs",
     "pytest",
     "pytest-asyncio",
     "pytest-cov",

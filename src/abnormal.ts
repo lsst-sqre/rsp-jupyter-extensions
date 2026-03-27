@@ -3,6 +3,8 @@ import { IEnvResponse } from './environment';
 import { LogLevels, logMessage } from './logger';
 
 export async function abnormalDialog(env: IEnvResponse): Promise<void> {
+  // Someday it would be nice to have a DialogBox class that understood
+  // markdown.
   const options = {
     title: 'Abnormal Lab Start',
     body: getDialogBody(env),
@@ -76,21 +78,15 @@ function getSupplementalBody(errorcode: string): string {
   switch (errorcode) {
     case 'EACCES':
       return no_permission;
-      break;
     case 'ENOSPC':
       return no_storage;
-      break;
     case 'EROFS':
       return no_permission;
-      break;
     case 'EDQUOT':
       return no_quota;
-      break;
     case 'EBADENV':
       return no_environment;
-      break;
     default:
       return no_idea;
-      break;
   }
 }

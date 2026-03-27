@@ -1,8 +1,10 @@
 """Test file copy and retry logic."""
 
+import os
 from pathlib import Path
 
 import pytest
+from pyfakefs.fake_filesystem import FakeFilesystem
 
 from rsp_jupyter_extensions.handlers.tutorials import _copy_and_guide
 from rsp_jupyter_extensions.models.tutorials import (
@@ -11,14 +13,12 @@ from rsp_jupyter_extensions.models.tutorials import (
 )
 
 
-def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_copy(rsp_fs: FakeFilesystem) -> None:
     """Test file copy and retry logic."""
     # Set up environment
-    homedir = tmp_path / "home" / "irian"
-    homedir.mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(homedir))
+    tmp_path = Path(os.environ.get("TMPDIR", "/tmp"))
     srcdir = tmp_path / "src"
-    destdir = homedir / "dest"
+    destdir = Path(os.environ["HOME"]) / "dest"
     srcdir.mkdir()
 
     contents = "Hello, world!\n"
@@ -67,8 +67,11 @@ def test_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert outf.read_text() == new_contents
 
 
-def test_bad_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bad_copy(
+    rsp_fs: FakeFilesystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test handling of bad inputs and environments."""
+    tmp_path = Path(os.environ.get("TMPDIR", "/tmp"))
     inp = {
         "menu_name": "hello.txt",
         "action": "copy",
@@ -76,7 +79,7 @@ def test_bad_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "parent": "/",
         "menu_path": "/hello.txt",
         "src": "/in/hello.txt",
-        "dest": f"{tmp_path}/home/irian/hello.txt",
+        "dest": f"{tmp_path}/hello.txt",
     }
 
     monkeypatch.delenv("HOME")
@@ -87,6 +90,6 @@ def test_bad_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", "/nowhere")
     with pytest.raises(
         HierarchyError,
-        match="/home/irian/hello.txt' is not contained by '/nowhere'",
+        match="/hello.txt' is not contained by '/nowhere'",
     ):
         _ = _copy_and_guide(inp)
