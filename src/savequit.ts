@@ -97,7 +97,7 @@ async function hubDeleteRequest(
     env,
     `savequit: hubRequest URL: ${endpoint} | Settings: ${settings}`
   );
-  return await ServerConnection.makeRequest(endpoint, init, settings);
+  return ServerConnection.makeRequest(endpoint, init, settings);
 }
 
 async function saveAll(
@@ -113,14 +113,14 @@ async function saveAll(
         logMessage(
           LogLevels.DEBUG,
           env,
-          `Saving context for widget: ${{ id: widget.id }}`
+          `Saving context for widget: ${widget.id}`
         );
         promises.push(context.save());
       } else {
         logMessage(
           LogLevels.WARNING,
           env,
-          `No context for widget: ${{ id: widget.id }}`
+          `No context for widget: ${widget.id}`
         );
       }
     }
@@ -130,12 +130,15 @@ async function saveAll(
     env,
     'Waiting for all save-document promises to resolve.'
   );
-  let r = Promise.resolve(1);
-  if (promises) {
-    Promise.all(promises);
-    r = promises[0];
+  try {
+    await Promise.all(promises);
+  } catch (error) {
+    logMessage(
+      LogLevels.WARNING,
+      env,
+      `Save-document promise(s) failed: ${error}`
+    );
   }
-  return r;
 }
 
 async function saveAndQuit(
@@ -144,20 +147,13 @@ async function saveAndQuit(
   logout: boolean,
   env: IEnvResponse
 ): Promise<any> {
-  infoDialog(env);
-  const retval = Promise.resolve(saveAll(app, docManager, env));
-  retval.then(_ => {
+  try {
+    await saveAll(app, docManager, env);
+    logMessage(LogLevels.INFO, env, 'savequit: all documents saved.');
     return justQuit(app, logout, env);
-  });
-  retval.catch(err => {
-    logMessage(
-      LogLevels.WARNING,
-      env,
-      `savequit: saveAll failed: ${err.message}`
-    );
-  });
-  logMessage(LogLevels.INFO, env, 'savequit: Save and Quit complete.');
-  return retval;
+  } catch (error) {
+    logMessage(LogLevels.WARNING, env, `savequit: saveAll failed: ${error}`);
+  }
 }
 
 async function justQuit(
@@ -165,14 +161,19 @@ async function justQuit(
   logout: boolean,
   env: IEnvResponse
 ): Promise<any> {
-  infoDialog(env);
+  await infoDialog(env);
   let targetEndpoint = `${env.EXTERNAL_INSTANCE_URL}`;
   if (logout) {
     targetEndpoint = targetEndpoint + '/logout';
   }
-  await hubDeleteRequest(app, env);
-  logMessage(LogLevels.INFO, env, 'Quit complete.');
-  window.location.replace(targetEndpoint);
+  try {
+    await hubDeleteRequest(app, env);
+    logMessage(LogLevels.INFO, env, 'Quit complete.');
+    window.location.replace(targetEndpoint);
+    return Promise<null>;
+  } catch (error) {
+    logMessage(LogLevels.WARNING, env, `savequit: JustQuit failed: ${error}`);
+  }
 }
 
 async function infoDialog(env: IEnvResponse): Promise<void> {

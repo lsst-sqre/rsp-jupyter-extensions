@@ -33,8 +33,7 @@ export async function getServerEnvironment(
   const settings = svcManager.serverSettings;
 
   const resp = await apiRequest(endpoint, init, settings);
-  const u_resp = resp as unknown;
-  return u_resp as IEnvResponse;
+  return resp as unknown as IEnvResponse;
 }
 
 export type { IJSONResponse };

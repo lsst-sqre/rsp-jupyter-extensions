@@ -14,9 +14,8 @@ export async function apiRequest(
 ): Promise<IJSONResponse> {
   // Fake out URL check in makeRequest
   const resp = await ServerConnection.makeRequest(url, init, settings);
-  const resp_j = await resp.json();
   if (resp.status !== 200) {
-    throw new ServerConnection.ResponseError(resp, resp_j.message);
+    throw new ServerConnection.ResponseError(resp, await resp.text());
   }
-  return resp_j;
+  return await resp.json();
 }

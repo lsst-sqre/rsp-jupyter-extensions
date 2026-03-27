@@ -17,6 +17,6 @@ def rsp_fs(
                                read_only=False)
     monkeypatch.setenv("HOME", "/home/irian")
     env_p=os.getenv("PATH", "/bin:/usr/bin")
-    env_p=f"/usr/local/bin:${env_p}"
+    env_p=f"/usr/local/bin:{env_p}"
     monkeypatch.setenv("PATH", env_p)
     return fs
