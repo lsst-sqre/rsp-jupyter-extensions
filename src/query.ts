@@ -23,7 +23,7 @@ import { Widget } from '@lumino/widgets';
 import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
-import { IEnvResponse } from './environment';
+import { INubladoConfigResponse } from './config';
 import { apiRequest } from './request';
 import { SQLHoverTooltip } from './sql-tooltip';
 
@@ -65,9 +65,9 @@ export async function activateRSPQueryExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<void> {
-  logMessage(LogLevels.INFO, env, 'rsp-query...loading');
+  logMessage(LogLevels.INFO, cfg, 'rsp-query...loading');
 
   const svcManager = app.serviceManager;
   const { commands } = app;
@@ -77,16 +77,16 @@ export async function activateRSPQueryExtension(
   mainMenu.addMenu(rubinmenu);
   rubinmenu.title.label = 'Rubin';
 
-  await replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu);
+  await replaceRubinMenuContents(app, docManager, svcManager, cfg, rubinmenu);
 
-  logMessage(LogLevels.INFO, env, 'rsp-query...loaded');
+  logMessage(LogLevels.INFO, cfg, 'rsp-query...loaded');
 }
 
 async function replaceRubinMenuContents(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse,
+  cfg: INubladoConfigResponse,
   rubinmenu: Menu
 ): Promise<void> {
   const { commands } = app;
@@ -97,7 +97,7 @@ async function replaceRubinMenuContents(
       caption:
         'Open notebook from supplied query jobref ID, dataset:id, or URL',
       execute: () => {
-        rubinTAPQuery(app, docManager, svcManager, env, rubinmenu);
+        rubinTAPQuery(app, docManager, svcManager, cfg, rubinmenu);
       }
     });
   }
@@ -106,7 +106,7 @@ async function replaceRubinMenuContents(
       label: 'All queries',
       caption: 'Open notebook requesting all query history',
       execute: () => {
-        rubinQueryAllHistory(docManager, svcManager, env);
+        rubinQueryAllHistory(docManager, svcManager, cfg);
       }
     });
   }
@@ -119,7 +119,7 @@ async function replaceRubinMenuContents(
           app,
           docManager,
           svcManager,
-          env,
+          cfg,
           rubinmenu
         );
       }
@@ -137,10 +137,10 @@ async function replaceRubinMenuContents(
   };
 
   rubinmenu.insertItem(10, querymenu);
-  logMessage(LogLevels.DEBUG, env, 'inserted query dialog menu');
+  logMessage(LogLevels.DEBUG, cfg, 'inserted query dialog menu');
   rubinmenu.insertItem(20, { type: 'separator' });
   rubinmenu.insertItem(30, allquerynb);
-  logMessage(LogLevels.DEBUG, env, 'inserted all-query notebook generator');
+  logMessage(LogLevels.DEBUG, cfg, 'inserted all-query notebook generator');
   rubinmenu.insertItem(40, { type: 'separator' });
 
   try {
@@ -148,11 +148,11 @@ async function replaceRubinMenuContents(
       app,
       docManager,
       svcManager,
-      env,
+      cfg,
       rubinmenu
     );
-    logMessage(LogLevels.DEBUG, env, 'recent query menu retrieved');
-    logMessage(LogLevels.DEBUG, env, 'inserting recent querymenu...');
+    logMessage(LogLevels.DEBUG, cfg, 'recent query menu retrieved');
+    logMessage(LogLevels.DEBUG, cfg, 'inserting recent querymenu...');
     rubinmenu.insertItem(50, {
       type: 'submenu',
       submenu: recentquerymenu
@@ -161,10 +161,10 @@ async function replaceRubinMenuContents(
     console.error(`Error getting recent query menu ${error}`);
     throw new Error(`Failed to get recent query menu: ${error}`);
   }
-  logMessage(LogLevels.DEBUG, env, '...inserted recent query menu');
+  logMessage(LogLevels.DEBUG, cfg, '...inserted recent query menu');
   rubinmenu.insertItem(60, { type: 'separator' });
   rubinmenu.insertItem(70, queryrefresh);
-  logMessage(LogLevels.DEBUG, env, 'inserted query refresh');
+  logMessage(LogLevels.DEBUG, cfg, 'inserted query refresh');
 }
 
 class QueryHandler extends Widget {
@@ -182,7 +182,9 @@ class QueryHandler extends Widget {
   }
 }
 
-async function queryDialog(env: IEnvResponse): Promise<string | void> {
+async function queryDialog(
+  cfg: INubladoConfigResponse
+): Promise<string | void> {
   const options = {
     title: 'Query Jobref ID or URL',
     body: new QueryHandler(),
@@ -192,27 +194,27 @@ async function queryDialog(env: IEnvResponse): Promise<string | void> {
   try {
     const result = await showDialog(options);
     if (!result) {
-      logMessage(LogLevels.DEBUG, env, 'No result from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result from queryDialog');
       return;
     }
-    logMessage(LogLevels.DEBUG, env, `Result from queryDialog: ${result}`);
+    logMessage(LogLevels.DEBUG, cfg, `Result from queryDialog: ${result}`);
     if (!result.value) {
-      logMessage(LogLevels.DEBUG, env, 'No result.value from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.value from queryDialog');
       return;
     }
     if (!result.button) {
-      logMessage(LogLevels.DEBUG, env, 'No result.button from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.button from queryDialog');
       return;
     }
     if (result.button.label === 'CREATE') {
       logMessage(
         LogLevels.DEBUG,
-        env,
+        cfg,
         `Got result ${result.value} from queryDialog: CREATE`
       );
       return result.value;
     }
-    logMessage(LogLevels.DEBUG, env, 'Did not get queryDialog: CREATE');
+    logMessage(LogLevels.DEBUG, cfg, 'Did not get queryDialog: CREATE');
     return;
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
@@ -222,14 +224,14 @@ async function queryDialog(env: IEnvResponse): Promise<string | void> {
 
 async function rubinQueryRecentHistory(
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<RecentQueryResponse[]> {
   const count = 5;
   const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
   const init = {
     method: 'GET'
   };
-  logMessage(LogLevels.INFO, env, `About to query TAP history at ${endpoint}`);
+  logMessage(LogLevels.INFO, cfg, `About to query TAP history at ${endpoint}`);
   const settings = svcManager.serverSettings;
   const retval: RecentQueryResponse[] = [];
   try {
@@ -238,7 +240,7 @@ async function rubinQueryRecentHistory(
     const qr_c = qr_u as IRecentQueryResponse[];
     logMessage(
       LogLevels.DEBUG,
-      env,
+      cfg,
       `Got query response ${JSON.stringify(qr_c, undefined, 2)}`
     );
     qr_c.forEach(qr => {
@@ -247,7 +249,7 @@ async function rubinQueryRecentHistory(
       new_rqr.text = qr.text;
       logMessage(
         LogLevels.DEBUG,
-        env,
+        cfg,
         `query menu entry ${JSON.stringify(new_rqr, undefined, 2)}`
       );
       retval.push(new_rqr);
@@ -258,7 +260,7 @@ async function rubinQueryRecentHistory(
   }
   logMessage(
     LogLevels.DEBUG,
-    env,
+    cfg,
     `rubinqueryrecent history return: ${JSON.stringify(retval, undefined, 2)}`
   );
   return retval;
@@ -268,10 +270,10 @@ async function getRecentQueryMenu(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse,
+  cfg: INubladoConfigResponse,
   rubinmenu: Menu
 ): Promise<Menu> {
-  logMessage(LogLevels.INFO, env, 'Retrieving recent query menu');
+  logMessage(LogLevels.INFO, cfg, 'Retrieving recent query menu');
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
   retval.title.label = 'Recent Queries';
@@ -280,10 +282,10 @@ async function getRecentQueryMenu(
   const queryDataMap = new Map<string, { sqlText: string; jobref: string }>();
 
   try {
-    const queries = await rubinQueryRecentHistory(svcManager, env);
+    const queries = await rubinQueryRecentHistory(svcManager, cfg);
     logMessage(
       LogLevels.DEBUG,
-      env,
+      cfg,
       `Recent queries: ${JSON.stringify(queries, undefined, 2)}`
     );
     let menuindex = 10;
@@ -299,7 +301,7 @@ async function getRecentQueryMenu(
               app,
               docManager,
               svcManager,
-              env,
+              cfg,
               qr.jobref,
               rubinmenu
             );
@@ -318,7 +320,7 @@ async function getRecentQueryMenu(
 
       logMessage(
         LogLevels.DEBUG,
-        env,
+        cfg,
         `Added ${submcmdId} to submenu for ${qr.jobref}`
       );
       menuindex += 10;
@@ -330,7 +332,7 @@ async function getRecentQueryMenu(
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
-      env,
+      cfg,
       `Error performing recent query history ${error}`
     );
     throw new Error(`Failed to query recent history: ${error}`);
@@ -341,14 +343,14 @@ async function getRecentQueryMenu(
 async function rubinQueryAllHistory(
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): Promise<void> {
   const endpoint =
     PageConfig.getBaseUrl() + 'rubin/query/tap/notebooks/query_all';
   const init = {
     method: 'GET'
   };
-  logMessage(LogLevels.INFO, env, 'Opening query-all notebook');
+  logMessage(LogLevels.INFO, cfg, 'Opening query-all notebook');
   const settings = svcManager.serverSettings;
 
   try {
@@ -360,7 +362,7 @@ async function rubinQueryAllHistory(
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
-      env,
+      cfg,
       `Error opening query-all notebook: ${error}`
     );
     throw new Error(`Failed to open query-all notebook: ${error}`);
@@ -371,26 +373,26 @@ async function rubinTAPQuery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse,
+  cfg: INubladoConfigResponse,
   rubinmenu: Menu
 ): Promise<void> {
   try {
-    const jobref = await queryDialog(env);
-    logMessage(LogLevels.DEBUG, env, `Query URL / ID is ${jobref}`);
+    const jobref = await queryDialog(cfg);
+    logMessage(LogLevels.DEBUG, cfg, `Query URL / ID is ${jobref}`);
     if (!jobref) {
-      logMessage(LogLevels.WARNING, env, "Query URL was null'");
+      logMessage(LogLevels.WARNING, cfg, "Query URL was null'");
       return;
     }
     await openQueryFromJobref(
       app,
       docManager,
       svcManager,
-      env,
+      cfg,
       jobref,
       rubinmenu
     );
   } catch (error) {
-    logMessage(LogLevels.ERROR, env, `Error performing query ${error}`);
+    logMessage(LogLevels.ERROR, cfg, `Error performing query ${error}`);
     throw new Error(`Failed to perform query: ${error}`);
   }
 }
@@ -399,11 +401,11 @@ async function openQueryFromJobref(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
-  env: IEnvResponse,
+  cfg: INubladoConfigResponse,
   jobref: string,
   rubinmenu: Menu
 ): Promise<void> {
-  logMessage(LogLevels.INFO, env, `Opening query for ${jobref}`);
+  logMessage(LogLevels.INFO, cfg, `Opening query for ${jobref}`);
   const body = JSON.stringify({
     type: 'tap',
     value: jobref
@@ -423,11 +425,11 @@ async function openQueryFromJobref(
     docManager.open(path);
 
     // Update menu in background (fire-and-forget) to avoid blocking UI
-    replaceRubinMenuContents(app, docManager, svcManager, env, rubinmenu).catch(
+    replaceRubinMenuContents(app, docManager, svcManager, cfg, rubinmenu).catch(
       error => {
         logMessage(
           LogLevels.WARNING,
-          env,
+          cfg,
           `Background menu refresh failed: ${error}`
         );
         // Don't rethrow - this is a non-critical background operation
@@ -436,7 +438,7 @@ async function openQueryFromJobref(
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
-      env,
+      cfg,
       `Error opening query from jobref: ${error}`
     );
     throw new Error(`Failed to open query from jobref: ${error}`);
