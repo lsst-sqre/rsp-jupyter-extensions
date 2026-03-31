@@ -11,6 +11,8 @@ from pathlib import Path
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
+from ._utils import _get_jupyter_server_root
+
 
 @dataclass
 class PDFExportResponse:
@@ -53,11 +55,7 @@ class PDFExportHandler(APIHandler):
     def initialize(self) -> None:
         """Set rootdir."""
         super().initialize()
-        filebrowser_setting = os.getenv("FILEBROWSER_ROOT", "home")
-        if filebrowser_setting == "root":
-            self._root_dir = Path("/")
-        else:
-            self._root_dir = Path(os.getenv("HOME", ""))
+        self._root_dir = _get_jupyter_server_root()
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:

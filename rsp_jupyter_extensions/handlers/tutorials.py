@@ -27,6 +27,7 @@ from ..models.tutorials import (
     TagError,
     UserEnvironmentError,
 )
+from ._utils import _get_homedir, _get_jupyter_server_root
 
 # _find_repo and _get_tag might belong in lsst.rsp.
 
@@ -80,20 +81,6 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
         raise RuntimeError(f"git clone {repo_url}@{branch} failed")
 
 
-def _get_homedir() -> Path:
-    homedir = os.getenv("HOME")
-    if not homedir:
-        raise UserEnvironmentError("home directory is not set")
-    return Path(homedir)
-
-
-def _get_jupyter_server_root() -> Path:
-    srv_root = os.getenv("FILEBROWSER_ROOT", "home")
-    if srv_root == "root":
-        return Path("/")
-    return _get_homedir()
-
-
 # RSP-specific tutorial locations
 
 
@@ -141,12 +128,13 @@ def _reabsolutize_path(path: Path) -> Path:
     if path.is_absolute():
         return path
     # We need to re-absolutize it so it doesn't get written to wherever
-    # the Lab extension is running from.
+    # the Lab extension is running from.  If it is relative, it's relative
+    # to the Jupyter Server root, which might be $HOME or might be /.
     root_dir = _get_jupyter_server_root()
     return root_dir / path
 
 
-def _copy_content(entry: HierarchyEntry) -> None:
+def _copy_content(entry: HierarchyEntry, dest: Path) -> None:
     # Note that we assume we've already decided we want to do this (that is,
     # the check for Disposition and a file conflict has already happened).
     #
@@ -157,7 +145,10 @@ def _copy_content(entry: HierarchyEntry) -> None:
     #
     # Relative paths are relative to either / or $HOME, depending on
     # $FILEBROWSER_ROOT setting (in turn, a Phalanx setting).
-    dest = _reabsolutize_path(entry.dest)
+    #
+    # Note that because of the above, entry.dest has different meanings
+    # depending on the setting; rather than recalculating, we just pass
+    # the updated path from the caller.
     dest.parent.mkdir(exist_ok=True, parents=True)
     if entry.action == Actions.FETCH:
         if not isinstance(entry.src, str):
@@ -188,15 +179,23 @@ def _check_containment(dest: Path) -> None:
 
 def _get_notebook_path(dest: Path) -> str:
     root_dir = _get_jupyter_server_root()
-    if dest.is_absolute():
-        return str(dest.relative_to(root_dir))
-    return str(dest)
+    abs_dest = _reabsolutize_path(dest)
+    return str(abs_dest.relative_to(root_dir))
 
 
 def _copy_and_guide(input_document: dict[str, Any]) -> _UIGuidance:
     entry = HierarchyEntry.from_primitive(input_document)
-    dest = Path(entry.dest)
-    dest = _reabsolutize_path(dest)
+    # For this extension, the target should always be inside the user's
+    # home directory.  This is a consequence of the RSP design, where
+    # the user is not root within the container, and most of the container
+    # is read-only to the user.
+    destpath = Path(entry.dest)
+    if not destpath.is_absolute():
+        dest = _get_homedir() / destpath
+    else:
+        # This shouldn't happen: dest should have been supplied as a relative
+        # path.  If it isn't, though, assume we know what we're doing.
+        dest = destpath
     _check_containment(dest)
     if dest.exists():
         disposition = entry.disposition
@@ -210,14 +209,13 @@ def _copy_and_guide(input_document: dict[str, Any]) -> _UIGuidance:
         else:
             # Otherwise, just fall through and overwrite the file.
             pass
-    _copy_content(entry)
+    _copy_content(entry, dest)  # Dest path may have changed.
     # We don't want to issue the redirect, because we don't want to
     # mess with opening a new window in the JupyterLab API.  Instead,
-    # we should just return a 200 with the destination field filled out
-    # with a path relative to the notebook dir, which we can assume to
-    # be ${HOME}, and let the UI extension handle opening the file it
-    # finds there.
-    guide = _get_notebook_path(entry.dest)
+    # we should just return a 200 with the destination field filled
+    # out with a path relative to the server root, and let the UI
+    # extension handle opening the file it finds there.
+    guide = _get_notebook_path(dest)
     return _UIGuidance(status_code=200, dest=guide)
 
 

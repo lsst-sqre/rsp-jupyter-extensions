@@ -70,7 +70,6 @@ def test_alternate_root(
     rsp_fs: FakeFilesystem, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test alternate root dir."""
-    tmp_path = Path(os.environ.get("TMPDIR", "/tmp"))
     inp = {
         "menu_name": "hello.txt",
         "action": "copy",
@@ -78,15 +77,19 @@ def test_alternate_root(
         "parent": "/",
         "menu_path": "/hello.txt",
         "src": "/in/hello.txt",
-        "dest": f"{tmp_path}/hello.txt",
+        "dest": "dest/hello.txt",
     }
 
     txt = "Howdy, Prime Material Plane!\n"
     Path("/in").mkdir()
+    Path("/home/irian/dest").mkdir(parents=True)
     Path("/in/hello.txt").write_text(txt)
     monkeypatch.setenv("FILEBROWSER_ROOT", "root")
-    _ = _copy_and_guide(inp)
-    assert Path(inp["dest"]).read_text() == txt
+    cr = _copy_and_guide(inp)
+    assert not Path("/dest/hello.txt").exists()
+    assert Path("/home/irian/dest/hello.txt").read_text() == txt
+    assert cr.status_code == 200
+    assert cr.dest == "home/irian/dest/hello.txt"
 
 
 def test_bad_copy(
