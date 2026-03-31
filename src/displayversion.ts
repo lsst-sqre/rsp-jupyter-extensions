@@ -10,9 +10,11 @@ import { IStatusBar } from '@jupyterlab/statusbar';
 
 import DisplayLabVersion from './DisplayLabVersion';
 
-import { IEnvResponse } from './environment';
+import { INubladoConfigResponse } from './config';
 
 import { LogLevels, logMessage } from './logger';
+
+import { PageConfig } from '@jupyterlab/coreutils';
 
 import * as token from './tokens';
 
@@ -22,19 +24,29 @@ import * as token from './tokens';
 export function activateRSPDisplayVersionExtension(
   _: JupyterFrontEnd,
   statusBar: IStatusBar,
-  env: IEnvResponse
+  cfg: INubladoConfigResponse
 ): void {
-  logMessage(LogLevels.INFO, env, 'rsp-displayversion: loading...');
+  logMessage(LogLevels.INFO, cfg, 'rsp-displayversion: loading...');
 
-  const image_description = env.IMAGE_DESCRIPTION || '';
-  const image_digest = env.IMAGE_DIGEST;
-  const image_spec = env.JUPYTER_IMAGE_SPEC;
-  const instance_url = new URL(env.EXTERNAL_INSTANCE_URL || '');
-  const hostname = ' ' + instance_url.hostname;
-  const container_size = env.CONTAINER_SIZE || '';
+  const image_description = cfg.image.description || '';
+  const image_digest = cfg.image.digest;
+  const image_spec = cfg.image.spec;
+
+  let hostname = PageConfig.getOption('hubHost');
+  // Not entirely accurate, but works for now.  Fix this with
+  // service discovery.
+  if (hostname.substring(0, 3) === 'nb.') {
+    hostname = hostname.substring(3);
+  }
+  const container_size = cfg.container_size || '';
   let size = '';
   if (container_size === '') {
-    size = ' (' + env.CPU_LIMIT + ' CPU, ' + env.MEM_LIMIT + ' B)';
+    size =
+      ' (' +
+      cfg.resources.limits.cpu +
+      ' CPU, ' +
+      cfg.resources.limits.memory +
+      ' B)';
   } else {
     size = ' ' + container_size;
   }
@@ -73,7 +85,7 @@ export function activateRSPDisplayVersionExtension(
     });
   }
 
-  logMessage(LogLevels.INFO, env, 'rsp-displayversion: ... loaded');
+  logMessage(LogLevels.INFO, cfg, 'rsp-displayversion: ... loaded');
 }
 
 /**
