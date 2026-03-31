@@ -39,7 +39,8 @@ class ConfigHandler(APIHandler):
         if not spec:
             return ""
         try:
-            _, digest = spec.split("@")
+            _, sha_digest = spec.split("@")
+            _, digest = sha_digest.split(":")
         except ValueError:
             return ""
         return digest
@@ -99,6 +100,6 @@ class ConfigHandler(APIHandler):
 
     @tornado.web.authenticated
     def get(self) -> None:
-        """Emit environment to calling HTTP client."""
+        """Emit config to calling HTTP client."""
         self.log.info("Sending Rubin config")
         self.write(json.dumps(self._cfg, sort_keys=True, indent=2))

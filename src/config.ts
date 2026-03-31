@@ -3,7 +3,7 @@ import { PageConfig } from '@jupyterlab/coreutils';
 import { apiRequest } from './request';
 
 // INubladoConfigResponse encapsulates the Nublado configuration.
-interface INubladoConfigResponse {
+export interface INubladoConfigResponse {
   container_size: string;
   debug: boolean;
   enable_rubin_query_menu: boolean;
@@ -44,5 +44,3 @@ export async function getServerConfig(
   const resp = await apiRequest(endpoint, init, settings);
   return resp as unknown as INubladoConfigResponse;
 }
-
-export type { INubladoConfigResponse };
