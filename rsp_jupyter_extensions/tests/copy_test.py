@@ -9,7 +9,6 @@ from pyfakefs.fake_filesystem import FakeFilesystem
 from rsp_jupyter_extensions.handlers.tutorials import _copy_and_guide
 from rsp_jupyter_extensions.models.tutorials import (
     HierarchyError,
-    UserEnvironmentError,
 )
 
 
@@ -67,6 +66,29 @@ def test_copy(rsp_fs: FakeFilesystem) -> None:
     assert outf.read_text() == new_contents
 
 
+def test_alternate_root(
+    rsp_fs: FakeFilesystem, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test alternate root dir."""
+    tmp_path = Path(os.environ.get("TMPDIR", "/tmp"))
+    inp = {
+        "menu_name": "hello.txt",
+        "action": "copy",
+        "disposition": "prompt",
+        "parent": "/",
+        "menu_path": "/hello.txt",
+        "src": "/in/hello.txt",
+        "dest": f"{tmp_path}/hello.txt",
+    }
+
+    txt = "Howdy, Prime Material Plane!\n"
+    Path("/in").mkdir()
+    Path("/in/hello.txt").write_text(txt)
+    monkeypatch.setenv("FILEBROWSER_ROOT", "root")
+    _ = _copy_and_guide(inp)
+    assert Path(inp["dest"]).read_text() == txt
+
+
 def test_bad_copy(
     rsp_fs: FakeFilesystem, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -82,14 +104,11 @@ def test_bad_copy(
         "dest": f"{tmp_path}/hello.txt",
     }
 
-    monkeypatch.delenv("HOME")
-    with pytest.raises(
-        UserEnvironmentError, match="home directory is not set"
-    ):
-        _ = _copy_and_guide(inp)
-    monkeypatch.setenv("HOME", "/nowhere")
+    Path("/in").mkdir()
+    Path("/in/hello.txt").write_text("Howdy, Prime Material Plane!\n")
+
     with pytest.raises(
         HierarchyError,
-        match="/hello.txt' is not contained by '/nowhere'",
+        match="/hello.txt' is not contained by '/home/irian'",
     ):
         _ = _copy_and_guide(inp)

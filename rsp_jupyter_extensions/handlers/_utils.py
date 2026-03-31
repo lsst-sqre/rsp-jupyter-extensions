@@ -26,7 +26,12 @@ def _write_notebook_response(nb_text: str, target: Path) -> str:
     """
     dirname = target.parent
     fname = target.name
-    rname = target.relative_to(Path(os.getenv("JUPYTER_SERVER_ROOT", "")))
+    # JUPYTER_SERVER_ROOT is set *by* JupyterLab, not in its environment.
+    filebrowser_setting = os.getenv("FILE_BROWSER_ROOT", "home")
+    if filebrowser_setting == "root":
+        rname = target.relative_to(Path("/"))
+    else:
+        rname = target.relative_to(Path(os.getenv("HOME", "")))
     dirname.mkdir(parents=True, exist_ok=True)
     target.write_text(nb_text)
     top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "")

@@ -87,6 +87,13 @@ def _get_homedir() -> Path:
     return Path(homedir)
 
 
+def _get_jupyter_server_root() -> Path:
+    srv_root = os.getenv("FILEBROWSER_ROOT", "home")
+    if srv_root == "root":
+        return Path("/")
+    return _get_homedir()
+
+
 # RSP-specific tutorial locations
 
 
@@ -135,8 +142,8 @@ def _reabsolutize_path(path: Path) -> Path:
         return path
     # We need to re-absolutize it so it doesn't get written to wherever
     # the Lab extension is running from.
-    homedir = _get_homedir()
-    return homedir / path
+    root_dir = _get_jupyter_server_root()
+    return root_dir / path
 
 
 def _copy_content(entry: HierarchyEntry) -> None:
@@ -148,7 +155,8 @@ def _copy_content(entry: HierarchyEntry) -> None:
     # shutil.copy() is a little silly.  If they don't easily fit into
     # memory, something else is wrong.
     #
-    # We're also assuming that relative paths are relative to $HOME.
+    # Relative paths are relative to either / or $HOME, depending on
+    # $FILEBROWSER_ROOT setting (in turn, a Phalanx setting).
     dest = _reabsolutize_path(entry.dest)
     dest.parent.mkdir(exist_ok=True, parents=True)
     if entry.action == Actions.FETCH:
@@ -168,23 +176,20 @@ def _copy_content(entry: HierarchyEntry) -> None:
 
 
 def _check_containment(dest: Path) -> None:
-    homedir = _get_homedir()
-    # We are making the assumption that non-absolute paths are relative
-    # to $HOME.  This is correct for the RSP.
+    root_dir = _get_jupyter_server_root()
     abs_dest = _reabsolutize_path(dest)
     try:
-        _ = abs_dest.relative_to(homedir)
+        _ = abs_dest.relative_to(root_dir)
     except ValueError as exc:
         raise HierarchyError(
-            f"'{abs_dest!s}' is not contained by '{homedir}'"
+            f"'{abs_dest!s}' is not contained by '{root_dir}'"
         ) from exc
 
 
 def _get_notebook_path(dest: Path) -> str:
-    homedir = _get_homedir()
-    # We also assume that JupyterLab is running with --notebook-dir=${HOME}
+    root_dir = _get_jupyter_server_root()
     if dest.is_absolute():
-        return str(dest.relative_to(homedir))
+        return str(dest.relative_to(root_dir))
     return str(dest)
 
 

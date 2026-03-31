@@ -53,17 +53,19 @@ class PDFExportHandler(APIHandler):
     def initialize(self) -> None:
         """Set rootdir."""
         super().initialize()
-        self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
+        filebrowser_setting = os.getenv("FILEBROWSER_ROOT", "home")
+        if filebrowser_setting == "root":
+            self._root_dir = Path("/")
+        else:
+            self._root_dir = Path(os.getenv("HOME", ""))
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:
         """POST receives the query type and the query value as a JSON
         object containing "path" key.  It is a string, and should be
         a relative path (that is, should not start with "/" and should
-        expect to be appended to $JUPYTER_SERVER_ROOT (self._rootdir);
-        in the current RSP setup, that's the same as $HOME, but that may
-        change if we figure out how to get jupyter-server-documents and
-        thus collaborative editing stable.
+        expect to be appended to self._root_dir); self._root_dir may be
+        either / or $HOME.
 
         Having resolved the filename, if it exists and the directory
         is writeable, we will change directory to where that file
