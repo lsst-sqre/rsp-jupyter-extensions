@@ -29,8 +29,6 @@ from ..models.tutorials import (
 )
 from ._utils import _get_homedir, _get_jupyter_server_root
 
-# _find_repo and _get_tag might belong in lsst.rsp.
-
 
 def _find_repo() -> str | None:
     repo = os.getenv(

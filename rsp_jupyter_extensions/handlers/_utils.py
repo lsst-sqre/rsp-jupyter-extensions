@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ..models.tutorials import UserEnvironmentError
 
@@ -21,6 +22,23 @@ def _get_jupyter_server_root() -> Path:
     if srv_root == "root":
         return Path("/")
     return _get_homedir()
+
+
+def _get_base_url() -> str:
+    # Stopgap until we have service discovery.
+    hub_host = os.getenv("JUPYTERHUB_HOST", "https://localhost:8080")
+    usplit = urlsplit(hub_host)
+    scheme = ""
+    if usplit.scheme:
+        scheme = usplit.scheme + "://"
+    netloc = usplit.netloc
+    # Ad-hoc, but works pre-service discovery.  What we really
+    # want is the Times-Square UI endpoint.
+    #
+    # If we have user domains enabled, this will be "nb.rsp_instance"
+    pref = "nb."
+    netloc = netloc.removeprefix(pref)
+    return f"{scheme}{netloc}"
 
 
 def _peel_route(path: str, stem: str) -> str | None:

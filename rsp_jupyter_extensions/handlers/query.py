@@ -20,7 +20,7 @@ from ..models.query import (
     UnimplementedQueryResolutionError,
     UnsupportedQueryTypeError,
 )
-from ._utils import _peel_route, _write_notebook_response
+from ._utils import _get_base_url, _peel_route, _write_notebook_response
 
 
 class QueryHandler(APIHandler):
@@ -131,7 +131,7 @@ class QueryHandler(APIHandler):
         else:
             # No colon, so no dataset, so we assume the "/api/tap"
             # endpoint.
-            this_rsp = os.getenv("EXTERNAL_INSTANCE_URL", "")
+            this_rsp = _get_base_url()
             url = f"{this_rsp}/api/tap/async/{q_value}"
             q_id = q_value
             q_ds = "tap"
