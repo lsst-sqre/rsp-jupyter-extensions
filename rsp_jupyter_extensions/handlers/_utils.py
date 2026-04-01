@@ -4,6 +4,24 @@ import json
 import os
 from pathlib import Path
 
+from ..models.tutorials import UserEnvironmentError
+
+
+def _get_homedir() -> Path:
+    homedir = os.getenv("HOME")
+    if not homedir:
+        raise UserEnvironmentError("home directory is not set")
+    return Path(homedir)
+
+
+def _get_jupyter_server_root() -> Path:
+    # We can't use JUPYTER_SERVER_ROOT, as it's set by the JupyterLab process
+    # for the subprocesses it spawns, but not in the parent process.
+    srv_root = os.getenv("FILEBROWSER_ROOT", "home")
+    if srv_root == "root":
+        return Path("/")
+    return _get_homedir()
+
 
 def _peel_route(path: str, stem: str) -> str | None:
     # Return the part of the route after the stem, or None if that doesn't
@@ -26,7 +44,8 @@ def _write_notebook_response(nb_text: str, target: Path) -> str:
     """
     dirname = target.parent
     fname = target.name
-    rname = target.relative_to(Path(os.getenv("JUPYTER_SERVER_ROOT", "")))
+    # JUPYTER_SERVER_ROOT is set *by* JupyterLab, not in its environment.
+    rname = target.relative_to(_get_jupyter_server_root())
     dirname.mkdir(parents=True, exist_ok=True)
     target.write_text(nb_text)
     top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "")

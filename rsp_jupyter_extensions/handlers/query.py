@@ -32,8 +32,8 @@ class QueryHandler(APIHandler):
         self._ts_client = RSPClient("/times-square/api/v1/")
         self._tap_client = RSPClient("/api/tap/")
         self._dataset_client: dict[str, RSPClient] = {}
-        self._root_dir = Path(os.getenv("JUPYTER_SERVER_ROOT", ""))
-        self._cachefile = self._root_dir / ".cache" / "queries.json"
+        self._home_dir = Path(os.getenv("HOME", ""))
+        self._cachefile = self._home_dir / ".cache" / "queries.json"
         self._initialize_cache()
         self._initialize_dataset_clients()
 
@@ -81,12 +81,12 @@ class QueryHandler(APIHandler):
         of "dataset:jobref_id", referring to that query.
 
         It will then use the value to resolve the template, and
-        construct a filename resolved under $JUPYTER_SERVER_ROOT
-        (self._rootdir, and in the RSP, the same as $HOME).  If that
-        file exists, we will return it, on the grounds that the user
-        has done this particular query before and we want to keep any
+        construct a filename resolved under $HOME.  If that file
+        exists, we will return it, on the grounds that the user has
+        done this particular query before and we want to keep any
         changes made.  Otherwise we will write a file with the query
         template resolved, so the user can run it to retrieve results.
+
         """
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
@@ -136,7 +136,7 @@ class QueryHandler(APIHandler):
             q_id = q_value
             q_ds = "tap"
         fname = (
-            self._root_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
+            self._home_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
         )
         if fname.is_file():
             nb = fname.read_text()
@@ -272,7 +272,7 @@ class QueryHandler(APIHandler):
     async def _generate_query_all_notebook(self) -> str:
         output = await self._get_query_all_notebook()
         fname = (
-            self._root_dir
+            self._home_dir
             / "notebooks"
             / "queries"
             / "tap_query_history.ipynb"

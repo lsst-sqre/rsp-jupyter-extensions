@@ -454,7 +454,7 @@ export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
 }
 
 /**
- * Initialization data for the jupyterlab-lsstquery extension.
+ * Initialization data for the query extension.
  */
 const rspQueryExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPQueryExtension,

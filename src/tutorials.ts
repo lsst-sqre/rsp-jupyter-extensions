@@ -280,7 +280,7 @@ async function overwriteDialog(
     logMessage(LogLevels.DEBUG, cfg, 'Showing overwrite dialog');
     const result: IDialogResult = await showDialog(dialogOptions);
     if (!result) {
-      logMessage(LogLevels.DEBUG, cfg, 'No result from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result from overwriteDialog');
       return;
     }
     logMessage(LogLevels.DEBUG, cfg, 'Result from overwriteDialog: ', result);
@@ -428,7 +428,7 @@ export function activateRSPTutorialsExtension(
 }
 
 /**
- * Initialization data for the jupyterlab-lsstquery extension.
+ * Initialization data for the tutorials extension.
  */
 const rspTutorialsExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPTutorialsExtension,
