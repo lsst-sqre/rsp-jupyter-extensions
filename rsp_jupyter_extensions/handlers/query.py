@@ -18,6 +18,7 @@ from lsst.rsp import (
 from ..models.query import (
     TAPQuery,
     UnimplementedQueryResolutionError,
+    UnknownDatasetError,
     UnsupportedQueryTypeError,
 )
 from ._utils import _get_base_url, _peel_route, _write_notebook_response
@@ -29,13 +30,15 @@ class QueryHandler(APIHandler):
     def initialize(self) -> None:
         """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
+        logger = self.log
+        self._rsp_client = RSPClient(logger=self.log)
+
         self._ts_client = RSPClient("/times-square/api/v1/")
         self._tap_client = RSPClient("/api/tap/")
         self._dataset_client: dict[str, RSPClient] = {}
         self._home_dir = Path(os.getenv("HOME", ""))
         self._cachefile = self._home_dir / ".cache" / "queries.json"
         self._initialize_cache()
-        self._initialize_dataset_clients()
 
     def _initialize_cache(self) -> None:
         """We get a new instance of the class every time the front end
@@ -56,11 +59,6 @@ class QueryHandler(APIHandler):
         self._cache = {}
         self._cachefile.parent.mkdir(exist_ok=True, parents=True)
         self._cachefile.write_text(json.dumps(self._cache))
-
-    def _initialize_dataset_clients(self) -> None:
-        datasets = list_datasets()
-        for ds in datasets:
-            self._dataset_client[ds] = RSPClient(get_service_url("tap", ds))
 
     @property
     def rubinquery(self) -> dict[str, str]:
@@ -104,6 +102,12 @@ class QueryHandler(APIHandler):
                     f"{q_type} is not a supported query type"
                 )
 
+    async def _get_query_url_for_unknown_dataset(self, q_value: str) -> str:
+        this_rsp = self._rsp_client._get_landing_page_url
+        url = f"{this_rsp}/api/tap/async/{q_value}"
+        self.log.warning(f"No dataset specified; assuming TAP URL {url}")
+        return url
+
     async def _create_tap_query(self, q_value: str) -> str:
         # The value should be a URL or a jobref ID
         # A jobref is always 16 alphanumeric characters.
@@ -126,15 +130,21 @@ class QueryHandler(APIHandler):
         # If it contains a colon, it's dataset:jobref_id.
         elif q_value.find(":") != -1:
             q_ds, q_id = q_value.split(":")
-            base_url = get_service_url("tap", q_ds)
+            base_url = self._rsp_client._get_tap_endpoint_for_dataset(q_ds)
+            if base_url is None:
+                msg = f"Cannot find TAP URL for dataset {q_ds}"
+                self.log.warning(msg)
+                raise UnknownDatasetError(msg)
             url = f"{base_url}/async/{q_id}"
         else:
             # No colon, so no dataset, so we assume the "/api/tap"
             # endpoint.
-            this_rsp = _get_base_url()
-            url = f"{this_rsp}/api/tap/async/{q_value}"
+            #
+            # This is deprecated, and relies on assumptions about the
+            # RSP service structure that may not be true anymore.
             q_id = q_value
-            q_ds = "tap"
+            q_ds = "unknowndataset"
+            url = await self._get_query_url_for_unknown_dataset(q_id)
         fname = (
             self._home_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
         )
@@ -194,7 +204,7 @@ class QueryHandler(APIHandler):
         # The only supported querytype for now is "tap"
         #
         # GET .../<qtype>/<id> will act as if we'd posted a query with
-        #     qytpe and id
+        #     qytpe and id; id should be in the form ds:q_id
         # GET .../<qtype>/history/<n> will request the last n queries of
         #     that type.
         # GET .../<qtype>/notebooks/query_all will create and open a notebook
