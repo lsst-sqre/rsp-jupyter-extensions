@@ -57,6 +57,7 @@ async def test_config(
     monkeypatch.setenv("CPU_GUARANTEE", "1.0")
     monkeypatch.setenv("MEM_LIMIT", "17179869184")
     monkeypatch.setenv("MEM_GUARANTEE", "4294967296")
+    monkeypatch.setenv("JUPYTERHUB_HOST", "https://nb.example.lsst.cloud")
     response = await jp_fetch("rubin", "config")
     assert response.code == 200
     payload = json.loads(response.body)
@@ -93,4 +94,8 @@ async def test_config(
             },
         },
         "runtime_mounts_dir": "/opt/lsst/software/jupyterlab",
+        "statusbar": (
+            "Daily 2026_03_31 [ae3bfaed...] (sciplat-lab:d_2026_03_31) "
+            "https://example.lsst.cloud"
+        ),
     }

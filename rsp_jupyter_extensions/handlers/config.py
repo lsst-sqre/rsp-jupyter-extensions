@@ -12,6 +12,8 @@ from typing import Any
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
+from ._utils import _get_base_url
+
 
 class ConfigHandler(APIHandler):
     """Config handler.  Return a subset of the environment."""
@@ -97,6 +99,24 @@ class ConfigHandler(APIHandler):
             self._cfg["enable_tutorials_menu"] = True
         if rsp_site_type == "science":
             self._cfg["enable_rubin_query_menu"] = True
+        # Fixup until we change this to use config.json and service
+        # discovery.
+        self._cfg["statusbar"] = self._get_statusbar()
+
+    def _get_statusbar(self) -> str:
+        descr = self._cfg["image"]["description"]
+        spec = self._cfg["image"]["spec"]
+        digest = self._cfg["image"]["digest"]
+        digest_str = f" [{digest[0:8]}...]"
+        img_arr = spec.split("/")
+        try:
+            pullname, _ = img_arr[-1].split("@", 1)
+            imagename = f" ({pullname})"
+        except ValueError:
+            imagename = ""
+        # Fixup until we have service discovery
+        base_url = f" {_get_base_url()}"
+        return descr + digest_str + imagename + base_url
 
     @tornado.web.authenticated
     def get(self) -> None:
