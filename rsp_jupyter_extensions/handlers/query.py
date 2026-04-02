@@ -2,25 +2,23 @@
 
 import json
 import os
+import time
 from pathlib import Path
+from urllib.parse import urljoin
 
 import tornado
 import xmltodict
 from httpx import ReadTimeout
 from jupyter_server.base.handlers import APIHandler
-from lsst.rsp import (
-    RSPClient,
-    get_query_history,
-    get_service_url,
-    list_datasets,
-)
 
 from ..models.query import (
     TAPQuery,
     UnimplementedQueryResolutionError,
+    UnknownDatasetError,
     UnsupportedQueryTypeError,
 )
-from ._utils import _get_base_url, _peel_route, _write_notebook_response
+from ._utils import _peel_route, _write_notebook_response
+from .clients import RSPClient
 
 
 class QueryHandler(APIHandler):
@@ -29,13 +27,10 @@ class QueryHandler(APIHandler):
     def initialize(self) -> None:
         """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
-        self._ts_client = RSPClient("/times-square/api/v1/")
-        self._tap_client = RSPClient("/api/tap/")
-        self._dataset_client: dict[str, RSPClient] = {}
+        self._rsp_client = RSPClient(logger=self.log)
         self._home_dir = Path(os.getenv("HOME", ""))
         self._cachefile = self._home_dir / ".cache" / "queries.json"
         self._initialize_cache()
-        self._initialize_dataset_clients()
 
     def _initialize_cache(self) -> None:
         """We get a new instance of the class every time the front end
@@ -46,6 +41,12 @@ class QueryHandler(APIHandler):
         another trip to TAP.
         """
         if self._cachefile.is_file():
+            # If the cachefile was last updated more than 8 hours ago,
+            # mark it stale and recreate it.
+            last = self._cachefile.stat().st_mtime
+            now = time.time()
+            if now - last > 8 * 60 * 60:
+                pass  # Stale; invalidate and start over.
             try:
                 self._cache = json.loads(self._cachefile.read_text())
             except json.decoder.JSONDecodeError:
@@ -56,11 +57,6 @@ class QueryHandler(APIHandler):
         self._cache = {}
         self._cachefile.parent.mkdir(exist_ok=True, parents=True)
         self._cachefile.write_text(json.dumps(self._cache))
-
-    def _initialize_dataset_clients(self) -> None:
-        datasets = list_datasets()
-        for ds in datasets:
-            self._dataset_client[ds] = RSPClient(get_service_url("tap", ds))
 
     @property
     def rubinquery(self) -> dict[str, str]:
@@ -104,10 +100,22 @@ class QueryHandler(APIHandler):
                     f"{q_type} is not a supported query type"
                 )
 
+    async def _get_query_url_for_unknown_dataset(self, q_value: str) -> str:
+        this_rsp = self._rsp_client.get_landing_page_url()
+        self.log.debug(f"This RSP base URL: {this_rsp}")
+        if not this_rsp:
+            raise UnknownDatasetError(
+                f"Cannot determine TAP endpoint for {q_value}"
+            )
+        url = f"{this_rsp}/api/tap/async/{q_value}"
+        self.log.warning(f"No dataset specified; assuming TAP URL {url}")
+        return url
+
     async def _create_tap_query(self, q_value: str) -> str:
         # The value should be a URL or a jobref ID
         # A jobref is always 16 alphanumeric characters.
         # Therefore: if it contains a slash, it's a URL
+        self.log.debug(f"Tap query requested for {q_value}")
         if q_value.find("/") != -1:
             # This looks like a URL
             # Trim trailing slashes
@@ -126,23 +134,36 @@ class QueryHandler(APIHandler):
         # If it contains a colon, it's dataset:jobref_id.
         elif q_value.find(":") != -1:
             q_ds, q_id = q_value.split(":")
-            base_url = get_service_url("tap", q_ds)
+            base_url = await self._rsp_client.get_tap_endpoint_for_dataset(
+                q_ds
+            )
+            self.log.debug(f"Base URL for {q_ds} is {base_url}")
+            if base_url is None:
+                msg = f"Cannot find TAP URL for dataset {q_ds}"
+                self.log.warning(msg)
+                raise UnknownDatasetError(msg)
             url = f"{base_url}/async/{q_id}"
+            self.log.debug(f"TAP query URL for {q_value} is {url}")
         else:
             # No colon, so no dataset, so we assume the "/api/tap"
             # endpoint.
-            this_rsp = _get_base_url()
-            url = f"{this_rsp}/api/tap/async/{q_value}"
+            #
+            # This is deprecated, and relies on assumptions about the
+            # RSP service structure that may not be true anymore.
             q_id = q_value
-            q_ds = "tap"
+            q_ds = "unknowndataset"
+            url = await self._get_query_url_for_unknown_dataset(q_id)
+            self.log.debug(f"TAP query URL for {q_value} is {url}")
         fname = (
             self._home_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
         )
         if fname.is_file():
+            self.log.debug(f"File {fname!s} already exists.")
             nb = fname.read_text()
         else:
             nb = await self._get_tap_query_notebook(url)
         await self.refresh_query_history()  # Opportunistic
+        self.log.debug(f"Creating file {fname!s}")
         return _write_notebook_response(nb, fname)
 
     async def _get_ts_query_notebook(
@@ -154,12 +175,22 @@ class QueryHandler(APIHandler):
         params: dict[str, str],
     ) -> str:
         """Ask times-square for a rendered notebook."""
-        rendered_url = f"github/rendered/{org}/{repo}/{directory}/{notebook}"
+        path = f"api/v1/github/rendered/{org}/{repo}/{directory}/{notebook}"
+        ts_url = await self._rsp_client.get_times_square_url() or ""
+        rendered_url = urljoin(ts_url, path)
+        self.log.debug(
+            f"Requesting rendered notebook from {rendered_url}"
+            f" with params: {params}"
+        )
 
         # Retrieve that URL and return the textual response, which is the
         # string representing the rendered notebook "in unicode", which
         # means "a string represented in the default encoding".
-        return (await self._ts_client.get(rendered_url, params=params)).text
+        resp = await self._rsp_client.authed_client.get(
+            rendered_url, params=params
+        )
+        self.log.debug(f"GET {resp.url} -> status code {resp.status_code}")
+        return resp.text
 
     async def _get_nublado_seeds_notebook(
         self, notebook: str, params: dict[str, str]
@@ -194,9 +225,9 @@ class QueryHandler(APIHandler):
         # The only supported querytype for now is "tap"
         #
         # GET .../<qtype>/<id> will act as if we'd posted a query with
-        #     qytpe and id
+        #     qytpe and id; id should be in the form dataset:query_id
         # GET .../<qtype>/history/<n> will request the last n queries of
-        #     that type.
+        #     that type for each dataset.
         # GET .../<qtype>/notebooks/query_all will create and open a notebook
         #     that will ask for all queries and yield their jobids.
 
@@ -235,15 +266,23 @@ class QueryHandler(APIHandler):
                 raise UnimplementedQueryResolutionError(
                     f"{self.request.path} -> {exc!s}"
                 ) from exc
-            try:
-                jobs = await get_query_history(count)
-            except ReadTimeout:
-                # get_query_history can be weirdly slow
-                self.write(json.dumps([]))
-                return
-            qtext = await self._get_query_text_list(jobs)
-            q_dicts = [x.model_dump() for x in qtext]
-            self.write(json.dumps(q_dicts))
+            retries = 0
+            while True:
+                try:
+                    jobs = await self._rsp_client.get_query_history(count)
+                    break
+                except ReadTimeout:
+                    if retries < 3:
+                        retries += 1
+                    else:
+                        # Failed three times.  Give up.
+                        self.write(json.dumps({}))
+                        return
+            qdict = await self._get_query_text_list(jobs)
+            # This is a change from previous versions: we return a dict of
+            # dataset-name to query-history-list for that dataset
+            q_list = {x: [y.model_dump() for y in qdict[x]] for x in qdict}
+            self.write(json.dumps(q_list))
         if len(components) == 1 and components[0] != "history":
             query_id = components[0]
             q_fn = await self._create_query(query_id, "tap")
@@ -263,7 +302,7 @@ class QueryHandler(APIHandler):
         recent query history.
         """
         try:
-            jobs = await get_query_history(count)
+            jobs = await self._rsp_client.get_query_history(count)
             await self._get_query_text_list(jobs)
         except ReadTimeout:
             # get_query_history can be weirdly slow
@@ -280,35 +319,50 @@ class QueryHandler(APIHandler):
         await self.refresh_query_history()  # Opportunistic
         return _write_notebook_response(output, fname)
 
-    async def _get_query_text_list(self, job_ids: list[str]) -> list[TAPQuery]:
+    async def _get_query_text_list(
+        self, job_ids: dict[str, list[dict[str, str]]]
+    ) -> dict[str, list[TAPQuery]]:
         """For each job ID, get the query text.  This will be returned
         to the UI to be used as a hover tooltip.
 
         Each time through, we both get results we already have for the
         cache, and update the cache if we get new results.
         """
-        retval: list[TAPQuery] = []
+        retval: dict[str, list[TAPQuery]] = {}
         self.log.info(f"Requesting query history for {job_ids}")
-        for job in job_ids:
-            try:
-                retval.append(await self._get_query_text_job(job))
-            except Exception:
-                self.log.exception(f"job {job} text retrieval failed")
+        for dataset, jobs in job_ids.items():
+            for job in jobs:
+                try:
+                    jobkey = f"{dataset}:{job['@id']}"
+                    qtext = await self._get_query_text_job(jobkey)
+                except Exception:
+                    self.log.exception(f"job {jobkey} text retrieval failed")
+                if dataset not in retval:
+                    retval[dataset] = []
+                retval[dataset].append(qtext)
         return retval
 
     async def _get_query_text_job(self, job: str) -> TAPQuery:
         if job in self._cache:
             return TAPQuery(jobref=job, text=self._cache[job])
         # If there is no colon, it's whatever is behind /api/tap.
+        url: str | None = None
         if job.find(":") == -1:
-            resp = await self._tap_client.get(f"async/{job}")
+            url = await self._get_query_url_for_unknown_dataset(job)
+            resp = await self._rsp_client.authed_client.get(url)
         else:
             # We have a dataset, and presumably a matching client.
             ds, job_id = job.split(":")
-            client = self._dataset_client.get(ds)
-            if not client:
-                raise RuntimeError(f"No client for dataset '{ds}'")
-            resp = await client.get(f"async/{job_id}")
+            if not ds:
+                raise UnknownDatasetError(f"No dataset for {job}")
+            url = await self._rsp_client.get_tap_endpoint_for_dataset(ds)
+            if url is None:
+                msg = f"Cannot find TAP URL for dataset {ds}"
+                self.log.warning(msg)
+                raise UnknownDatasetError(msg)
+        resp = await self._rsp_client.authed_client.get(
+            f"{url}/async/{job_id}"
+        )
         resp.raise_for_status()
         # If we didn't get a 200, resp.text probably won't parse, and
         # we will raise that.

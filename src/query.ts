@@ -58,6 +58,25 @@ class RecentQueryResponse implements IRecentQueryResponse {
   }
 }
 
+interface IQueryHistoryResponse {
+  [dataset: string]: IRecentQueryResponse[];
+}
+
+class QueryHistoryResponse implements IQueryHistoryResponse {
+  [dataset: string]: RecentQueryResponse[];
+
+  constructor(inp: IQueryHistoryResponse) {
+    for (const dsname in inp) {
+      if (inp[dsname] !== null && inp[dsname].length !== 0) {
+        const responses: IRecentQueryResponse[] = [];
+        for (const resp of inp[dsname]) {
+          responses.push(new RecentQueryResponse(resp));
+        }
+        this[dsname] = responses;
+      }
+    }
+  }
+}
 /**
  * Activate the extension.
  */
@@ -225,7 +244,7 @@ async function queryDialog(
 async function rubinQueryRecentHistory(
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse
-): Promise<RecentQueryResponse[]> {
+): Promise<QueryHistoryResponse> {
   const count = 5;
   const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
   const init = {
@@ -233,36 +252,25 @@ async function rubinQueryRecentHistory(
   };
   logMessage(LogLevels.INFO, cfg, `About to query TAP history at ${endpoint}`);
   const settings = svcManager.serverSettings;
-  const retval: RecentQueryResponse[] = [];
+  let retval = new QueryHistoryResponse({});
   try {
     const res = await apiRequest(endpoint, init, settings);
-    const qr_u = res as unknown;
-    const qr_c = qr_u as IRecentQueryResponse[];
+    const qh_c = res as unknown as IQueryHistoryResponse;
     logMessage(
       LogLevels.DEBUG,
       cfg,
-      `Got query response ${JSON.stringify(qr_c, undefined, 2)}`
+      `Got query history response: ${JSON.stringify(qh_c, undefined, 2)}`
     );
-    qr_c.forEach(qr => {
-      const new_rqr: RecentQueryResponse = new RecentQueryResponse(qr);
-      // Keep the original SQL text for tooltip display
-      new_rqr.text = qr.text;
-      logMessage(
-        LogLevels.DEBUG,
-        cfg,
-        `query menu entry ${JSON.stringify(new_rqr, undefined, 2)}`
-      );
-      retval.push(new_rqr);
-    });
+    retval = new QueryHistoryResponse(qh_c);
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
+      `rubinQueryRecentHistory: ${JSON.stringify(retval, undefined, 2)}`
+    );
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
     throw new Error(`Failed to show overwrite dialog: ${error}`);
   }
-  logMessage(
-    LogLevels.DEBUG,
-    cfg,
-    `rubinqueryrecent history return: ${JSON.stringify(retval, undefined, 2)}`
-  );
   return retval;
 }
 
@@ -278,57 +286,78 @@ async function getRecentQueryMenu(
   const retval: Menu = new Menu({ commands });
   retval.title.label = 'Recent Queries';
 
-  // Store query data for tooltip functionality
-  const queryDataMap = new Map<string, { sqlText: string; jobref: string }>();
-
   try {
-    const queries = await rubinQueryRecentHistory(svcManager, cfg);
+    const qhist = await rubinQueryRecentHistory(svcManager, cfg);
     logMessage(
       LogLevels.DEBUG,
       cfg,
-      `Recent queries: ${JSON.stringify(queries, undefined, 2)}`
+      `Query history: ${JSON.stringify(qhist, undefined, 2)}`
     );
     let menuindex = 10;
-    queries.forEach(qr => {
-      const submcmdId = `q-${qr.jobref}`;
-      if (!commands.hasCommand(submcmdId)) {
-        // If we haven't added this command before, do so now.
-        commands.addCommand(submcmdId, {
-          label: qr.jobref, // Show just the jobref as the label
-          caption: qr.text, // Use the full SQL as the caption/tooltip
-          execute: async () => {
-            await openQueryFromJobref(
-              app,
-              docManager,
-              svcManager,
-              cfg,
-              qr.jobref,
-              rubinmenu
-            );
-          }
-        });
-      } // Not gonna worry about pruning no-longer-displayed commands.
-
-      // Store query data for tooltip functionality
-      queryDataMap.set(qr.jobref, { sqlText: qr.text, jobref: qr.jobref });
-
-      // Create a direct menu item instead of a submenu
-      retval.insertItem(menuindex, {
-        type: 'command',
-        command: submcmdId
-      });
-
+    for (const dataset in qhist) {
+      logMessage(LogLevels.DEBUG, cfg, `Query entries for dataset ${dataset}`);
+      const qval = qhist[dataset];
       logMessage(
         LogLevels.DEBUG,
         cfg,
-        `Added ${submcmdId} to submenu for ${qr.jobref}`
+        `Query history entry: ${JSON.stringify(qval, undefined, 2)}`
       );
-      menuindex += 10;
-    });
+      if (!qval || qval.length === 0) {
+        continue;
+      }
+      // Store query data for tooltip functionality
+      const queryDataMap = new Map<
+        string,
+        { sqlText: string; jobref: string }
+      >();
+      const submMenu = new Menu({ commands });
+      submMenu.title.label = dataset;
+      retval.addItem({ submenu: submMenu, type: 'submenu' });
+      for (const qr of qval) {
+        const submcmdId = `q-${qr.jobref}`;
+        if (!commands.hasCommand(submcmdId)) {
+          // If we haven't added this command before, do so now.
+          // Remove the part before the colon, if there is a colon.  If
+          // not, use the whole string (indexOf returns -1 if the search
+          // character isn't present).
+          const jr = qr.jobref.substring(1 + qr.jobref.indexOf(':'));
+          commands.addCommand(submcmdId, {
+            label: jr, // Show just the jobref as the label
+            caption: qr.text, // Use the full SQL as the caption/tooltip
+            execute: async () => {
+              await openQueryFromJobref(
+                app,
+                docManager,
+                svcManager,
+                cfg,
+                qr.jobref,
+                rubinmenu
+              );
+            }
+          });
+        }
+        // Not gonna worry about pruning no-longer-displayed commands.
 
-    // Add single event delegation for all menu items
-    const sqlTooltip = new SQLHoverTooltip(queryDataMap);
-    sqlTooltip.attachToMenu(retval);
+        // Store query data for tooltip functionality
+        queryDataMap.set(qr.jobref, { sqlText: qr.text, jobref: qr.jobref });
+
+        // Create a direct menu item instead of a submenu
+        submMenu.insertItem(menuindex, {
+          type: 'command',
+          command: submcmdId
+        });
+
+        logMessage(
+          LogLevels.DEBUG,
+          cfg,
+          `Added ${submcmdId} to submenu ${dataset} for ${qr.jobref}`
+        );
+        menuindex += 10;
+      }
+      // Add single event delegation for all menu items
+      const sqlTooltip = new SQLHoverTooltip(queryDataMap);
+      sqlTooltip.attachToMenu(submMenu);
+    }
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
