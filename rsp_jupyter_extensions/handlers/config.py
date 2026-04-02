@@ -107,10 +107,13 @@ class ConfigHandler(APIHandler):
         descr = self._cfg["image"]["description"]
         spec = self._cfg["image"]["spec"]
         digest = self._cfg["image"]["digest"]
-        digest_str = f" [{digest[0:7]}...]"
+        digest_str = f" [{digest[0:8]}...]"
         img_arr = spec.split("/")
-        pullname, _ = img_arr[-1].split("@", 1)
-        imagename = f" ({pullname})"
+        try:
+            pullname, _ = img_arr[-1].split("@", 1)
+            imagename = f" ({pullname})"
+        except ValueError:
+            imagename = ""
         # Fixup until we have service discovery
         base_url = f" {_get_base_url()}"
         return descr + digest_str + imagename + base_url

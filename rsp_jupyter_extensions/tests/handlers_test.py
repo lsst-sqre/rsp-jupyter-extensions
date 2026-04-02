@@ -95,7 +95,7 @@ async def test_config(
         },
         "runtime_mounts_dir": "/opt/lsst/software/jupyterlab",
         "statusbar": (
-            "Daily 2026_03_31 [ae3bfae...] (sciplat-lab:d_2026_03_31) "
+            "Daily 2026_03_31 [ae3bfaed...] (sciplat-lab:d_2026_03_31) "
             "https://example.lsst.cloud"
         ),
     }
