@@ -2,10 +2,12 @@
 
 import json
 import os
+from contextlib import suppress
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from ..models.tutorials import UserEnvironmentError
+
 
 class TokenNotAvailableError(RuntimeError):
     """No Gafaelfawr token is available."""
@@ -13,7 +15,8 @@ class TokenNotAvailableError(RuntimeError):
 
 def _get_access_token() -> str:
     """Get our access token, preferred methods first."""
-    if Path("/etc/nublado/secrets/token").exists():
+    path = Path("/etc/nublado/secrets/token")
+    if path.exists():
         return path.read_text().strip()
     if runtime_dir := os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR"):
         path = Path(runtime_dir) / "secrets" / "token"
