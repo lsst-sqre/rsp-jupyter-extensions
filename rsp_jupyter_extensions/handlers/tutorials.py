@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import datetime
 import json
 import os
 import shutil
 import subprocess
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,46 +80,6 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
 
 
 # RSP-specific tutorial locations
-
-
-def _check_tutorials_hierarchy_stash() -> Hierarchy | None:
-    # This is a little subtle.  We get a new instance of the handler with
-    # every access of its endpoints, and however Jupyter Server manages that
-    # it really needs to be a new one--making the handler a singleton does
-    # not work (it doesn't respond to its endpoints).
-    #
-    # So what we do is to check the presence of a serialized hierarchy
-    # in a known location inside the user's homedir.  If it exists, it
-    # is sufficiently new (let's start with 8 hours or less), and it
-    # has a subhierarchy matching the current tag, then we deserialize it
-    # and return that.
-    #
-    # If it does not exist or is potentially stale...we return None from
-    # here, which then allows the clone to proceed, and we rebuild the stash
-    # from those results.
-    max_age = datetime.timedelta(hours=8)
-    homedir = _get_homedir()
-    stash = homedir / ".cache" / "tutorials.json"
-    if not stash.is_file():
-        return None
-    mod = datetime.datetime.fromtimestamp(
-        stash.stat().st_mtime, tz=datetime.UTC
-    )
-    now = datetime.datetime.now(tz=datetime.UTC)
-    age = now - mod
-    if age > max_age:
-        return None
-    try:
-        tut_obj = json.loads(stash.read_text())
-    except json.decoder.JSONDecodeError:
-        return None
-    resident_tag = os.getenv("IMAGE_DESCRIPTION", "resident")
-    if (
-        "subhierarchies" not in tut_obj
-        or resident_tag not in tut_obj["subhierarchies"]
-    ):
-        return None
-    return Hierarchy.from_primitive(tut_obj)
 
 
 def _reabsolutize_path(path: Path) -> Path:
@@ -237,13 +197,19 @@ class TutorialsMenuHandler(APIHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.tutorials: Hierarchy | None = None
+        if "tutorials" not in self.settings:
+            self.settings["tutorials"] = {}
+        if "cache" not in self.settings["tutorials"]:
+            self.settings["tutorials"]["cache"] = {}
+        self._cache = self.settings["tutorials"]["cache"]
         self._populate_tutorials()
 
     def _populate_tutorials(self) -> None:
         if self.tutorials:
             return
-        stash = _check_tutorials_hierarchy_stash()
+        stash = self._check_cache()
         if stash:
+            # Extant and not expired; use it.
             self.tutorials = stash
             return
         # Need to rebuild the structure.
@@ -256,11 +222,37 @@ class TutorialsMenuHandler(APIHandler):
             # Or get a new clone and use that.
             with TemporaryDirectory() as dirname:
                 self.tutorials = self._get_github_tutorials(dirname)
-        # And write a stash
-        homedir = _get_homedir()
-        stashfile = homedir / ".cache" / "tutorials.json"
-        stashfile.parent.mkdir(exist_ok=True)
-        stashfile.write_text(json.dumps(self.tutorials.to_primitive()))
+        now = time.time()
+        self._cache[now] = self.tutorials
+
+    def _check_cache(self) -> Hierarchy | None:
+        # We use the tornado settings dict to store a copy of the
+        # tutorials.  This will persist across handler calls.  We
+        # will use the value of time.time() as the key; if the key
+        # is more than 8 hours old, we discard the cache.
+        #
+        # If the cache does not exist or is stale we return
+        # None from here, which then allows the clone to proceed,
+        # and we rebuild the stash from those results.
+        stamps = list(self._cache.keys()).sort(reverse=True)
+        if not stamps:
+            return None
+        if len(stamps) > 1:
+            # Discard all prior caches (shouldn't be any)
+            to_delete = stamps[1:]
+            for stamp in to_delete:
+                del self._cache[stamp]
+        if not stamps:
+            return None
+        # The only stamp left is the most recent one.
+        stamp = stamps[0]
+        now = time.time()
+        if now - stamp > 8.0 * 60 * 60:
+            # It's too old.  Discard it too.
+            del self._cache[stamp]
+            return None
+        # There's a cache present and it is not expired.
+        return self._cache[stamp]
 
     @tornado.web.authenticated
     def get(self) -> None:
