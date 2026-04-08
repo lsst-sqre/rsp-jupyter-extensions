@@ -19,6 +19,10 @@ class UnknownDatasetError(Exception):
     """Request for a query from a dataset we have no TAP URL for."""
 
 
+class NotANotebookError(Exception):
+    """Returned text from templated query is not a valid notebook."""
+
+
 class TAPQuery(BaseModel):
     """TAP query mapping jobref ID to query text."""
 

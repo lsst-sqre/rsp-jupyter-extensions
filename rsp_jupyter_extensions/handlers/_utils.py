@@ -15,19 +15,16 @@ class TokenNotAvailableError(RuntimeError):
 
 def _get_access_token() -> str:
     """Get our access token, preferred methods first."""
+    # We want this to be a constant static path, but...
     path = Path("/etc/nublado/secrets/token")
     if path.exists():
         return path.read_text().strip()
+    # ... in April 2026 it is not yet, but NUBLADO_RUNTIME_MOUNTS_DIR should
+    # be set.
     if runtime_dir := os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR"):
         path = Path(runtime_dir) / "secrets" / "token"
         with suppress(FileNotFoundError):
             return path.read_text().strip()
-    # Nope.  Try new environment name with namespace prefix
-    if token := os.environ.get("NUBLADO_TOKEN"):
-        return token
-    # Old environment name?
-    if token := os.environ.get("ACCESS_TOKEN"):
-        return token
     raise TokenNotAvailableError("No access token available")
 
 

@@ -12,9 +12,9 @@ from httpx import ReadTimeout
 from jupyter_server.base.handlers import APIHandler
 
 from ..models.query import (
+    NotANotebookError,
     TAPQuery,
     UnimplementedQueryResolutionError,
-    UnknownDatasetError,
     UnsupportedQueryTypeError,
 )
 from ._utils import _peel_route, _write_notebook_response
@@ -46,14 +46,18 @@ class QueryHandler(APIHandler):
             last = self._cachefile.stat().st_mtime
             now = time.time()
             if now - last > 8 * 60 * 60:
-                pass  # Stale; invalidate and start over.
+                self._create_new_cache()  # Stale.
             try:
                 self._cache = json.loads(self._cachefile.read_text())
             except json.decoder.JSONDecodeError:
-                pass  # Can't read it; invalidate and start over.
+                self._create_new_cache()
+                return
             else:
                 return
-        # Invalidate cache.
+        self._create_new_cache()
+
+    def _create_new_cache(self) -> None:
+        """Write empty cachefile."""
         self._cache = {}
         self._cachefile.parent.mkdir(exist_ok=True, parents=True)
         self._cachefile.write_text(json.dumps(self._cache))
@@ -100,23 +104,17 @@ class QueryHandler(APIHandler):
                     f"{q_type} is not a supported query type"
                 )
 
-    async def _get_query_url_for_unknown_dataset(self, q_value: str) -> str:
-        this_rsp = self._rsp_client.get_landing_page_url()
-        self.log.debug(f"This RSP base URL: {this_rsp}")
-        if not this_rsp:
-            raise UnknownDatasetError(
-                f"Cannot determine TAP endpoint for {q_value}"
-            )
-        url = f"{this_rsp}/api/tap/async/{q_value}"
-        self.log.warning(f"No dataset specified; assuming TAP URL {url}")
-        return url
-
     async def _create_tap_query(self, q_value: str) -> str:
         # The value should be a URL or a jobref ID
-        # A jobref is always 16 alphanumeric characters.
-        # Therefore: if it contains a slash, it's a URL
+        # A jobref ID is always 16 alphanumeric characters, or, optionally,
+        # a dataset name followed by a colon followed by 16 alphanumeric
+        # characters. We assume no one will create a dataset name with a
+        # slash in it.
+        #
+        # Therefore: if the query value contains a slash, it's a URL.
         self.log.debug(f"Tap query requested for {q_value}")
         if q_value.find("/") != -1:
+            self.log.debug(f"Assuming {q_value} is a URL")
             # This looks like a URL
             # Trim trailing slashes
             q_value = q_value.rstrip("/")
@@ -131,29 +129,16 @@ class QueryHandler(APIHandler):
             # URL, it was something like ..../api/tap/async/abcde, and this
             # will end up being "tap".
             q_ds = q_pieces[-3] if slashes > 2 else "unknown"
-        # If it contains a colon, it's dataset:jobref_id.
-        elif q_value.find(":") != -1:
-            q_ds, q_id = q_value.split(":")
-            base_url = await self._rsp_client.get_tap_endpoint_for_dataset(
-                q_ds
-            )
-            self.log.debug(f"Base URL for {q_ds} is {base_url}")
-            if base_url is None:
-                msg = f"Cannot find TAP URL for dataset {q_ds}"
-                self.log.warning(msg)
-                raise UnknownDatasetError(msg)
-            url = f"{base_url}/async/{q_id}"
-            self.log.debug(f"TAP query URL for {q_value} is {url}")
+            url = q_value
         else:
-            # No colon, so no dataset, so we assume the "/api/tap"
-            # endpoint.
-            #
-            # This is deprecated, and relies on assumptions about the
-            # RSP service structure that may not be true anymore.
-            q_id = q_value
-            q_ds = "unknowndataset"
-            url = await self._get_query_url_for_unknown_dataset(q_id)
-            self.log.debug(f"TAP query URL for {q_value} is {url}")
+            self.log.debug(f"Resolving jobref_id {q_value}")
+            jobref = await self._rsp_client.resolve_jobref_id(q_value)
+            q_ds = jobref.dataset
+            q_id = jobref.jobref_id
+            base_url = jobref.endpoint
+            self.log.debug(f"Base URL for {q_ds} is {base_url}")
+            url = f"{base_url}/async/{q_id}"
+        self.log.debug(f"TAP query URL for {q_value} is {url}")
         fname = (
             self._home_dir / "notebooks" / "queries" / f"{q_ds}_{q_id}.ipynb"
         )
@@ -186,10 +171,19 @@ class QueryHandler(APIHandler):
         # Retrieve that URL and return the textual response, which is the
         # string representing the rendered notebook "in unicode", which
         # means "a string represented in the default encoding".
+        #
+        # We do a little sanity check: if what we get back isn't JSON, it
+        # definitely isn't a notebook, and we shouldn't write it to the
+        # user's space.
         resp = await self._rsp_client.authed_client.get(
             rendered_url, params=params
         )
         self.log.debug(f"GET {resp.url} -> status code {resp.status_code}")
+        try:
+            _ = json.loads(resp.text)
+        except Exception:
+            self.log.warning("Response text is not valid JSON")
+            raise NotANotebookError(resp.url) from None
         return resp.text
 
     async def _get_nublado_seeds_notebook(
@@ -333,39 +327,39 @@ class QueryHandler(APIHandler):
         for dataset, jobs in job_ids.items():
             for job in jobs:
                 try:
+                    qtext: TAPQuery | None = None
+                    jobkey = ""
                     jobkey = f"{dataset}:{job['@id']}"
                     qtext = await self._get_query_text_job(jobkey)
                 except Exception:
-                    self.log.exception(f"job {jobkey} text retrieval failed")
-                if dataset not in retval:
+                    if jobkey:
+                        self.log.exception(
+                            f"job {jobkey} text retrieval failed"
+                        )
+                    else:
+                        self.log.exception(
+                            "text retrieval failed for unknown job"
+                        )
+                if dataset not in retval and qtext:
                     retval[dataset] = []
-                retval[dataset].append(qtext)
+                if qtext:
+                    retval[dataset].append(qtext)
         return retval
 
     async def _get_query_text_job(self, job: str) -> TAPQuery:
         if job in self._cache:
             return TAPQuery(jobref=job, text=self._cache[job])
-        # If there is no colon, it's whatever is behind /api/tap.
-        url: str | None = None
-        if job.find(":") == -1:
-            url = await self._get_query_url_for_unknown_dataset(job)
-            resp = await self._rsp_client.authed_client.get(url)
-        else:
-            # We have a dataset, and presumably a matching client.
-            ds, job_id = job.split(":")
-            if not ds:
-                raise UnknownDatasetError(f"No dataset for {job}")
-            url = await self._rsp_client.get_tap_endpoint_for_dataset(ds)
-            if url is None:
-                msg = f"Cannot find TAP URL for dataset {ds}"
-                self.log.warning(msg)
-                raise UnknownDatasetError(msg)
+        jobref = await self._rsp_client.resolve_jobref_id(job)
+        self.log.debug(f"{job} -> {jobref}")
         resp = await self._rsp_client.authed_client.get(
-            f"{url}/async/{job_id}"
+            f"{jobref.endpoint}/async/{jobref.jobref_id}"
         )
         resp.raise_for_status()
         # If we didn't get a 200, resp.text probably won't parse, and
         # we will raise that.
+        #
+        # This could be done with pyvo, but it's really not any easier,
+        # because you still have to step through each parameter.
         obj = xmltodict.parse(resp.text)
         try:
             parms = obj["uws:job"]["uws:parameters"]["uws:parameter"]
@@ -380,4 +374,4 @@ class QueryHandler(APIHandler):
                     self._cache.update({job: qtext})
                     self._cachefile.write_text(json.dumps(self._cache))
                     return tq
-        raise RuntimeError("Job {job} did not have associated query text")
+        raise RuntimeError(f"Job {job} did not have associated query text")

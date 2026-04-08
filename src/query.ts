@@ -293,8 +293,8 @@ async function getRecentQueryMenu(
       cfg,
       `Query history: ${JSON.stringify(qhist, undefined, 2)}`
     );
-    let menuindex = 10;
     for (const dataset in qhist) {
+      let menuindex = 10;
       logMessage(LogLevels.DEBUG, cfg, `Query entries for dataset ${dataset}`);
       const qval = qhist[dataset];
       logMessage(
