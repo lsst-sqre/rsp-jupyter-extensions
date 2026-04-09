@@ -21,3 +21,24 @@ def rsp_fs(
     env_p=f"/usr/local/bin:{env_p}"
     monkeypatch.setenv("PATH", env_p)
     return fs
+
+@pytest.fixture
+def tutorial_env(tmp_path:Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Environment for tutorial tests; pyfakefs doesn't work here
+    because setting up the handler internally uses subprocess and the
+    in-memory fake filesystem doesn't persist across the spawned
+    process.
+    """
+    # Set up test files
+    (tmp_path / "subdir").mkdir()
+    (tmp_path / "subdir" / "subsubdir").mkdir()
+    for p in (
+        tmp_path,
+        tmp_path / "subdir",
+        tmp_path / "subdir" / "subsubdir",
+    ):
+        (p / "hello.txt").write_text("Hello, world!\n")
+        (p / "hello.py").write_text("print('Hello, world!')\n")
+    monkeypatch.setenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", str(tmp_path))
+
+    return tmp_path

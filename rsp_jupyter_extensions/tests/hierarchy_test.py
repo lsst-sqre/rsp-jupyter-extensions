@@ -1,6 +1,7 @@
 """Test construction of representation of tree for tutorial notebooks."""
 
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,24 +30,13 @@ HDLR = t.TutorialsMenuHandler(
 )
 
 
-def test_basic_hierarchy(tmp_path: Path) -> None:
+def test_basic_hierarchy(tutorial_env: Path) -> None:
     """Test _build_hierarchy(), which underpins the tutorial extension.
 
     Create three different views of the same filesystem, and roundtrip each
     one through serialization and back.
     """
-    # Set up test files
-    (tmp_path / "subdir").mkdir()
-    (tmp_path / "subdir" / "subsubdir").mkdir()
-    for p in (
-        tmp_path,
-        tmp_path / "subdir",
-        tmp_path / "subdir" / "subsubdir",
-    ):
-        (p / "hello.txt").write_text("Hello, world!\n")
-        (p / "hello.py").write_text("print('Hello, world!')\n")
-
-    h1 = HDLR._build_hierarchy(root=tmp_path)
+    h1 = HDLR._build_hierarchy(root=tutorial_env)
     h1_p = h1.to_primitive()
     assert h1_p == {
         "entries": {
@@ -122,7 +112,7 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     h1_a = Hierarchy.from_primitive(h1_p)
     assert h1 == h1_a
 
-    h2 = HDLR._build_hierarchy(root=tmp_path, suffix=".py")
+    h2 = HDLR._build_hierarchy(root=tutorial_env, suffix=".py")
     h2_p = h2.to_primitive()
 
     assert h2_p == {
@@ -173,7 +163,7 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     assert h2 == h2_a
 
     h3 = HDLR._build_hierarchy(
-        root=tmp_path,
+        root=tutorial_env,
         suffix=".txt",
         action=Actions.FETCH,
         xform_src=lambda x: f"https://example.com/foo/{Path(Path(x).name)}",
@@ -230,18 +220,20 @@ def test_basic_hierarchy(tmp_path: Path) -> None:
     assert h3 == h3_a
 
 
-def test_ignore_symlinks(tmp_path: Path) -> None:
+def test_ignore_symlinks(tutorial_env: Path) -> None:
     """We should just skip any symlinks we find, as a cheesy way of not having
     to deal with loops.
     """
-    os.symlink(__file__, tmp_path / "me")
-    os.symlink(Path(__file__).parent, tmp_path / "here")
-    (tmp_path / "real_file").write_text("Hello, world!\n")
+    sl = Path(tutorial_env / "symlink")
+    sl.mkdir()
+    os.symlink(__file__, sl / "me")
+    os.symlink(Path(__file__).parent, sl / "here")
+    (sl / "real_file").write_text("Hello, world!\n")
 
-    assert (tmp_path / "me").is_symlink()
-    assert (tmp_path / "here").is_symlink()
+    assert (sl / "me").is_symlink()
+    assert (sl / "here").is_symlink()
 
-    h = HDLR._build_hierarchy(tmp_path)
+    h = HDLR._build_hierarchy(sl)
     h_p = h.to_primitive()
     assert h_p == {
         "entries": {
@@ -362,3 +354,13 @@ def test_bad_construction() -> None:
     for tst in inp:
         with pytest.raises(HierarchyError, match=tst.match):
             _ = HierarchyEntry.from_primitive(tst.value)
+
+
+def test_demonstrate_cache(tutorial_env: Path) -> None:
+    """Demonstrate that the cache is appropriately populated."""
+    now = time.time()
+    assert HDLR._cache["timestamp"] > 0
+    assert HDLR._cache["timestamp"] < now
+    assert HDLR._cache["timestamp"] > now - 8.0 * 60 * 60
+    assert HDLR._cache["hierarchy"] is not None
+    assert HDLR._check_cache() is not None
