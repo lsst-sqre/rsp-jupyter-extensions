@@ -26,18 +26,15 @@ class QueryHandler(APIHandler):
     def initialize(self) -> None:
         """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
-        self._rsp_client = RSPClient(logger=self.log)
         self._home_dir = Path(os.getenv("HOME", ""))
-        if "rubinquery" not in self.settings:
-            self.settings["rubinquery"] = {}
-        if "cache" not in self.settings["rubinquery"]:
-            self.settings["rubinquery"]["cache"] = {}
-        self._cache = self.settings["rubinquery"]["cache"]
-
-    @property
-    def rubinquery(self) -> dict[str, str]:
-        """Rubin query params."""
-        return self.settings["rubinquery"]
+        if "query" not in self.settings:
+            self.settings["query"] = {}
+        if "cache" not in self.settings["query"]:
+            self.settings["query"]["cache"] = {}
+        if "client" not in self.settings["query"]:
+            self.settings["query"]["client"] = RSPClient(logger=self.log)
+        self._rsp_client = self.settings["query"]["client"]
+        self._cache = self.settings["query"]["cache"]
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:

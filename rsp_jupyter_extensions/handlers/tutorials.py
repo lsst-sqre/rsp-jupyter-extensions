@@ -202,11 +202,13 @@ class TutorialsMenuHandler(APIHandler):
         if "cache" not in self.settings["tutorials"]:
             self.settings["tutorials"]["cache"] = {}
         self._cache = self.settings["tutorials"]["cache"]
+        if "timestamp" not in self._cache:
+            self._cache["timestamp"] = 0.0
+        if "hierarchy" not in self._cache:
+            self._cache["hierarchy"] = None
         self._populate_tutorials()
 
     def _populate_tutorials(self) -> None:
-        if self.tutorials:
-            return
         stash = self._check_cache()
         if stash:
             # Extant and not expired; use it.
@@ -215,44 +217,37 @@ class TutorialsMenuHandler(APIHandler):
         # Need to rebuild the structure.
         # Do we have a cache directory?  Then use it.
         if dirname := os.getenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", ""):
+            self.log.debug(f"Getting tutorials from fs cache {dirname!s}")
             self.tutorials = self._get_github_tutorials(
                 dirname, from_cache=True
             )
         else:
             # Or get a new clone and use that.
+            self.log.debug("Getting tutorials from git clone")
             with TemporaryDirectory() as dirname:
                 self.tutorials = self._get_github_tutorials(dirname)
-        now = time.time()
-        self._cache[now] = self.tutorials
+        # Cache this result.
+        self._cache["timestamp"] = time.time()
+        self._cache["hierarchy"] = self.tutorials
 
     def _check_cache(self) -> Hierarchy | None:
         # We use the tornado settings dict to store a copy of the
-        # tutorials.  This will persist across handler calls.  We
-        # will use the value of time.time() as the key; if the key
-        # is more than 8 hours old, we discard the cache.
+        # tutorials.  This will persist across handler calls.
+        #
+        # If the cached value is more than 8 hours old, we discard the cache.
         #
         # If the cache does not exist or is stale we return
         # None from here, which then allows the clone to proceed,
         # and we rebuild the stash from those results.
-        stamps = list(self._cache.keys()).sort(reverse=True)
-        if not stamps:
-            return None
-        if len(stamps) > 1:
-            # Discard all prior caches (shouldn't be any)
-            to_delete = stamps[1:]
-            for stamp in to_delete:
-                del self._cache[stamp]
-        if not stamps:
-            return None
-        # The only stamp left is the most recent one.
-        stamp = stamps[0]
+        stamp = self._cache["timestamp"]
         now = time.time()
         if now - stamp > 8.0 * 60 * 60:
             # It's too old.  Discard it too.
-            del self._cache[stamp]
+            self._cache["timestamp"] = 0.0
+            self._cache["hierarchy"] = None
             return None
         # There's a cache present and it is not expired.
-        return self._cache[stamp]
+        return self._cache["hierarchy"]
 
     @tornado.web.authenticated
     def get(self) -> None:
