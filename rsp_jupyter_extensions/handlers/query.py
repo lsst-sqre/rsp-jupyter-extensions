@@ -2,7 +2,6 @@
 
 import json
 import os
-import time
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -27,45 +26,15 @@ class QueryHandler(APIHandler):
     def initialize(self) -> None:
         """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
-        self._rsp_client = RSPClient(logger=self.log)
         self._home_dir = Path(os.getenv("HOME", ""))
-        self._cachefile = self._home_dir / ".cache" / "queries.json"
-        self._initialize_cache()
-
-    def _initialize_cache(self) -> None:
-        """We get a new instance of the class every time the front end
-        calls the endpoint.  Once a query has been issued, it is immutable.
-        While getting the list of latest queries each time is something we
-        cannot avoid, retrieving the text might be--if we already grabbed
-        that text, we can just return the value from the cache and avoid
-        another trip to TAP.
-        """
-        if self._cachefile.is_file():
-            # If the cachefile was last updated more than 8 hours ago,
-            # mark it stale and recreate it.
-            last = self._cachefile.stat().st_mtime
-            now = time.time()
-            if now - last > 8 * 60 * 60:
-                self._create_new_cache()  # Stale.
-            try:
-                self._cache = json.loads(self._cachefile.read_text())
-            except json.decoder.JSONDecodeError:
-                self._create_new_cache()
-                return
-            else:
-                return
-        self._create_new_cache()
-
-    def _create_new_cache(self) -> None:
-        """Write empty cachefile."""
-        self._cache = {}
-        self._cachefile.parent.mkdir(exist_ok=True, parents=True)
-        self._cachefile.write_text(json.dumps(self._cache))
-
-    @property
-    def rubinquery(self) -> dict[str, str]:
-        """Rubin query params."""
-        return self.settings["rubinquery"]
+        if "query" not in self.settings:
+            self.settings["query"] = {}
+        if "cache" not in self.settings["query"]:
+            self.settings["query"]["cache"] = {}
+        if "client" not in self.settings["query"]:
+            self.settings["query"]["client"] = RSPClient(logger=self.log)
+        self._rsp_client = self.settings["query"]["client"]
+        self._cache = self.settings["query"]["cache"]
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:
@@ -372,6 +341,5 @@ class QueryHandler(APIHandler):
                     tq = TAPQuery(jobref=job, text=qtext)
                     self.log.debug(f"{job} -> '{qtext}'")
                     self._cache.update({job: qtext})
-                    self._cachefile.write_text(json.dumps(self._cache))
                     return tq
         raise RuntimeError(f"Job {job} did not have associated query text")
