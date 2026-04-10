@@ -39,6 +39,8 @@ def tutorial_env(tmp_path:Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     ):
         (p / "hello.txt").write_text("Hello, world!\n")
         (p / "hello.py").write_text("print('Hello, world!')\n")
+    # Create .git directory so we don't pull the repo.
+    (tmp_path / ".git").mkdir()
     monkeypatch.setenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", str(tmp_path))
 
     return tmp_path

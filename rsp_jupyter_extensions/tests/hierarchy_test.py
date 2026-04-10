@@ -358,9 +358,13 @@ def test_bad_construction() -> None:
 
 def test_demonstrate_cache(tutorial_env: Path) -> None:
     """Demonstrate that the cache is appropriately populated."""
+    new_hdlr = t.TutorialsMenuHandler(
+        tornado.web.Application(),
+        request=tornado.httputil.HTTPServerRequest(connection=_FakeConnect()),
+    )
     now = time.time()
-    assert HDLR._cache["timestamp"] > 0
-    assert HDLR._cache["timestamp"] < now
-    assert HDLR._cache["timestamp"] > now - 8.0 * 60 * 60
-    assert HDLR._cache["hierarchy"] is not None
-    assert HDLR._check_cache() is not None
+    assert new_hdlr._cache["timestamp"] > 0
+    assert new_hdlr._cache["timestamp"] < now
+    assert new_hdlr._cache["timestamp"] > now - 8.0 * 60 * 60
+    assert new_hdlr._cache["hierarchy"] is not None
+    assert new_hdlr._check_cache() is not None
