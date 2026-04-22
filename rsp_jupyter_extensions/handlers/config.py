@@ -51,11 +51,18 @@ class ConfigHandler(APIHandler):
         """Sanitized version of environment.  Note that eventually we want
         to pass this as a separate config.json, and any remaining environment
         variables should be namespaced under NUBLADO_* .
+
+        Once we have config.json, we will proceed by updating self._cfg from
+        it, and then eventually dropping the environment settings parsing
+        entirely.
         """
         self._cfg: dict[str, Any] = {
             "container_size": os.environ.get("CONTAINER_SIZE", "Unknown"),
             "debug": bool(os.environ.get("DEBUG")),
-            "enable_rubin_query_menu": bool(
+            "enable_landing_page": (
+                os.environ.get("RSP_SITE_TYPE") == "science"
+            ),
+            "enable_queries_menu": bool(
                 os.environ.get("ENABLE_RUBIN_QUERY_MENU")
             ),
             "enable_tutorials_menu": bool(
@@ -98,7 +105,7 @@ class ConfigHandler(APIHandler):
         if rsp_site_type in ("staff", "science"):
             self._cfg["enable_tutorials_menu"] = True
         if rsp_site_type == "science":
-            self._cfg["enable_rubin_query_menu"] = True
+            self._cfg["enable_queries_menu"] = True
         # Fixup until we change this to use config.json and service
         # discovery.
         self._cfg["statusbar"] = self._get_statusbar()

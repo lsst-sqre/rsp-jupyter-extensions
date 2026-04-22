@@ -17,7 +17,7 @@ import { activateRSPDisplayVersionExtension } from './displayversion';
 
 import { activateRSPPDFExportExtension } from './pdfexport';
 
-import { activateRSPQueryExtension } from './query';
+import { activateRSPTAPQueryExtension } from './tapquery';
 
 import { activateRSPSavequitExtension } from './savequit';
 
@@ -128,10 +128,10 @@ async function activateIndividualExtensions(
       `Error activating pdfexport extension: ${error}`
     );
   }
-  if (cfg.enable_rubin_query_menu) {
-    logMessage(LogLevels.INFO, cfg, '...activating query extension...');
+  if (cfg.enable_queries_menu) {
+    logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
-      await activateRSPQueryExtension(app, mainMenu, docManager, cfg);
+      await activateRSPTAPQueryExtension(app, mainMenu, docManager, cfg);
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -144,7 +144,7 @@ async function activateIndividualExtensions(
     logMessage(
       LogLevels.INFO,
       cfg,
-      '...skipping query extension (disabled in config)...'
+      '...skipping TAP queries extension (disabled in config)...'
     );
   }
   if (cfg.enable_tutorials_menu) {

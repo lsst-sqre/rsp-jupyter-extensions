@@ -6,7 +6,8 @@ import { apiRequest } from './request';
 export interface INubladoConfigResponse {
   container_size: string;
   debug: boolean;
-  enable_rubin_query_menu: boolean;
+  enable_landing_page: boolean;
+  enable_queries_menu: boolean;
   enable_tutorials_menu: boolean;
   file_browser_root: string;
   home_relative_to_file_browser_root: string;
