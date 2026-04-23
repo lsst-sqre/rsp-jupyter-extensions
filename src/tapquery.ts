@@ -31,10 +31,10 @@ import { SQLHoverTooltip } from './sql-tooltip';
  * The command IDs used by the plugin.
  */
 export namespace CommandIDs {
-  export const rubinqueryitem = 'rubinqueryitem';
-  export const rubinhistory = 'rubinhistory';
-  export const rubinquerynb = 'rubinquerynb';
-  export const rubinqueryrefresh = 'rubinqueryrefresh';
+  export const tapqueryitem = 'tapqueryitem';
+  export const taphistory = 'taphistory';
+  export const tapquerynb = 'tapquerynb';
+  export const tapqueryrefresh = 'tapqueryrefresh';
 }
 
 /**
@@ -44,33 +44,33 @@ interface IPathContainer {
   path: string;
 }
 
-interface IRecentQueryResponse {
+interface IRecentTAPQueryResponse {
   jobref: string;
   text: string;
 }
 
-class RecentQueryResponse implements IRecentQueryResponse {
+class RecentTAPQueryResponse implements IRecentTAPQueryResponse {
   jobref: string;
   text: string;
 
-  constructor(inp: IRecentQueryResponse) {
+  constructor(inp: IRecentTAPQueryResponse) {
     (this.jobref = inp.jobref), (this.text = inp.text);
   }
 }
 
-interface IQueryHistoryResponse {
-  [dataset: string]: IRecentQueryResponse[];
+interface ITAPQueryHistoryResponse {
+  [dataset: string]: IRecentTAPQueryResponse[];
 }
 
-class QueryHistoryResponse implements IQueryHistoryResponse {
-  [dataset: string]: RecentQueryResponse[];
+class TAPQueryHistoryResponse implements ITAPQueryHistoryResponse {
+  [dataset: string]: RecentTAPQueryResponse[];
 
-  constructor(inp: IQueryHistoryResponse) {
+  constructor(inp: ITAPQueryHistoryResponse) {
     for (const dsname in inp) {
       if (inp[dsname] !== null && inp[dsname].length !== 0) {
-        const responses: IRecentQueryResponse[] = [];
+        const responses: IRecentTAPQueryResponse[] = [];
         for (const resp of inp[dsname]) {
-          responses.push(new RecentQueryResponse(resp));
+          responses.push(new RecentTAPQueryResponse(resp));
         }
         this[dsname] = responses;
       }
@@ -80,116 +80,116 @@ class QueryHistoryResponse implements IQueryHistoryResponse {
 /**
  * Activate the extension.
  */
-export async function activateRSPQueryExtension(
+export async function activateRSPTAPQueryExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   cfg: INubladoConfigResponse
 ): Promise<void> {
-  logMessage(LogLevels.INFO, cfg, 'rsp-query...loading');
+  logMessage(LogLevels.INFO, cfg, 'rsp-tapquery...loading');
 
   const svcManager = app.serviceManager;
   const { commands } = app;
-  const rubinmenu = new Menu({
+  const jobsmenu = new Menu({
     commands
   });
-  mainMenu.addMenu(rubinmenu);
-  rubinmenu.title.label = 'Rubin';
+  mainMenu.addMenu(jobsmenu);
+  jobsmenu.title.label = 'Jobs';
 
-  await replaceRubinMenuContents(app, docManager, svcManager, cfg, rubinmenu);
+  await replaceJobsmenuContents(app, docManager, svcManager, cfg, jobsmenu);
 
-  logMessage(LogLevels.INFO, cfg, 'rsp-query...loaded');
+  logMessage(LogLevels.INFO, cfg, 'rsp-tapquery...loaded');
 }
 
-async function replaceRubinMenuContents(
+async function replaceJobsmenuContents(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  rubinmenu: Menu
+  jobsmenu: Menu
 ): Promise<void> {
   const { commands } = app;
 
-  if (!commands.hasCommand(CommandIDs.rubinqueryitem)) {
-    commands.addCommand(CommandIDs.rubinqueryitem, {
-      label: 'Open from your query history...',
+  if (!commands.hasCommand(CommandIDs.tapqueryitem)) {
+    commands.addCommand(CommandIDs.tapqueryitem, {
+      label: 'Open from your TAP query history...',
       caption:
         'Open notebook from supplied query jobref ID, dataset:id, or URL',
       execute: () => {
-        rubinTAPQuery(app, docManager, svcManager, cfg, rubinmenu);
+        tapQuery(app, docManager, svcManager, cfg, jobsmenu);
       }
     });
   }
-  if (!commands.hasCommand(CommandIDs.rubinquerynb)) {
-    commands.addCommand(CommandIDs.rubinquerynb, {
-      label: 'All queries',
-      caption: 'Open notebook requesting all query history',
+  if (!commands.hasCommand(CommandIDs.tapquerynb)) {
+    commands.addCommand(CommandIDs.tapquerynb, {
+      label: 'All TAP queries',
+      caption: 'Open notebook requesting all TAP query history',
       execute: () => {
-        rubinQueryAllHistory(docManager, svcManager, cfg);
+        tapQueryAllHistory(docManager, svcManager, cfg);
       }
     });
   }
-  if (!commands.hasCommand(CommandIDs.rubinqueryrefresh)) {
-    commands.addCommand(CommandIDs.rubinqueryrefresh, {
-      label: 'Refresh query history',
-      caption: 'Refresh query history',
+  if (!commands.hasCommand(CommandIDs.tapqueryrefresh)) {
+    commands.addCommand(CommandIDs.tapqueryrefresh, {
+      label: 'Refresh TAP query history',
+      caption: 'Refresh TAP query history',
       execute: async () => {
-        await replaceRubinMenuContents(
+        await replaceJobsmenuContents(
           app,
           docManager,
           svcManager,
           cfg,
-          rubinmenu
+          jobsmenu
         );
       }
     });
   }
 
   // Get rid of menu contents
-  rubinmenu.clearItems();
+  jobsmenu.clearItems();
 
   // Add commands and menu itmes.
-  const querymenu: Menu.IItemOptions = { command: CommandIDs.rubinqueryitem };
-  const allquerynb: Menu.IItemOptions = { command: CommandIDs.rubinquerynb };
-  const queryrefresh: Menu.IItemOptions = {
-    command: CommandIDs.rubinqueryrefresh
+  const tapquerymenu: Menu.IItemOptions = { command: CommandIDs.tapqueryitem };
+  const alltapquerynb: Menu.IItemOptions = { command: CommandIDs.tapquerynb };
+  const tapqueryrefresh: Menu.IItemOptions = {
+    command: CommandIDs.tapqueryrefresh
   };
 
-  rubinmenu.insertItem(10, querymenu);
-  logMessage(LogLevels.DEBUG, cfg, 'inserted query dialog menu');
-  rubinmenu.insertItem(20, { type: 'separator' });
-  rubinmenu.insertItem(30, allquerynb);
-  logMessage(LogLevels.DEBUG, cfg, 'inserted all-query notebook generator');
-  rubinmenu.insertItem(40, { type: 'separator' });
+  jobsmenu.insertItem(10, tapquerymenu);
+  logMessage(LogLevels.DEBUG, cfg, 'inserted TAP query dialog menu');
+  jobsmenu.insertItem(20, { type: 'separator' });
+  jobsmenu.insertItem(30, alltapquerynb);
+  logMessage(LogLevels.DEBUG, cfg, 'inserted all-TAP-query notebook generator');
+  jobsmenu.insertItem(40, { type: 'separator' });
 
   try {
-    const recentquerymenu = await getRecentQueryMenu(
+    const recenttapquerymenu = await getRecentTAPQueryMenu(
       app,
       docManager,
       svcManager,
       cfg,
-      rubinmenu
+      jobsmenu
     );
-    logMessage(LogLevels.DEBUG, cfg, 'recent query menu retrieved');
-    logMessage(LogLevels.DEBUG, cfg, 'inserting recent querymenu...');
-    rubinmenu.insertItem(50, {
+    logMessage(LogLevels.DEBUG, cfg, 'recent TAP query menu retrieved');
+    logMessage(LogLevels.DEBUG, cfg, 'inserting recent TAQ query menu...');
+    jobsmenu.insertItem(50, {
       type: 'submenu',
-      submenu: recentquerymenu
+      submenu: recenttapquerymenu
     });
   } catch (error) {
-    console.error(`Error getting recent query menu ${error}`);
-    throw new Error(`Failed to get recent query menu: ${error}`);
+    console.error(`Error getting recent TAP query menu ${error}`);
+    throw new Error(`Failed to get recent TAP query menu: ${error}`);
   }
-  logMessage(LogLevels.DEBUG, cfg, '...inserted recent query menu');
-  rubinmenu.insertItem(60, { type: 'separator' });
-  rubinmenu.insertItem(70, queryrefresh);
-  logMessage(LogLevels.DEBUG, cfg, 'inserted query refresh');
+  logMessage(LogLevels.DEBUG, cfg, '...inserted recent TAP query menu');
+  jobsmenu.insertItem(60, { type: 'separator' });
+  jobsmenu.insertItem(70, tapqueryrefresh);
+  logMessage(LogLevels.DEBUG, cfg, 'inserted TAP query refresh');
 }
 
-class QueryHandler extends Widget {
+class TAPQueryHandler extends Widget {
   constructor() {
-    super({ node: Private.createQueryNode() });
-    this.addClass('rubin-qh');
+    super({ node: Private.createTAPQueryNode() });
+    this.addClass('tap-qh');
   }
 
   get inputNode(): HTMLInputElement {
@@ -201,39 +201,39 @@ class QueryHandler extends Widget {
   }
 }
 
-async function queryDialog(
+async function tapQueryDialog(
   cfg: INubladoConfigResponse
 ): Promise<string | void> {
   const options = {
-    title: 'Query Jobref ID or URL',
-    body: new QueryHandler(),
+    title: 'TAP Query Jobref ID or URL',
+    body: new TAPQueryHandler(),
     focusNodeSelector: 'input',
     buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'CREATE' })]
   };
   try {
     const result = await showDialog(options);
     if (!result) {
-      logMessage(LogLevels.DEBUG, cfg, 'No result from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result from tapQueryDialog');
       return;
     }
-    logMessage(LogLevels.DEBUG, cfg, `Result from queryDialog: ${result}`);
+    logMessage(LogLevels.DEBUG, cfg, `Result from tapQueryDialog: ${result}`);
     if (!result.value) {
-      logMessage(LogLevels.DEBUG, cfg, 'No result.value from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.value from tapQueryDialog');
       return;
     }
     if (!result.button) {
-      logMessage(LogLevels.DEBUG, cfg, 'No result.button from queryDialog');
+      logMessage(LogLevels.DEBUG, cfg, 'No result.button from tapQueryDialog');
       return;
     }
     if (result.button.label === 'CREATE') {
       logMessage(
         LogLevels.DEBUG,
         cfg,
-        `Got result ${result.value} from queryDialog: CREATE`
+        `Got result ${result.value} from tapQueryDialog: CREATE`
       );
       return result.value;
     }
-    logMessage(LogLevels.DEBUG, cfg, 'Did not get queryDialog: CREATE');
+    logMessage(LogLevels.DEBUG, cfg, 'Did not get tapQueryDialog: CREATE');
     return;
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
@@ -241,31 +241,32 @@ async function queryDialog(
   }
 }
 
-async function rubinQueryRecentHistory(
+async function tapQueryRecentHistory(
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse
-): Promise<QueryHistoryResponse> {
+): Promise<TAPQueryHistoryResponse> {
   const count = 5;
-  const endpoint = PageConfig.getBaseUrl() + `rubin/query/tap/history/${count}`;
+  const endpoint =
+    PageConfig.getBaseUrl() + `rubin/queries/tap/history/${count}`;
   const init = {
     method: 'GET'
   };
   logMessage(LogLevels.INFO, cfg, `About to query TAP history at ${endpoint}`);
   const settings = svcManager.serverSettings;
-  let retval = new QueryHistoryResponse({});
+  let retval = new TAPQueryHistoryResponse({});
   try {
     const res = await apiRequest(endpoint, init, settings);
-    const qh_c = res as unknown as IQueryHistoryResponse;
+    const qh_c = res as unknown as ITAPQueryHistoryResponse;
     logMessage(
       LogLevels.DEBUG,
       cfg,
       `Got query history response: ${JSON.stringify(qh_c, undefined, 2)}`
     );
-    retval = new QueryHistoryResponse(qh_c);
+    retval = new TAPQueryHistoryResponse(qh_c);
     logMessage(
       LogLevels.DEBUG,
       cfg,
-      `rubinQueryRecentHistory: ${JSON.stringify(retval, undefined, 2)}`
+      `tapqueryRecentHistory: ${JSON.stringify(retval, undefined, 2)}`
     );
   } catch (error) {
     console.error(`Error showing overwrite dialog ${error}`);
@@ -274,20 +275,20 @@ async function rubinQueryRecentHistory(
   return retval;
 }
 
-async function getRecentQueryMenu(
+async function getRecentTAPQueryMenu(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  rubinmenu: Menu
+  jobsmenu: Menu
 ): Promise<Menu> {
-  logMessage(LogLevels.INFO, cfg, 'Retrieving recent query menu');
+  logMessage(LogLevels.INFO, cfg, 'Retrieving recent TAP query menu');
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
   retval.title.label = 'Recent Queries';
 
   try {
-    const qhist = await rubinQueryRecentHistory(svcManager, cfg);
+    const qhist = await tapQueryRecentHistory(svcManager, cfg);
     logMessage(
       LogLevels.DEBUG,
       cfg,
@@ -295,7 +296,11 @@ async function getRecentQueryMenu(
     );
     for (const dataset in qhist) {
       let menuindex = 10;
-      logMessage(LogLevels.DEBUG, cfg, `Query entries for dataset ${dataset}`);
+      logMessage(
+        LogLevels.DEBUG,
+        cfg,
+        `TAP query entries for dataset ${dataset}`
+      );
       const qval = qhist[dataset];
       logMessage(
         LogLevels.DEBUG,
@@ -306,32 +311,32 @@ async function getRecentQueryMenu(
         continue;
       }
       // Store query data for tooltip functionality
-      const queryDataMap = new Map<
+      const tapQueryDataMap = new Map<
         string,
         { sqlText: string; jobref: string }
       >();
       const submMenu = new Menu({ commands });
       submMenu.title.label = dataset;
       retval.addItem({ submenu: submMenu, type: 'submenu' });
-      for (const qr of qval) {
-        const submcmdId = `q-${qr.jobref}`;
+      for (const tqr of qval) {
+        const submcmdId = `tq-${tqr.jobref}`;
         if (!commands.hasCommand(submcmdId)) {
           // If we haven't added this command before, do so now.
           // Remove the part before the colon, if there is a colon.  If
           // not, use the whole string (indexOf returns -1 if the search
           // character isn't present).
-          const jr = qr.jobref.substring(1 + qr.jobref.indexOf(':'));
+          const jr = tqr.jobref.substring(1 + tqr.jobref.indexOf(':'));
           commands.addCommand(submcmdId, {
             label: jr, // Show just the jobref as the label
-            caption: qr.text, // Use the full SQL as the caption/tooltip
+            caption: tqr.text, // Use the full SQL as the caption/tooltip
             execute: async () => {
-              await openQueryFromJobref(
+              await openTAPQueryFromJobref(
                 app,
                 docManager,
                 svcManager,
                 cfg,
-                qr.jobref,
-                rubinmenu
+                tqr.jobref,
+                jobsmenu
               );
             }
           });
@@ -339,7 +344,10 @@ async function getRecentQueryMenu(
         // Not gonna worry about pruning no-longer-displayed commands.
 
         // Store query data for tooltip functionality
-        queryDataMap.set(qr.jobref, { sqlText: qr.text, jobref: qr.jobref });
+        tapQueryDataMap.set(tqr.jobref, {
+          sqlText: tqr.text,
+          jobref: tqr.jobref
+        });
 
         // Create a direct menu item instead of a submenu
         submMenu.insertItem(menuindex, {
@@ -350,32 +358,32 @@ async function getRecentQueryMenu(
         logMessage(
           LogLevels.DEBUG,
           cfg,
-          `Added ${submcmdId} to submenu ${dataset} for ${qr.jobref}`
+          `Added ${submcmdId} to submenu ${dataset} for ${tqr.jobref}`
         );
         menuindex += 10;
       }
       // Add single event delegation for all menu items
-      const sqlTooltip = new SQLHoverTooltip(queryDataMap);
+      const sqlTooltip = new SQLHoverTooltip(tapQueryDataMap);
       sqlTooltip.attachToMenu(submMenu);
     }
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
       cfg,
-      `Error performing recent query history ${error}`
+      `Error performing recent TAP query history ${error}`
     );
-    throw new Error(`Failed to query recent history: ${error}`);
+    throw new Error(`Failed to acquire recent TAP query history: ${error}`);
   }
   return retval;
 }
 
-async function rubinQueryAllHistory(
+async function tapQueryAllHistory(
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse
 ): Promise<void> {
   const endpoint =
-    PageConfig.getBaseUrl() + 'rubin/query/tap/notebooks/query_all';
+    PageConfig.getBaseUrl() + 'rubin/queries/tap/notebooks/query_all';
   const init = {
     method: 'GET'
   };
@@ -398,48 +406,48 @@ async function rubinQueryAllHistory(
   }
 }
 
-async function rubinTAPQuery(
+async function tapQuery(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  rubinmenu: Menu
+  jobsmenu: Menu
 ): Promise<void> {
   try {
-    const jobref = await queryDialog(cfg);
-    logMessage(LogLevels.DEBUG, cfg, `Query URL / ID is ${jobref}`);
+    const jobref = await tapQueryDialog(cfg);
+    logMessage(LogLevels.DEBUG, cfg, `TAP Query URL / ID is ${jobref}`);
     if (!jobref) {
-      logMessage(LogLevels.WARNING, cfg, "Query URL was null'");
+      logMessage(LogLevels.WARNING, cfg, "TAP Query URL was null'");
       return;
     }
-    await openQueryFromJobref(
+    await openTAPQueryFromJobref(
       app,
       docManager,
       svcManager,
       cfg,
       jobref,
-      rubinmenu
+      jobsmenu
     );
   } catch (error) {
-    logMessage(LogLevels.ERROR, cfg, `Error performing query ${error}`);
-    throw new Error(`Failed to perform query: ${error}`);
+    logMessage(LogLevels.ERROR, cfg, `Error performing TAP query ${error}`);
+    throw new Error(`Failed to perform TAP query: ${error}`);
   }
 }
 
-async function openQueryFromJobref(
+async function openTAPQueryFromJobref(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
   jobref: string,
-  rubinmenu: Menu
+  jobsmenu: Menu
 ): Promise<void> {
-  logMessage(LogLevels.INFO, cfg, `Opening query for ${jobref}`);
+  logMessage(LogLevels.INFO, cfg, `Opening TAP query for ${jobref}`);
   const body = JSON.stringify({
     type: 'tap',
     value: jobref
   });
-  const endpoint = PageConfig.getBaseUrl() + 'rubin/query';
+  const endpoint = PageConfig.getBaseUrl() + 'rubin/queries';
   const init = {
     method: 'POST',
     body: body
@@ -454,7 +462,7 @@ async function openQueryFromJobref(
     docManager.open(path);
 
     // Update menu in background (fire-and-forget) to avoid blocking UI
-    replaceRubinMenuContents(app, docManager, svcManager, cfg, rubinmenu).catch(
+    replaceJobsmenuContents(app, docManager, svcManager, cfg, jobsmenu).catch(
       error => {
         logMessage(
           LogLevels.WARNING,
@@ -468,9 +476,9 @@ async function openQueryFromJobref(
     logMessage(
       LogLevels.ERROR,
       cfg,
-      `Error opening query from jobref: ${error}`
+      `Error opening TAP query from jobref: ${error}`
     );
-    throw new Error(`Failed to open query from jobref: ${error}`);
+    throw new Error(`Failed to open TAP query from jobref: ${error}`);
   }
 }
 
@@ -485,24 +493,24 @@ export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
 /**
  * Initialization data for the query extension.
  */
-const rspQueryExtension: JupyterFrontEndPlugin<void> = {
-  activate: activateRSPQueryExtension,
-  id: token.QUERY_ID,
+const rspTAPQueryExtension: JupyterFrontEndPlugin<void> = {
+  activate: activateRSPTAPQueryExtension,
+  id: token.TAPQUERY_ID,
   requires: [IMainMenu, IDocumentManager],
   autoStart: false
 };
 
-export default rspQueryExtension;
+export default rspTAPQueryExtension;
 
 namespace Private {
   /**
    * Create node for query handler.
    */
 
-  export function createQueryNode(): HTMLElement {
+  export function createTAPQueryNode(): HTMLElement {
     const body = document.createElement('div');
     const qidLabel = document.createElement('label');
-    qidLabel.textContent = 'Enter Query Jobref ID or URL';
+    qidLabel.textContent = 'Enter TAP Query Jobref ID or URL';
     const name = document.createElement('input');
     body.appendChild(qidLabel);
     body.appendChild(name);
