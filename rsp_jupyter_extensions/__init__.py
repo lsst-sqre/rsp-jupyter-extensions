@@ -41,8 +41,7 @@ def _setup_handlers(server_app) -> None:  # type: ignore
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
         r"/rubin/pdfexport": PDFExportHandler,
-        r"/rubin/query($|/$|.*)": QueryHandler,
-        r"/rubin/query": QueryHandler,
+        r"/rubin/queries($|/$|.*)": QueryHandler,
         r"/rubin/tutorials": TutorialsMenuHandler,
     }
 

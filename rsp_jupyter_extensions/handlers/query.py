@@ -45,9 +45,9 @@ class QueryHandler(APIHandler):
 
         The interpretation of "value" is query-type dependent.
 
-        For a TAP query, "value" is the URL, or the jobref ID (in which
-        case the endpoint /api/tap is assumed), or a string in the form
-        of "dataset:jobref_id", referring to that query.
+        For a TAP query, "value" is the URL, or the bare jobref ID (in which
+        case known datasets will be searched for the ID), or a string in the
+        form of "dataset:jobref_id", referring to that query.
 
         It will then use the value to resolve the template, and
         construct a filename resolved under $HOME.  If that file
@@ -195,7 +195,7 @@ class QueryHandler(APIHandler):
         #     that will ask for all queries and yield their jobids.
 
         path = self.request.path
-        stem = "/rubin/query"
+        stem = "/rubin/queries"
 
         route = _peel_route(path, stem)
         if route is None:

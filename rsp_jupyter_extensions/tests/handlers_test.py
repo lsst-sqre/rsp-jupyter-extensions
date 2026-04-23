@@ -64,7 +64,8 @@ async def test_config(
     assert payload == {
         "container_size": "Large (4.0 CPU, 16Gi RAM)",
         "debug": False,
-        "enable_rubin_query_menu": False,
+        "enable_landing_page": False,
+        "enable_queries_menu": False,
         "enable_tutorials_menu": False,
         "file_browser_root": "home",
         "home_relative_to_file_browser_root": "",

@@ -35,7 +35,7 @@ export class SQLHoverTooltip {
       }
 
       // Find the closest menu item element
-      const menuItem = target.closest('[data-command^="q-"]') as HTMLElement;
+      const menuItem = target.closest('[data-command^="tq-"]') as HTMLElement;
 
       if (!menuItem) {
         return;
@@ -43,11 +43,11 @@ export class SQLHoverTooltip {
 
       const commandAttr = menuItem.getAttribute('data-command');
 
-      if (!commandAttr || !commandAttr.startsWith('q-')) {
+      if (!commandAttr || !commandAttr.startsWith('tq-')) {
         return;
       }
 
-      const jobref = commandAttr.substring(2); // Remove 'q-' prefix
+      const jobref = commandAttr.substring(3); // Remove 'tq-' prefix
 
       const queryData = this.queryDataMap.get(jobref);
 
@@ -87,7 +87,7 @@ export class SQLHoverTooltip {
         return;
       }
 
-      const menuItem = target.closest('[data-command^="q-"]') as HTMLElement;
+      const menuItem = target.closest('[data-command^="tq-"]') as HTMLElement;
 
       if (!menuItem) {
         return;
@@ -95,11 +95,11 @@ export class SQLHoverTooltip {
 
       const commandAttr = menuItem.getAttribute('data-command');
 
-      if (!commandAttr || !commandAttr.startsWith('q-')) {
+      if (!commandAttr || !commandAttr.startsWith('tq-')) {
         return;
       }
 
-      const jobref = commandAttr.substring(2);
+      const jobref = commandAttr.substring(3);
 
       // Only process if we're leaving the item we're currently tracking
       if (this.currentHoveredJobref !== jobref) {
@@ -128,7 +128,7 @@ export class SQLHoverTooltip {
         return;
       }
 
-      const menuItem = target.closest('[data-command^="q-"]') as HTMLElement;
+      const menuItem = target.closest('[data-command^="tq-"]') as HTMLElement;
 
       if (!menuItem) {
         return;
@@ -136,7 +136,7 @@ export class SQLHoverTooltip {
 
       const commandAttr = menuItem.getAttribute('data-command');
 
-      if (!commandAttr || !commandAttr.startsWith('q-')) {
+      if (!commandAttr || !commandAttr.startsWith('tq-')) {
         return;
       }
 
