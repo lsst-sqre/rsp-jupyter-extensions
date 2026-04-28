@@ -364,7 +364,7 @@ def test_demonstrate_cache(tutorial_env: Path) -> None:
     )
     now = time.time()
     assert new_hdlr._cache["timestamp"] > 0
-    assert new_hdlr._cache["timestamp"] < now
+    assert new_hdlr._cache["timestamp"] <= now
     assert new_hdlr._cache["timestamp"] > now - 8.0 * 60 * 60
     assert new_hdlr._cache["hierarchy"] is not None
     assert new_hdlr._check_cache() is not None

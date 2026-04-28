@@ -1,4 +1,4 @@
-"""Handler Module to provide an endpoint for templated queries."""
+"""Handler Module to provide an endpoint for templated TAP queries."""
 
 import json
 import os
@@ -20,7 +20,7 @@ from ._utils import _peel_route, _write_notebook_response
 from .clients import RSPClient
 
 
-class QueryHandler(APIHandler):
+class TAPQueryHandler(APIHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:
@@ -31,9 +31,9 @@ class QueryHandler(APIHandler):
             self.settings["query"] = {}
         if "cache" not in self.settings["query"]:
             self.settings["query"]["cache"] = {}
-        if "client" not in self.settings["query"]:
-            self.settings["query"]["client"] = RSPClient(logger=self.log)
-        self._rsp_client = self.settings["query"]["client"]
+        if "client" not in self.settings:
+            self.settings["client"] = RSPClient(logger=self.log)
+        self._rsp_client = self.settings["client"]
         self._cache = self.settings["query"]["cache"]
 
     @tornado.web.authenticated

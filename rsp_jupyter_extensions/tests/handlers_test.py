@@ -2,9 +2,12 @@
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
+import respx
 from pyfakefs.fake_filesystem import FakeFilesystem
+from rubin.repertoire import register_mock_discovery
 
 
 async def test_abnormal(
@@ -26,8 +29,12 @@ async def test_abnormal(
     assert payload["ABNORMAL_STARTUP"] == "TRUE"
 
 
+@pytest.mark.respx(base_url="https://example.lsst.cloud")
 async def test_config(
-    jp_fetch: Callable, rsp_fs: FakeFilesystem, monkeypatch: pytest.MonkeyPatch
+    jp_fetch: Callable,
+    rsp_fs: FakeFilesystem,
+    monkeypatch: pytest.MonkeyPatch,
+    respx_mock: respx.Router,
 ) -> None:
     """Test `config` endpoint."""
     monkeypatch.setenv("CONTAINER_SIZE", "Large (4.0 CPU, 16Gi RAM)")
@@ -47,9 +54,7 @@ async def test_config(
     monkeypatch.setenv(
         "JUPYTERLAB_CONFIG_DIR", "/opt/lsst/software/jupyterlab"
     )
-    monkeypatch.setenv(
-        "NUBLADO_RUNTIME_MOUNTS_DIR", "/opt/lsst/software/jupyterlab"
-    )
+    monkeypatch.setenv("NUBLADO_RUNTIME_MOUNTS_DIR", "/etc/nublado")
     monkeypatch.setenv(
         "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
     )
@@ -58,6 +63,8 @@ async def test_config(
     monkeypatch.setenv("MEM_LIMIT", "17179869184")
     monkeypatch.setenv("MEM_GUARANTEE", "4294967296")
     monkeypatch.setenv("JUPYTERHUB_HOST", "https://nb.example.lsst.cloud")
+    disco = Path("/etc") / "nublado" / "discovery_v1.json"
+    register_mock_discovery(respx_mock, disco)
     response = await jp_fetch("rubin", "config")
     assert response.code == 200
     payload = json.loads(response.body)
@@ -67,6 +74,10 @@ async def test_config(
         "enable_landing_page": False,
         "enable_queries_menu": False,
         "enable_tutorials_menu": False,
+        "endpoint": {
+            "landing_page": "https://example.lsst.cloud/",
+            "logout": "https://example.lsst.cloud/logout",
+        },
         "file_browser_root": "home",
         "home_relative_to_file_browser_root": "",
         "image": {
@@ -94,7 +105,7 @@ async def test_config(
                 "memory": 4294967296,
             },
         },
-        "runtime_mounts_dir": "/opt/lsst/software/jupyterlab",
+        "runtime_mounts_dir": "/etc/nublado",
         "statusbar": (
             "Daily 2026_03_31 [ae3bfaed...] (sciplat-lab:d_2026_03_31) "
             "https://example.lsst.cloud"

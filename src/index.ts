@@ -17,9 +17,9 @@ import { activateRSPDisplayVersionExtension } from './displayversion';
 
 import { activateRSPPDFExportExtension } from './pdfexport';
 
-import { activateRSPTAPQueryExtension } from './tapquery';
+import { activateRSPTAPQueriesExtension } from './tapqueries';
 
-import { activateRSPSavequitExtension } from './savequit';
+import { activateRSPExitExtension } from './exit';
 
 import { activateRSPTutorialsExtension } from './tutorials';
 
@@ -49,7 +49,6 @@ function activateRSPExtension(
     );
     logMessage(LogLevels.INFO, cfg, '...got server configuration');
     logMessage(LogLevels.INFO, cfg, 'rsp-jupyter-extensions: loading...');
-    logMessage(LogLevels.INFO, cfg, '...activating savequit extension...');
     logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
     const abnormal = await getAbnormalStartup(app);
     if (abnormal.ABNORMAL_STARTUP) {
@@ -91,8 +90,18 @@ async function activateIndividualExtensions(
   abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse
 ): Promise<void> {
-  logMessage(LogLevels.INFO, cfg, '...activating savequit extension...');
-  activateRSPSavequitExtension(app, mainMenu, docManager, cfg);
+  /* Do this first so we have exit menu items even in abnormal startup. */
+  logMessage(LogLevels.INFO, cfg, '...activating exit extension...');
+  try {
+    activateRSPExitExtension(app, mainMenu, cfg);
+    logMessage(LogLevels.INFO, cfg, '...activated...');
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      cfg,
+      `Error activating exit extension: ${error}`
+    );
+  }
   logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
   if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog
@@ -131,13 +140,13 @@ async function activateIndividualExtensions(
   if (cfg.enable_queries_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
-      await activateRSPTAPQueryExtension(app, mainMenu, docManager, cfg);
+      await activateRSPTAPQueriesExtension(app, mainMenu, docManager, cfg);
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
         cfg,
-        `Error activating query extension: ${error}`
+        `Error activating TAP queries extension: ${error}`
       );
     }
   } else {

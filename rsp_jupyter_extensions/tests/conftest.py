@@ -12,10 +12,12 @@ def rsp_fs(
 ) -> FakeFilesystem:
     """Simulate enough of an RSP filesystem to run tests."""
     datadir = Path(__file__).parent / "data"
+    fs.add_real_directory(datadir / "etc", target_path="/etc",
+                               read_only=True)
     fs.add_real_directory(datadir / "home", target_path="/home",
                                read_only=False)
     fs.add_real_directory(datadir / "usr", target_path="/usr",
-                               read_only=False)
+                               read_only=True)
     monkeypatch.setenv("HOME", "/home/irian")
     env_p=os.getenv("PATH", "/bin:/usr/bin")
     env_p=f"/usr/local/bin:{env_p}"
