@@ -17,7 +17,7 @@ import { activateRSPDisplayVersionExtension } from './displayversion';
 
 import { activateRSPPDFExportExtension } from './pdfexport';
 
-import { activateRSPTAPQueryExtension } from './tapquery';
+import { activateRSPTAPQueriesExtension } from './tapqueries';
 
 import { activateRSPQuitExtension } from './quit';
 
@@ -90,8 +90,18 @@ async function activateIndividualExtensions(
   abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse
 ): Promise<void> {
+  /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
-  activateRSPQuitExtension(app, mainMenu, cfg);
+  try {
+    activateRSPQuitExtension(app, mainMenu, cfg);
+    logMessage(LogLevels.INFO, cfg, '...activated...');
+  } catch (error) {
+    logMessage(
+      LogLevels.ERROR,
+      cfg,
+      `Error activating quit extension: ${error}`
+    );
+  }
   logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
   if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog
@@ -130,13 +140,13 @@ async function activateIndividualExtensions(
   if (cfg.enable_queries_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
-      await activateRSPTAPQueryExtension(app, mainMenu, docManager, cfg);
+      await activateRSPTAPQueriesExtension(app, mainMenu, docManager, cfg);
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
         cfg,
-        `Error activating query extension: ${error}`
+        `Error activating TAP queries extension: ${error}`
       );
     }
   } else {
