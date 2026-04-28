@@ -13,6 +13,7 @@ import tornado
 from jupyter_server.base.handlers import APIHandler
 
 from ._utils import _get_base_url
+from .clients import RSPClient
 
 
 class ConfigHandler(APIHandler):
@@ -20,7 +21,10 @@ class ConfigHandler(APIHandler):
 
     def initialize(self) -> None:
         super().initialize()
-        self._convert_environ_to_config()
+        if "client" not in self.settings:
+            self.settings["client"] = RSPClient(logger=self.log)
+        self._rsp_client = self.settings["client"]
+        self._cfg: dict[str, Any] | None = None
         self.log.info("Initializing ConfigHandler.")
 
     @staticmethod
@@ -47,7 +51,7 @@ class ConfigHandler(APIHandler):
             return ""
         return digest
 
-    def _convert_environ_to_config(self) -> None:
+    async def _convert_environ_to_config(self) -> None:
         """Sanitized version of environment.  Note that eventually we want
         to pass this as a separate config.json, and any remaining environment
         variables should be namespaced under NUBLADO_* .
@@ -56,7 +60,9 @@ class ConfigHandler(APIHandler):
         it, and then eventually dropping the environment settings parsing
         entirely.
         """
-        self._cfg: dict[str, Any] = {
+        if self._cfg is not None:
+            return
+        self._cfg = {
             "container_size": os.environ.get("CONTAINER_SIZE", "Unknown"),
             "debug": bool(os.environ.get("DEBUG")),
             "enable_landing_page": (
@@ -68,6 +74,10 @@ class ConfigHandler(APIHandler):
             "enable_tutorials_menu": bool(
                 os.environ.get("ENABLE_TUTORIALS_MENU")
             ),
+            "endpoint": {
+                "landing_page": await self._rsp_client.get_landing_page_url(),
+                "logout": await self._rsp_client.get_logout_url(),
+            },
             "file_browser_root": os.environ.get("FILE_BROWSER_ROOT", "home"),
             "home_relative_to_file_browser_root": os.environ.get(
                 "HOME_RELATIVE_TO_FILE_BROWSER_ROOT", ""
@@ -108,9 +118,12 @@ class ConfigHandler(APIHandler):
             self._cfg["enable_queries_menu"] = True
         # Fixup until we change this to use config.json and service
         # discovery.
-        self._cfg["statusbar"] = self._get_statusbar()
+        self._cfg["statusbar"] = await self._get_statusbar()
 
-    def _get_statusbar(self) -> str:
+    async def _get_statusbar(self) -> str:
+        await self._convert_environ_to_config()
+        if self._cfg is None:  # Placate mypy; it won't be.
+            return ""
         descr = self._cfg["image"]["description"]
         spec = self._cfg["image"]["spec"]
         digest = self._cfg["image"]["digest"]
@@ -126,7 +139,8 @@ class ConfigHandler(APIHandler):
         return descr + digest_str + imagename + base_url
 
     @tornado.web.authenticated
-    def get(self) -> None:
+    async def get(self) -> None:
         """Emit config to calling HTTP client."""
         self.log.info("Sending Rubin config")
+        await self._convert_environ_to_config()
         self.write(json.dumps(self._cfg, sort_keys=True, indent=2))
