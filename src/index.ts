@@ -13,7 +13,7 @@ import { INotebookTracker } from '@jupyterlab/notebook';
 
 import { getServerConfig, INubladoConfigResponse } from './config';
 
-import { activateRSPDisplayVersionExtension } from './displayversion';
+import { activateRSPStatusBarExtension } from './statusbar';
 
 import { activateRSPPDFExportExtension } from './pdfexport';
 
@@ -115,9 +115,9 @@ async function activateIndividualExtensions(
       );
     }
   }
-  logMessage(LogLevels.INFO, cfg, '...activating displayversion extension...');
+  logMessage(LogLevels.INFO, cfg, '...activating statusbar extension...');
   try {
-    activateRSPDisplayVersionExtension(app, statusBar, cfg);
+    activateRSPStatusBarExtension(app, statusBar, cfg);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(

@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Wrap JupyterLab launch in respx mock."""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+import respx
+from httpx import Response
+from jupyterlab.labapp import main
+
+
+@respx.mock
+def _mock_discovery() -> None:
+    disco = json.loads(
+        (
+            Path(__file__).parent.parent
+            / "rsp_jupyter_extensions"
+            / "tests"
+            / "data"
+            / "etc"
+            / "nublado"
+            / "discovery_v1.json"
+        ).read_text()
+    )
+    url = os.environ.get("REPERTOIRE_BASE_URL")
+    if url is None:
+        raise RuntimeError("REPERTOIRE_BASE_URL must be set")
+    mocked = respx.get(url + "/discovery")
+    mocked.return_value = Response(200, json=disco)
+
+    sys.exit(main())
+
+
+if __name__ == "__main__":
+    _mock_discovery()
