@@ -11,18 +11,18 @@ import { TextItem } from '@jupyterlab/statusbar';
  *
  * @returns a tsx component for displaying version information.
  */
-function DisplayLabVersionComponent(
-  props: DisplayLabVersionComponent.IProps
-): React.ReactElement<DisplayLabVersionComponent.IProps> {
+function DisplayStatusBarComponent(
+  props: DisplayStatusBarComponent.IProps
+): React.ReactElement<DisplayStatusBarComponent.IProps> {
   return <TextItem source={`${props.source}`} title={`${props.title}`} />;
 }
 
 /**
- * A namespace for DisplayLabVersionComponent
+ * A namespace for DisplayStatusBarComponent
  */
-export namespace DisplayLabVersionComponent {
+export namespace DisplayStatusBarComponent {
   /**
-   * The props for rendering the DisplayLabVersion.
+   * The props for rendering the DisplayStatusBar.
    */
   export interface IProps {
     /**
@@ -33,12 +33,12 @@ export namespace DisplayLabVersionComponent {
   }
 }
 
-export class DisplayLabVersion extends VDomRenderer<VDomModel> {
-  props: DisplayLabVersionComponent.IProps;
+export class DisplayStatusBar extends VDomRenderer<VDomModel> {
+  props: DisplayStatusBarComponent.IProps;
   /**
-   * Create a new DisplayLabVersion widget.
+   * Create a new DisplayStatusBar widget.
    */
-  constructor(props: DisplayLabVersionComponent.IProps) {
+  constructor(props: DisplayStatusBarComponent.IProps) {
     super(new VDomModel());
     this.props = props;
   }
@@ -51,7 +51,7 @@ export class DisplayLabVersion extends VDomRenderer<VDomModel> {
       return null;
     }
     return (
-      <DisplayLabVersionComponent
+      <DisplayStatusBarComponent
         source={this.props.source}
         title={this.props.title}
       />
@@ -66,6 +66,6 @@ export class DisplayLabVersion extends VDomRenderer<VDomModel> {
   }
 }
 
-export namespace DisplayLabVersion {}
+export namespace DisplayStatusBar {}
 
-export default DisplayLabVersion;
+export default DisplayStatusBar;

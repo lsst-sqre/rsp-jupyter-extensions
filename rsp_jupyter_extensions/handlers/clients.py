@@ -3,13 +3,18 @@
 Used to encapsulate the queries we need to make to other RSP services.
 """
 
+import asyncio
 import logging
+import os
 from dataclasses import dataclass
 
 import xmltodict
 from httpx import AsyncClient
-from rubin.repertoire import DiscoveryClient
+from rubin.repertoire import (
+    DiscoveryClient,
+)
 
+from ..models.endpoints import Endpoints
 from ..models.query import UnknownDatasetError
 from ._utils import _get_access_token
 
@@ -34,6 +39,8 @@ class RSPClient:
     we do need to send a token (such as TAP or Times Square).
 
     It also includes convenience methods for finding commonly-used endpoints.
+
+    It aggressively caches whatever it can in order to minimize network calls.
 
     Parameters
     ----------
@@ -81,7 +88,20 @@ class RSPClient:
                 anonymous_client, base_url=repertoire_url
             )
         self.discovery_client = discovery_client
-        self.dataset_urls: dict[str, str] = {}
+        self.endpoints = Endpoints()
+        #
+        # I have not yet figured out how to correctly use respx to mock
+        # httpx in the context of jupyterlab.browser_check.
+        # This is a workaround until I do.
+        #
+        if os.getenv("_INTEGRATION_TESTING"):
+            en = "example.lsst.cloud"
+            bs = f"https://{en}"
+            self.endpoints.environment_name = en
+            self.endpoints.datasets["dp1"] = f"{bs}/api/tap"
+            self.endpoints.ui["logout"] = f"{bs}/logout"
+            self.endpoints.ui["squareone"] = bs
+            self.endpoints.service["times-square"] = f"{bs}/times-square"
 
     async def get_datasets(self) -> list[str]:
         """Get datasets present in the RSP instance.
@@ -95,26 +115,19 @@ class RSPClient:
         self._logger.debug(f"Found datasets {datasets}")
         return datasets
 
-    async def get_tap_endpoints(self) -> dict[str, str]:
-        """Get TAP endpoints in this RSP instance.
-
-        Returns
-        -------
-        dict[str, str]
-            Map of dataset to its corresponding TAP endpoint.
-        """
-        retval: dict[str, str] = {}
+    async def retrieve_tap_endpoints(self) -> None:
+        """Retrieve TAP endpoints in this RSP instance."""
         datasets = await self.get_datasets()
         for dataset in datasets:
             self._logger.debug(f"Finding TAP endpoint for dataset {dataset}")
-            url = await self.discovery_client.url_for_data("tap", dataset)
+            url = await self.get_tap_endpoint_for_dataset(dataset)
             if url:
-                retval[dataset] = url
-                self.dataset_urls[dataset] = url
+                self.endpoints.datasets[dataset] = url
                 self._logger.debug(f"TAP URL for {dataset} is {url}")
             else:
                 self._logger.warning(f"No TAP URL found for dataset {dataset}")
-        return retval
+                if dataset in self.endpoints.datasets:
+                    del self.endpoints.datasets[dataset]
 
     async def get_tap_endpoint_for_dataset(self, dataset: str) -> str | None:
         """Return the endpoint for a given dataset.
@@ -128,13 +141,17 @@ class RSPClient:
         -------
             URL of HTTP endpoint for TAP access to the dataset.
         """
-        if retval := self.dataset_urls.get(dataset):
+        if retval := self.endpoints.datasets.get(dataset):
             self._logger.debug(
                 f"Returning cached TAP URL for {dataset}: {retval}"
             )
             return retval
         # Rescan datasets, return None if still not found.
-        return (await self.get_tap_endpoints()).get(dataset)
+        url = await self.discovery_client.url_for_data("tap", dataset)
+        if url:
+            self.endpoints.datasets[dataset] = url
+            self._logger.info(f"Adding {dataset} url {url}")
+        return url
 
     async def resolve_jobref_id(self, jobref_id: str) -> JobRef:
         """Return a resolved JobRef with dataset, ID, and endpoint for a
@@ -178,8 +195,8 @@ class RSPClient:
             return JobRef(
                 dataset=dataset, jobref_id=new_j_id, endpoint=endpoint
             )
-        endpoints = await self.get_tap_endpoints()
-        for dataset, endpoint in endpoints.items():
+        await self.retrieve_tap_endpoints()
+        for dataset, endpoint in self.endpoints.datasets.items():
             url = f"{endpoint}/async/{jobref_id}"
             resp = await self.authed_client.get(url)
             if resp.status_code == 200:
@@ -211,9 +228,9 @@ class RSPClient:
         """
         retval: dict[str, list[dict[str, str]]] = {}
         params = {"last": str(limit)} if limit and limit > 0 else {}
-        endpoints = await self.get_tap_endpoints()
+        await self.retrieve_tap_endpoints()
         epoch = "1970-01-01T00:00:00.000Z"
-        for dataset, ep in endpoints.items():
+        for dataset, ep in self.endpoints.datasets.items():
             resp = await self.authed_client.get(ep + "/async", params=params)
             if resp.status_code >= 300:
                 msg = f"Status {resp.status_code} from {ep}/async; skipping"
@@ -239,8 +256,8 @@ class RSPClient:
 
         Returns
         -------
-        str
-            Name of the environment.
+        str|None
+            Name of the environment, or ``None`` if unknown.
 
         Notes
         -----
@@ -249,40 +266,108 @@ class RSPClient:
         it shouldn't be treated as an endpoint; that's what the landing page
         URL is for.
         """
-        return await self.discovery_client.environment_name()
+        if not self.endpoints.environment_name:
+            nm = await self.discovery_client.environment_name()
+            if not nm:
+                return None
+            self.endpoints.environment_name = nm
+        return self.endpoints.environment_name
+
+    async def _get_ui_url(self, func: str) -> str | None:
+        """Get an internal service URL.
+
+        Parameters
+        ----------
+        func
+            UI endpoint name, describing its function.
+
+        Returns
+        -------
+        str|None
+            URL for that UI endpoint, or ``None`` if not found.
+        """
+        if func not in self.endpoints.ui:
+            url = await self.discovery_client.url_for_ui(func)
+            if not url:
+                return None
+            self.endpoints.ui[func] = url
+        self._logger.debug(
+            f"UI endpoint for {func} is {self.endpoints.ui[func]}"
+        )
+        return self.endpoints.ui[func]
 
     async def get_logout_url(self) -> str | None:
         """Get the URL used to log out of this RSP instance.
 
         Returns
         -------
-        str
-            URL used for logout.
+        str|None
+            URL used for logout or ``None`` if not found.
         """
-        url = await self.discovery_client.url_for_ui("logout")
-        self._logger.debug(f"Logout URL is {url}")
-        return url
+        return await self._get_ui_url("logout")
 
     async def get_landing_page_url(self) -> str | None:
         """Get the URL for the landing page of this RSP instance.
 
         Returns
         -------
-        str
-            URL used for landing page.
+        str|None
+            URL used for landing page or ``None`` if unknown.
+
+        Notes
+        -----
+        It's called "squareone", not "landing_page".
         """
-        url = await self.discovery_client.url_for_ui("squareone")
-        self._logger.debug(f"Landing page URL is {url}")
-        return url
+        return await self._get_ui_url("squareone")
+
+    async def _get_svc_url(self, svc: str) -> str | None:
+        """Get an internal service URL.
+
+        Parameters
+        ----------
+        svc
+            Service name
+
+        Returns
+        -------
+        str|None
+            URL for that service, or ``None`` if not found.
+        """
+        if svc not in self.endpoints.service:
+            url = await self.discovery_client.url_for_internal(svc)
+            self._logger.debug(f"Service endpoint for {svc} is {url}")
+            if url is None:
+                return None
+            self.endpoints.service[svc] = url
+        return self.endpoints.service[svc]
 
     async def get_times_square_url(self) -> str | None:
         """Get the URL used for Times Square in this RSP instance.
 
         Returns
         -------
-        str
-            URL used for the Times Square service.
+        str|None
+            URL used for the Times Square service or ``None`` if unknown.
         """
-        url = await self.discovery_client.url_for_internal("times-square")
-        self._logger.debug(f"Times Square URL is {url}")
-        return url
+        return await self._get_svc_url("times-square")
+
+    async def get_endpoints(self) -> Endpoints:
+        """Return a structure with all the endpoints we care about.  Prime
+        the cache by asking for everything, and then hand back the whole
+        structure.
+
+        Returns
+        -------
+        Endpoints
+            A fully-populated list of endpoints.
+        """
+        async with asyncio.TaskGroup() as tg:
+            tasks = (
+                self.get_times_square_url,
+                self.get_logout_url,
+                self.get_landing_page_url,
+                self.retrieve_tap_endpoints,
+                self.get_environment_name,
+            )
+            [tg.create_task(task()) for task in tasks]
+        return self.endpoints

@@ -20,6 +20,7 @@ import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 import { INubladoConfigResponse } from './config';
+import { getEndpoints } from './endpoints';
 
 /**
  * The command IDs used by the plugin.
@@ -27,6 +28,11 @@ import { INubladoConfigResponse } from './config';
 export namespace CommandIDs {
   export const justQuit = 'justquit:justquit';
   export const quitLogout = 'quitlogout:quitlogout';
+}
+
+enum QuitDisposition {
+  Quit = 'QUIT',
+  Logout = 'LOGOUT'
 }
 
 /**
@@ -45,7 +51,7 @@ export function activateRSPQuitExtension(
     label: 'Exit',
     caption: 'Destroy container',
     execute: () => {
-      justQuit(app, false, cfg);
+      justQuit(app, QuitDisposition.Quit, cfg);
     }
   });
 
@@ -53,7 +59,7 @@ export function activateRSPQuitExtension(
     label: 'Exit and Log Out',
     caption: 'Destroy container and log out',
     execute: () => {
-      justQuit(app, true, cfg);
+      justQuit(app, QuitDisposition.Logout, cfg);
     }
   });
 
@@ -85,38 +91,48 @@ async function hubDeleteRequest(
 
 async function justQuit(
   app: JupyterFrontEnd,
-  logout: boolean,
+  disposition: QuitDisposition,
   cfg: INubladoConfigResponse
 ): Promise<any> {
-  let targetEndpoint = PageConfig.getOption('hubHost');
-  // This needs to be changed when we have service discovery working, but
-  // this is a good enough guess for now.  If it fails you just get sent
-  // back to the Hub rather than the landing page (and logout probably doesn't
-  // work).
-  if (targetEndpoint.substring(0, 10) === 'http://nb.') {
-    targetEndpoint = 'http://' + targetEndpoint.substring(10);
-  }
-  if (targetEndpoint.substring(0, 11) === 'https://nb.') {
-    targetEndpoint = 'https://' + targetEndpoint.substring(11);
-  }
-  if (logout) {
-    targetEndpoint = targetEndpoint + '/logout';
-  }
-  logMessage(LogLevels.DEBUG, cfg, `final target endpoint: ${targetEndpoint}`);
+  // Don't await infoDialog(): if we navigate away before the user
+  // acknowledges, that's OK.
   try {
-    // Lack of await for infoDialog() is intentional.  If we leave the page
-    // before the user acknowledges the dialog, that's fine.
     infoDialog(cfg);
-  } catch (infoError) {
-    logMessage(LogLevels.WARNING, cfg, `quit: infoDialog failed: ${infoError}`);
+  } catch (error) {
+    logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
+    // Don't rethrow - this is a non-critical background operation
   }
   try {
-    await hubDeleteRequest(app, cfg);
-    logMessage(LogLevels.INFO, cfg, 'Quit complete.');
-    window.location.replace(targetEndpoint);
-    return null;
+    const ep = await getEndpoints(app);
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
+      `Got endpoint response: ${JSON.stringify(ep, undefined, 2)}`
+    );
+
+    let targetEndpoint = ep.ui['squareone'] || '/';
+    if (disposition === QuitDisposition.Logout) {
+      targetEndpoint = ep.ui['logout'] || '/';
+    }
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
+      `final target endpoint: ${targetEndpoint}`
+    );
+    try {
+      await hubDeleteRequest(app, cfg);
+      logMessage(LogLevels.INFO, cfg, 'Quit complete.');
+      window.location.replace(targetEndpoint);
+      return null;
+    } catch (error) {
+      logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
+    }
   } catch (error) {
-    logMessage(LogLevels.WARNING, cfg, `quit: justQuit failed: ${error}`);
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `exit: finding endpoints failed: ${error}`
+    );
   }
 }
 

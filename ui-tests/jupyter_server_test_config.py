@@ -10,4 +10,3 @@ configure_jupyter_server(c)  # noqa
 
 # Uncomment to set server log level to debug level
 # c.ServerApp.log_level = "DEBUG"  # noqa
-
