@@ -20,6 +20,7 @@ import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 import { INubladoConfigResponse } from './config';
+import { IRSPEndpointsResponse } from './endpoints';
 
 /**
  * The command IDs used by the plugin.
@@ -27,6 +28,32 @@ import { INubladoConfigResponse } from './config';
 export namespace CommandIDs {
   export const justQuit = 'justquit:justquit';
   export const quitLogout = 'quitlogout:quitlogout';
+}
+
+class RSPEndpoints implements IRSPEndpointsResponse {
+  environment_name: string;
+  datasets: { [key: string]: string } = {};
+  service: { [key: string]: string } = {};
+  ui: { [key: string]: string } = {};
+
+  constructor(inp: IRSPEndpointsResponse) {
+    this.environment_name = inp.environment_name;
+    for (const dsname in inp.datasets) {
+      if (inp.datasets[dsname] !== null && inp.datasets[dsname].length !== 0) {
+        this.datasets[dsname] = inp.datasets[dsname];
+      }
+    }
+    for (const svcname in inp.service) {
+      if (inp.service[svcname] !== null && inp.service[svcname].length !== 0) {
+        this.service[svcname] = inp.service[svcname];
+      }
+    }
+    for (const uiname in inp.ui) {
+      if (inp.ui[uiname] !== null && inp.ui[uiname].length !== 0) {
+        this.ui[uiname] = inp.ui[uiname];
+      }
+    }
+  }
 }
 
 /**
@@ -69,6 +96,20 @@ export function activateRSPQuitExtension(
   logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
 }
 
+async function endpointRequest(
+  app: JupyterFrontEnd,
+  cfg: INubladoConfigResponse
+): Promise<Response> {
+  const svcManager = app.serviceManager;
+  const settings = svcManager.serverSettings;
+  const endpoint = PageConfig.getBaseUrl() + 'rubin/endpoints';
+  const init = {
+    method: 'GET'
+  };
+  logMessage(LogLevels.DEBUG, cfg, `exit: endpoints URL: ${endpoint}`);
+  return ServerConnection.makeRequest(endpoint, init, settings);
+}
+
 async function hubDeleteRequest(
   app: JupyterFrontEnd,
   cfg: INubladoConfigResponse
@@ -88,35 +129,51 @@ async function justQuit(
   logout: boolean,
   cfg: INubladoConfigResponse
 ): Promise<any> {
-  let targetEndpoint = PageConfig.getOption('hubHost');
-  // This needs to be changed when we have service discovery working, but
-  // this is a good enough guess for now.  If it fails you just get sent
-  // back to the Hub rather than the landing page (and logout probably doesn't
-  // work).
-  if (targetEndpoint.substring(0, 10) === 'http://nb.') {
-    targetEndpoint = 'http://' + targetEndpoint.substring(10);
-  }
-  if (targetEndpoint.substring(0, 11) === 'https://nb.') {
-    targetEndpoint = 'https://' + targetEndpoint.substring(11);
-  }
-  if (logout) {
-    targetEndpoint = targetEndpoint + '/logout';
-  }
-  logMessage(LogLevels.DEBUG, cfg, `final target endpoint: ${targetEndpoint}`);
   try {
-    // Lack of await for infoDialog() is intentional.  If we leave the page
-    // before the user acknowledges the dialog, that's fine.
+    // We don't want to await infoDialog(); if the user fails to acknowledge
+    // the dialog before we navigate away, that's OK.
     infoDialog(cfg);
-  } catch (infoError) {
-    logMessage(LogLevels.WARNING, cfg, `quit: infoDialog failed: ${infoError}`);
+  } catch (error) {
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `exit: infoDialog() failed: ${error}`
+    );
   }
   try {
-    await hubDeleteRequest(app, cfg);
-    logMessage(LogLevels.INFO, cfg, 'Quit complete.');
-    window.location.replace(targetEndpoint);
-    return null;
+    const res = await endpointRequest(app, cfg);
+    const ep_c = res as unknown as IRSPEndpointsResponse;
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
+      `Got query history response: ${JSON.stringify(ep_c, undefined, 2)}`
+    );
+    const ep = new RSPEndpoints(ep_c);
+
+    let targetEndpoint = PageConfig.getOption('hubHost');
+    targetEndpoint = ep.ui['landing_page'];
+    if (disposition === ExitDisposition.Logout) {
+      targetEndpoint = ep.ui['logout'];
+    }
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
+      `final target endpoint: ${targetEndpoint}`
+    );
+    try {
+      await hubDeleteRequest(app, cfg);
+      logMessage(LogLevels.INFO, cfg, 'Quit complete.');
+      window.location.replace(targetEndpoint);
+      return Promise<null>;
+    } catch (error) {
+      logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
+    }
   } catch (error) {
-    logMessage(LogLevels.WARNING, cfg, `quit: justQuit failed: ${error}`);
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `exit: finding endpoints failed: ${error}`
+    );
   }
 }
 
