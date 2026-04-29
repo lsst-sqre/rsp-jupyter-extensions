@@ -9,11 +9,6 @@ export interface INubladoConfigResponse {
   enable_landing_page: boolean;
   enable_queries_menu: boolean;
   enable_tutorials_menu: boolean;
-  endpoint: {
-    landing_page: string;
-    logout: string;
-    nublado: string;
-  };
   file_browser_root: string;
   home_relative_to_file_browser_root: string;
   image: {

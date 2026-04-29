@@ -7,12 +7,18 @@ derived subset of the process environment.
 
 import json
 import os
-from typing import Any
+from dataclasses import asdict
 
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
-from ._utils import _get_base_url
+from ..models.config import (
+    FileBrowserRoot,
+    LabImage,
+    LabResource,
+    LabResources,
+    RSPConfig,
+)
 from .clients import RSPClient
 
 
@@ -24,7 +30,7 @@ class ConfigHandler(APIHandler):
         if "client" not in self.settings:
             self.settings["client"] = RSPClient(logger=self.log)
         self._rsp_client = self.settings["client"]
-        self._cfg: dict[str, Any] | None = None
+        self._cfg: RSPConfig | None = None
         self.log.info("Initializing ConfigHandler.")
 
     @staticmethod
@@ -51,6 +57,38 @@ class ConfigHandler(APIHandler):
             return ""
         return digest
 
+    @staticmethod
+    def _fbr_from_env() -> FileBrowserRoot:
+        fbr = os.environ.get("FILE_BROWSER_ROOT", "home")
+        if fbr == "home":
+            return FileBrowserRoot.HOME
+        elif fbr == "root":
+            return FileBrowserRoot.ROOT
+        raise RuntimeError(
+            "FILE_BROWSER_ROOT, if set, must be 'home' or 'root'"
+        )
+
+    @staticmethod
+    def _home_relative_to_filebrowser_root() -> str:
+        fbr = ConfigHandler._fbr_from_env()
+        if fbr == FileBrowserRoot.HOME:
+            return ""
+        return os.getenv("HOME", "").lstrip("/")
+
+    async def _get_statusbar(self, lab_image: LabImage) -> str:
+        descr = lab_image.description
+        spec = lab_image.spec
+        digest = lab_image.digest
+        digest_str = f" [{digest[0:8]}...]"
+        img_arr = spec.split("/")
+        try:
+            pullname, _ = img_arr[-1].split("@", 1)
+            imagename = f" ({pullname})"
+        except ValueError:
+            imagename = ""
+        env_name = await self._rsp_client.get_environment_name()
+        return descr + digest_str + imagename + " " + env_name
+
     async def _convert_environ_to_config(self) -> None:
         """Sanitized version of environment.  Note that eventually we want
         to pass this as a separate config.json, and any remaining environment
@@ -62,85 +100,56 @@ class ConfigHandler(APIHandler):
         """
         if self._cfg is not None:
             return
-        self._cfg = {
-            "container_size": os.environ.get("CONTAINER_SIZE", "Unknown"),
-            "debug": bool(os.environ.get("DEBUG")),
-            "enable_landing_page": (
-                os.environ.get("RSP_SITE_TYPE") == "science"
+        image = LabImage(
+            description=os.environ.get(
+                "IMAGE_DESCRIPTION", self._image_spec_to_tag()
             ),
-            "enable_queries_menu": bool(
+            digest=os.environ.get(
+                "IMAGE_DIGEST", self._image_spec_to_digest()
+            ),
+            spec=os.environ.get("JUPYTER_IMAGE_SPEC", ""),
+        )
+        self._cfg = RSPConfig(
+            container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
+            debug=bool(os.environ.get("DEBUG")),
+            enable_landing_page=(os.environ.get("RSP_SITE_TYPE") == "science"),
+            enable_queries_menu=bool(
                 os.environ.get("ENABLE_RUBIN_QUERY_MENU")
             ),
-            "enable_tutorials_menu": bool(
+            enable_tutorials_menu=bool(
                 os.environ.get("ENABLE_TUTORIALS_MENU")
             ),
-            "endpoint": {
-                "landing_page": await self._rsp_client.get_landing_page_url(),
-                "logout": await self._rsp_client.get_logout_url(),
-            },
-            "file_browser_root": os.environ.get("FILE_BROWSER_ROOT", "home"),
-            "home_relative_to_file_browser_root": os.environ.get(
-                "HOME_RELATIVE_TO_FILE_BROWSER_ROOT", ""
+            file_browser_root=self._fbr_from_env(),
+            home_relative_to_file_browser_root=(
+                self._home_relative_to_filebrowser_root()
             ),
-            "image": {
-                "description": os.environ.get(
-                    "IMAGE_DESCRIPTION", self._image_spec_to_tag()
+            image=image,
+            jupyterlab_config_dir=os.environ.get("JUPYTERLAB_CONFIG_DIR", ""),
+            repertoire_base_url=os.environ.get("REPERTOIRE_BASE_URL", ""),
+            reset_user_env=bool(os.environ.get("RESET_USER_ENV")),
+            resources=LabResources(
+                limits=LabResource(
+                    cpu=float(os.environ.get("CPU_LIMIT", "-1")),
+                    memory=int(os.environ.get("MEM_LIMIT", "-1")),
                 ),
-                "digest": os.environ.get(
-                    "IMAGE_DIGEST", self._image_spec_to_digest()
+                requests=LabResource(
+                    cpu=float(os.environ.get("CPU_GUARANTEE", "-1")),
+                    memory=int(os.environ.get("MEM_GUARANTEE", "-1")),
                 ),
-                "spec": os.environ.get("JUPYTER_IMAGE_SPEC", ""),
-            },
-            "jupyterlab_config_dir": os.environ.get(
-                "JUPYTERLAB_CONFIG_DIR", ""
             ),
-            "repertoire_base_url": os.environ.get("REPERTOIRE_BASE_URL", ""),
-            "reset_user_env": bool(os.environ.get("RESET_USER_ENV")),
-            "resources": {
-                "limits": {
-                    "cpu": float(os.environ.get("CPU_LIMIT", "-1")),
-                    "memory": int(os.environ.get("MEM_LIMIT", "-1")),
-                },
-                "requests": {
-                    "cpu": float(os.environ.get("CPU_GUARANTEE", "-1")),
-                    "memory": int(os.environ.get("MEM_GUARANTEE", "-1")),
-                },
-            },
-            "runtime_mounts_dir": os.environ.get(
+            runtime_mounts_dir=os.environ.get(
                 "NUBLADO_RUNTIME_MOUNTS_DIR", ""
             ),
-        }
-        # Fixup until we eliminate RSP_SITE_TYPE (requires Nublado changes)
-        rsp_site_type = os.environ.get("RSP_SITE_TYPE", "")
-        if rsp_site_type in ("staff", "science"):
-            self._cfg["enable_tutorials_menu"] = True
-        if rsp_site_type == "science":
-            self._cfg["enable_queries_menu"] = True
-        # Fixup until we change this to use config.json and service
-        # discovery.
-        self._cfg["statusbar"] = await self._get_statusbar()
-
-    async def _get_statusbar(self) -> str:
-        await self._convert_environ_to_config()
-        if self._cfg is None:  # Placate mypy; it won't be.
-            return ""
-        descr = self._cfg["image"]["description"]
-        spec = self._cfg["image"]["spec"]
-        digest = self._cfg["image"]["digest"]
-        digest_str = f" [{digest[0:8]}...]"
-        img_arr = spec.split("/")
-        try:
-            pullname, _ = img_arr[-1].split("@", 1)
-            imagename = f" ({pullname})"
-        except ValueError:
-            imagename = ""
-        # Fixup until we have service discovery
-        base_url = f" {_get_base_url()}"
-        return descr + digest_str + imagename + base_url
+            statusbar=await self._get_statusbar(image),
+        )
 
     @tornado.web.authenticated
     async def get(self) -> None:
         """Emit config to calling HTTP client."""
-        self.log.info("Sending Rubin config")
+        self.log.debug("Assembling Rubin config")
         await self._convert_environ_to_config()
-        self.write(json.dumps(self._cfg, sort_keys=True, indent=2))
+        self.log.info("Sending Rubin config")
+        if self._cfg is None:
+            self.write("{}")
+        else:
+            self.write(json.dumps(asdict(self._cfg), sort_keys=True, indent=2))
