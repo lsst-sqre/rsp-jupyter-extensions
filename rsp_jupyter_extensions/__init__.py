@@ -5,6 +5,7 @@ from jupyter_server.utils import url_path_join as ujoin
 
 from .handlers.abnormal import AbnormalStartupHandler
 from .handlers.config import ConfigHandler
+from .handlers.endpoints import EndpointsHandler
 from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
 from .handlers.hub import HubHandler
@@ -42,6 +43,7 @@ def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
     extmap = {
         r"/rubin/abnormal": AbnormalStartupHandler,
         r"/rubin/config": ConfigHandler,
+        r"/rubin/endpoints": EndpointsHandler,
         r"/rubin/execution": ExecutionHandler,
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,

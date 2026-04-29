@@ -74,10 +74,6 @@ async def test_config(
         "enable_landing_page": False,
         "enable_queries_menu": False,
         "enable_tutorials_menu": False,
-        "endpoint": {
-            "landing_page": "https://example.lsst.cloud/",
-            "logout": "https://example.lsst.cloud/logout",
-        },
         "file_browser_root": "home",
         "home_relative_to_file_browser_root": "",
         "image": {
@@ -108,6 +104,6 @@ async def test_config(
         "runtime_mounts_dir": "/etc/nublado",
         "statusbar": (
             "Daily 2026_03_31 [ae3bfaed...] (sciplat-lab:d_2026_03_31) "
-            "https://example.lsst.cloud"
+            "example.lsst.cloud"
         ),
     }
