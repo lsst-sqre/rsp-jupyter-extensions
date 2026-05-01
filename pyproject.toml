@@ -41,6 +41,7 @@ test = [
     "pytest-asyncio",
     "pytest-cov",
     "pytest-jupyter[server]>=0.6.0",
+    "respx",
     "ruff",
     "types-requests",
     "types-xmltodict"
@@ -99,6 +100,10 @@ before-build-python = ["jlpm clean:all"]
 
 [tool.check-wheel-contents]
 ignore = ["W002"]
+
+[[tool.mypy.overrides]]
+module = ["jupyterlab.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"

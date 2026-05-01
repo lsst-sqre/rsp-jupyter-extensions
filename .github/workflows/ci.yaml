@@ -48,7 +48,7 @@ jobs:
     - name: Build the extension
       env:
         # Enough to fake being an RSP instance
-        # Used by displayversion
+        # Used by statusbar
         IMAGE_DESCRIPTION: "w_2024_47 experimental"
         IMAGE_DIGEST: "e51a5b52ea0149c2d8a66dbef7ccb0cdb31470ed74025f7922e46555e96aa30a"
         JUPYTER_IMAGE_SPEC: "us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/sciplat-lab:exp_w_2024_47_tut_ext@sha256:e51a5b52ea0149c2d8a66dbef7ccb0cdb31470ed74025f7922e46555e96aa30a"
@@ -63,6 +63,9 @@ jobs:
         HOME: "/home/runner/work"
         TUTORIAL_NOTEBOOKS_DIR: "/home/runner/work/git/tutorial-notebooks"
         AUTO_REPO_SPECS: "https://github.com/rubin-dp0/tutorial-notebooks@prod"
+        # Used by config
+        NUBLADO_RUNTIME_MOUNTS_DIR: "/home/runner/work/etc/nublado"
+        REPERTOIRE_BASE_URL: "https://example.lsst.cloud"
       run: |
         mkdir -p /home/runner/work/git/tutorial-notebooks
         cat << EOF > /home/runner/work/git/tutorial-notebooks/hello.ipynb
@@ -102,6 +105,8 @@ jobs:
          "nbformat_minor": 5
         }
         EOF
+        mkdir -p /home/runner/work/etc/nublado/secrets
+        echo "gt-dummy" > /home/runner/work/etc/nublado/secrets/token
         python -m pip install .[test]
 
         pytest -vv -r ap --cov rsp_jupyter_extensions
@@ -219,6 +224,9 @@ jobs:
         HOME: "/home/runner/work"
         TUTORIAL_NOTEBOOKS_DIR: "/home/runner/work/git/tutorial-notebooks"
         AUTO_REPO_SPECS: "https://github.com/rubin-dp0/tutorial-notebooks@prod"
+        # Used by config
+        NUBLADO_RUNTIME_MOUNTS_DIR: "/home/runner/work/etc/nublado"
+        REPERTOIRE_BASE_URL: "https://example.lsst.cloud"
       run: |
         mkdir -p /home/runner/work/git/tutorial-notebooks
         cat << EOF > /home/runner/work/git/tutorial-notebooks/hello.ipynb
@@ -258,6 +266,9 @@ jobs:
          "nbformat_minor": 5
         }
         EOF
+        mkdir -p /home/runner/work/etc/nublado/secrets
+        echo "gt-dummy" > /home/runner/work/etc/nublado/secrets/token
+
         jlpm playwright test
 
     - name: Upload Playwright Test report

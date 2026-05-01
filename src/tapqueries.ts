@@ -80,13 +80,13 @@ class TAPQueryHistoryResponse implements ITAPQueryHistoryResponse {
 /**
  * Activate the extension.
  */
-export async function activateRSPTAPQueryExtension(
+export async function activateRSPTAPQueriesExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   cfg: INubladoConfigResponse
 ): Promise<void> {
-  logMessage(LogLevels.INFO, cfg, 'rsp-tapquery...loading');
+  logMessage(LogLevels.INFO, cfg, 'rsp-tapqueries...loading');
 
   const svcManager = app.serviceManager;
   const { commands } = app;
@@ -98,7 +98,7 @@ export async function activateRSPTAPQueryExtension(
 
   await replaceJobsmenuContents(app, docManager, svcManager, cfg, jobsmenu);
 
-  logMessage(LogLevels.INFO, cfg, 'rsp-tapquery...loaded');
+  logMessage(LogLevels.INFO, cfg, 'rsp-tapqueries...loaded');
 }
 
 async function replaceJobsmenuContents(
@@ -493,14 +493,14 @@ export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
 /**
  * Initialization data for the query extension.
  */
-const rspTAPQueryExtension: JupyterFrontEndPlugin<void> = {
-  activate: activateRSPTAPQueryExtension,
+const rspTAPQueriesExtension: JupyterFrontEndPlugin<void> = {
+  activate: activateRSPTAPQueriesExtension,
   id: token.TAPQUERY_ID,
   requires: [IMainMenu, IDocumentManager],
   autoStart: false
 };
 
-export default rspTAPQueryExtension;
+export default rspTAPQueriesExtension;
 
 namespace Private {
   /**
