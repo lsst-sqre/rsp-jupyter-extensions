@@ -115,7 +115,7 @@ jobs:
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "rsp-jupyter-extensions.*OK"
-        ./wrappers/browser-check-wrapper
+        python -m rsp_wrappers.browser_check_wrapper
 
     - name: Package the extension
       run: |
@@ -160,7 +160,7 @@ jobs:
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "rsp-jupyter-extensions.*OK"
-        ./wrappers/browser-check-wrapper --no-browser-test
+        python -m rsp_wrappers.browser_check_wrapper --no-browser-test
 
   integration-tests:
     name: Integration tests

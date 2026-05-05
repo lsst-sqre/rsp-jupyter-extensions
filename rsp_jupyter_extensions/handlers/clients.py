@@ -296,8 +296,12 @@ class RSPClient:
         -------
         str|None
             URL used for landing page or ``None`` if unknown.
+
+        Notes
+        -----
+        It's called "squareone", not "landing_page".
         """
-        return await self._get_ui_url("landing_page")
+        return await self._get_ui_url("squareone")
 
     async def _get_svc_url(self, svc: str) -> str | None:
         """Get an internal service URL.

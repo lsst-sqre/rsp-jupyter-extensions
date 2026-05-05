@@ -16,8 +16,6 @@ def _mock_discovery() -> None:
     disco = json.loads(
         (
             Path(__file__).parent.parent
-            / "rsp_jupyter_extensions"
-            / "tests"
             / "data"
             / "etc"
             / "nublado"
