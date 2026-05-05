@@ -134,7 +134,12 @@ async function exit(
   disposition: ExitDisposition,
   cfg: INubladoConfigResponse
 ): Promise<any> {
-  await infoDialog(cfg);
+  // Don't await - if we navigate away before the user clicks OK, that's
+  // fine.
+  infoDialog(cfg).catch(error => {
+    logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
+    // Don't rethrow - this is a non-critical background operation
+  });
   try {
     const res = await endpointRequest(app, cfg);
     const ep_c = res as unknown as IRSPEndpointsResponse;
@@ -146,7 +151,7 @@ async function exit(
     const ep = new RSPEndpoints(ep_c);
 
     let targetEndpoint = PageConfig.getOption('hubHost');
-    targetEndpoint = ep.ui['landing_page'];
+    targetEndpoint = ep.ui['squareone'];
     if (disposition === ExitDisposition.Logout) {
       targetEndpoint = ep.ui['logout'];
     }

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Wrap JupyterLab browser check in respx mock."""
+"""Attempt to mock jupyterlab launch."""
 
 import json
 import os
-import sys
 from pathlib import Path
 
+import httpx
 import respx
-from httpx import Response
 from jupyterlab.browser_check import BrowserApp
 
 
@@ -16,8 +15,6 @@ def _mock_discovery() -> None:
     disco = json.loads(
         (
             Path(__file__).parent.parent
-            / "rsp_jupyter_extensions"
-            / "tests"
             / "data"
             / "etc"
             / "nublado"
@@ -28,15 +25,7 @@ def _mock_discovery() -> None:
     if url is None:
         raise RuntimeError("REPERTOIRE_BASE_URL must be set")
     mocked = respx.get(url + "/discovery")
-    mocked.return_value = Response(200, json=disco)
-
-    skip_options = ["--no-browser-test", "--no-chrome-test"]
-    for option in skip_options:
-        if option in sys.argv:
-            BrowserApp.test_browser = False
-            sys.argv.remove(option)
-    if "jupyterlab.browser_check" in sys.argv:
-        sys.argv.remove("jupyterlab.browser_check")
+    mocked.return_value = httpx.Response(200, json=disco)
 
     BrowserApp.launch_instance()
 
