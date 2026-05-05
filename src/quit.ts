@@ -129,16 +129,13 @@ async function justQuit(
   logout: boolean,
   cfg: INubladoConfigResponse
 ): Promise<any> {
+  // Don't await infoDialog(): if we navigate away before the user
+  // acknowledges, that's OK.
   try {
-    // We don't want to await infoDialog(); if the user fails to acknowledge
-    // the dialog before we navigate away, that's OK.
-    infoDialog(cfg);
-  } catch (error) {
-    logMessage(
-      LogLevels.WARNING,
-      cfg,
-      `exit: infoDialog() failed: ${error}`
-    );
+    infoDialog(cfg)
+  } catch(error) {
+    logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
+    // Don't rethrow - this is a non-critical background operation
   }
   try {
     const res = await endpointRequest(app, cfg);
@@ -151,7 +148,7 @@ async function justQuit(
     const ep = new RSPEndpoints(ep_c);
 
     let targetEndpoint = PageConfig.getOption('hubHost');
-    targetEndpoint = ep.ui['landing_page'];
+    targetEndpoint = ep.ui['squareone'];
     if (disposition === ExitDisposition.Logout) {
       targetEndpoint = ep.ui['logout'];
     }
