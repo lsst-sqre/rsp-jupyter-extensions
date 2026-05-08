@@ -5,6 +5,7 @@ is calculated from the environment, so what we are returning is a sanitized
 derived subset of the process environment.
 """
 
+import asyncio
 import json
 import os
 from dataclasses import asdict
@@ -31,6 +32,7 @@ class ConfigHandler(APIHandler):
             self.settings["client"] = RSPClient(logger=self.log)
         self._rsp_client = self.settings["client"]
         self._cfg: RSPConfig | None = None
+        self._lock = asyncio.Lock()
         self.log.info("Initializing ConfigHandler.")
 
     @staticmethod
@@ -86,8 +88,11 @@ class ConfigHandler(APIHandler):
             imagename = f" ({pullname})"
         except ValueError:
             imagename = ""
+        statusbar = descr + digest_str + imagename
         env_name = await self._rsp_client.get_environment_name()
-        return descr + digest_str + imagename + " " + env_name
+        if env_name is not None:
+            statusbar += " " + env_name
+        return statusbar
 
     async def _convert_environ_to_config(self) -> None:
         """Sanitized version of environment.  Note that eventually we want
@@ -98,50 +103,55 @@ class ConfigHandler(APIHandler):
         it, and then eventually dropping the environment settings parsing
         entirely.
         """
-        if self._cfg is not None:
-            return
-        image = LabImage(
-            description=os.environ.get(
-                "IMAGE_DESCRIPTION", self._image_spec_to_tag()
-            ),
-            digest=os.environ.get(
-                "IMAGE_DIGEST", self._image_spec_to_digest()
-            ),
-            spec=os.environ.get("JUPYTER_IMAGE_SPEC", ""),
-        )
-        self._cfg = RSPConfig(
-            container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
-            debug=bool(os.environ.get("DEBUG")),
-            enable_landing_page=(os.environ.get("RSP_SITE_TYPE") == "science"),
-            enable_queries_menu=bool(
-                os.environ.get("ENABLE_RUBIN_QUERY_MENU")
-            ),
-            enable_tutorials_menu=bool(
-                os.environ.get("ENABLE_TUTORIALS_MENU")
-            ),
-            file_browser_root=self._fbr_from_env(),
-            home_relative_to_file_browser_root=(
-                self._home_relative_to_filebrowser_root()
-            ),
-            image=image,
-            jupyterlab_config_dir=os.environ.get("JUPYTERLAB_CONFIG_DIR", ""),
-            repertoire_base_url=os.environ.get("REPERTOIRE_BASE_URL", ""),
-            reset_user_env=bool(os.environ.get("RESET_USER_ENV")),
-            resources=LabResources(
-                limits=LabResource(
-                    cpu=float(os.environ.get("CPU_LIMIT", "-1")),
-                    memory=int(os.environ.get("MEM_LIMIT", "-1")),
+        async with self._lock:
+            if self._cfg is not None:
+                return
+            image = LabImage(
+                description=os.environ.get(
+                    "IMAGE_DESCRIPTION", self._image_spec_to_tag()
                 ),
-                requests=LabResource(
-                    cpu=float(os.environ.get("CPU_GUARANTEE", "-1")),
-                    memory=int(os.environ.get("MEM_GUARANTEE", "-1")),
+                digest=os.environ.get(
+                    "IMAGE_DIGEST", self._image_spec_to_digest()
                 ),
-            ),
-            runtime_mounts_dir=os.environ.get(
-                "NUBLADO_RUNTIME_MOUNTS_DIR", ""
-            ),
-            statusbar=await self._get_statusbar(image),
-        )
+                spec=os.environ.get("JUPYTER_IMAGE_SPEC", ""),
+            )
+            self._cfg = RSPConfig(
+                container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
+                debug=bool(os.environ.get("DEBUG")),
+                enable_landing_page=(
+                    os.environ.get("RSP_SITE_TYPE") == "science"
+                ),
+                enable_queries_menu=bool(
+                    os.environ.get("ENABLE_RUBIN_QUERY_MENU")
+                ),
+                enable_tutorials_menu=bool(
+                    os.environ.get("ENABLE_TUTORIALS_MENU")
+                ),
+                file_browser_root=self._fbr_from_env(),
+                home_relative_to_file_browser_root=(
+                    self._home_relative_to_filebrowser_root()
+                ),
+                image=image,
+                jupyterlab_config_dir=os.environ.get(
+                    "JUPYTERLAB_CONFIG_DIR", ""
+                ),
+                repertoire_base_url=os.environ.get("REPERTOIRE_BASE_URL", ""),
+                reset_user_env=bool(os.environ.get("RESET_USER_ENV")),
+                resources=LabResources(
+                    limits=LabResource(
+                        cpu=float(os.environ.get("CPU_LIMIT", "-1")),
+                        memory=int(os.environ.get("MEM_LIMIT", "-1")),
+                    ),
+                    requests=LabResource(
+                        cpu=float(os.environ.get("CPU_GUARANTEE", "-1")),
+                        memory=int(os.environ.get("MEM_GUARANTEE", "-1")),
+                    ),
+                ),
+                runtime_mounts_dir=os.environ.get(
+                    "NUBLADO_RUNTIME_MOUNTS_DIR", ""
+                ),
+                statusbar=await self._get_statusbar(image),
+            )
 
     @tornado.web.authenticated
     async def get(self) -> None:

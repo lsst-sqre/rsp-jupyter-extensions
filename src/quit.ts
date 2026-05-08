@@ -20,7 +20,7 @@ import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 import { INubladoConfigResponse } from './config';
-import { IRSPEndpointsResponse } from './endpoints';
+import { getEndpoints } from './endpoints';
 
 /**
  * The command IDs used by the plugin.
@@ -30,30 +30,9 @@ export namespace CommandIDs {
   export const quitLogout = 'quitlogout:quitlogout';
 }
 
-class RSPEndpoints implements IRSPEndpointsResponse {
-  environment_name: string;
-  datasets: { [key: string]: string } = {};
-  service: { [key: string]: string } = {};
-  ui: { [key: string]: string } = {};
-
-  constructor(inp: IRSPEndpointsResponse) {
-    this.environment_name = inp.environment_name;
-    for (const dsname in inp.datasets) {
-      if (inp.datasets[dsname] !== null && inp.datasets[dsname].length !== 0) {
-        this.datasets[dsname] = inp.datasets[dsname];
-      }
-    }
-    for (const svcname in inp.service) {
-      if (inp.service[svcname] !== null && inp.service[svcname].length !== 0) {
-        this.service[svcname] = inp.service[svcname];
-      }
-    }
-    for (const uiname in inp.ui) {
-      if (inp.ui[uiname] !== null && inp.ui[uiname].length !== 0) {
-        this.ui[uiname] = inp.ui[uiname];
-      }
-    }
-  }
+enum QuitDisposition {
+  Quit = 'QUIT',
+  Logout = 'LOGOUT'
 }
 
 /**
@@ -72,7 +51,7 @@ export function activateRSPQuitExtension(
     label: 'Exit',
     caption: 'Destroy container',
     execute: () => {
-      justQuit(app, false, cfg);
+      justQuit(app, QuitDisposition.Quit, cfg);
     }
   });
 
@@ -80,7 +59,7 @@ export function activateRSPQuitExtension(
     label: 'Exit and Log Out',
     caption: 'Destroy container and log out',
     execute: () => {
-      justQuit(app, true, cfg);
+      justQuit(app, QuitDisposition.Logout, cfg);
     }
   });
 
@@ -94,20 +73,6 @@ export function activateRSPQuitExtension(
   mainMenu.fileMenu.addGroup(menu, rank);
 
   logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
-}
-
-async function endpointRequest(
-  app: JupyterFrontEnd,
-  cfg: INubladoConfigResponse
-): Promise<Response> {
-  const svcManager = app.serviceManager;
-  const settings = svcManager.serverSettings;
-  const endpoint = PageConfig.getBaseUrl() + 'rubin/endpoints';
-  const init = {
-    method: 'GET'
-  };
-  logMessage(LogLevels.DEBUG, cfg, `exit: endpoints URL: ${endpoint}`);
-  return ServerConnection.makeRequest(endpoint, init, settings);
 }
 
 async function hubDeleteRequest(
@@ -126,31 +91,28 @@ async function hubDeleteRequest(
 
 async function justQuit(
   app: JupyterFrontEnd,
-  logout: boolean,
+  disposition: QuitDisposition,
   cfg: INubladoConfigResponse
 ): Promise<any> {
   // Don't await infoDialog(): if we navigate away before the user
   // acknowledges, that's OK.
   try {
-    infoDialog(cfg)
-  } catch(error) {
+    infoDialog(cfg);
+  } catch (error) {
     logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
     // Don't rethrow - this is a non-critical background operation
   }
   try {
-    const res = await endpointRequest(app, cfg);
-    const ep_c = res as unknown as IRSPEndpointsResponse;
+    const ep = await getEndpoints(app);
     logMessage(
       LogLevels.DEBUG,
       cfg,
-      `Got query history response: ${JSON.stringify(ep_c, undefined, 2)}`
+      `Got endpoint response: ${JSON.stringify(ep, undefined, 2)}`
     );
-    const ep = new RSPEndpoints(ep_c);
 
-    let targetEndpoint = PageConfig.getOption('hubHost');
-    targetEndpoint = ep.ui['squareone'];
-    if (disposition === ExitDisposition.Logout) {
-      targetEndpoint = ep.ui['logout'];
+    let targetEndpoint = ep.ui['squareone'] || '/';
+    if (disposition === QuitDisposition.Logout) {
+      targetEndpoint = ep.ui['logout'] || '/';
     }
     logMessage(
       LogLevels.DEBUG,
@@ -161,7 +123,7 @@ async function justQuit(
       await hubDeleteRequest(app, cfg);
       logMessage(LogLevels.INFO, cfg, 'Quit complete.');
       window.location.replace(targetEndpoint);
-      return Promise<null>;
+      return null;
     } catch (error) {
       logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
     }

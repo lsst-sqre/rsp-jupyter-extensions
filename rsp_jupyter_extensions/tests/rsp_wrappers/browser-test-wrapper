@@ -27,6 +27,13 @@ def _mock_discovery() -> None:
     mocked = respx.get(url + "/discovery")
     mocked.return_value = httpx.Response(200, json=disco)
 
+    # This doesn't work; instead, jupyterlab.browser_check() (called
+    # by BrowserApp.launch_instance() ) gives me a KeyError, and apparently
+    # it's being used in the Extension Manager's extension_points
+    # starter_extension list.
+    #
+    # I don't yet know how to correctly mock this out with respx, hence
+    # the use of the _INTEGRATION_TESTING flag in the RSP client.
     BrowserApp.launch_instance()
 
 

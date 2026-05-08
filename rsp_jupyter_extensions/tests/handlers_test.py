@@ -29,14 +29,7 @@ async def test_abnormal(
     assert payload["ABNORMAL_STARTUP"] == "TRUE"
 
 
-@pytest.mark.respx(base_url="https://example.lsst.cloud")
-async def test_config(
-    jp_fetch: Callable,
-    rsp_fs: FakeFilesystem,
-    monkeypatch: pytest.MonkeyPatch,
-    respx_mock: respx.Router,
-) -> None:
-    """Test `config` endpoint."""
+def _setup_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CONTAINER_SIZE", "Large (4.0 CPU, 16Gi RAM)")
     monkeypatch.setenv("IMAGE_DESCRIPTION", "Daily 2026_03_31")
     monkeypatch.setenv(
@@ -63,6 +56,17 @@ async def test_config(
     monkeypatch.setenv("MEM_LIMIT", "17179869184")
     monkeypatch.setenv("MEM_GUARANTEE", "4294967296")
     monkeypatch.setenv("JUPYTERHUB_HOST", "https://nb.example.lsst.cloud")
+
+
+@pytest.mark.respx(base_url="https://example.lsst.cloud")
+async def test_config(
+    jp_fetch: Callable,
+    rsp_fs: FakeFilesystem,
+    monkeypatch: pytest.MonkeyPatch,
+    respx_mock: respx.Router,
+) -> None:
+    """Test `config` endpoint."""
+    _setup_env(monkeypatch)
     disco = Path("/etc") / "nublado" / "discovery_v1.json"
     register_mock_discovery(respx_mock, disco)
     response = await jp_fetch("rubin", "config")
@@ -106,4 +110,36 @@ async def test_config(
             "Daily 2026_03_31 [ae3bfaed...] (sciplat-lab:d_2026_03_31) "
             "example.lsst.cloud"
         ),
+    }
+
+
+@pytest.mark.respx(base_url="https://example.lsst.cloud")
+async def test_endpoints(
+    jp_fetch: Callable,
+    rsp_fs: FakeFilesystem,
+    monkeypatch: pytest.MonkeyPatch,
+    respx_mock: respx.Router,
+) -> None:
+    """Test `endpoints` endpoint."""
+    _setup_env(monkeypatch)
+    disco = Path("/etc") / "nublado" / "discovery_v1.json"
+    register_mock_discovery(respx_mock, disco)
+    response = await jp_fetch("rubin", "endpoints")
+    assert response.code == 200
+    payload = json.loads(response.body)
+    assert payload == {
+        "environment_name": "example.lsst.cloud",
+        "datasets": {
+            "dp02": "https://example.lsst.cloud/api/tap",
+            "dp03": "https://example.lsst.cloud/api/ssotap",
+            "dp1": "https://example.lsst.cloud/api/tap",
+            "prompt": "https://example.lsst.cloud/api/ppdbtap",
+        },
+        "service": {
+            "times-square": "https://example.lsst.cloud/times-square/api",
+        },
+        "ui": {
+            "logout": "https://example.lsst.cloud/logout",
+            "squareone": "https://example.lsst.cloud/",
+        },
     }
