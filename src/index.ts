@@ -19,7 +19,7 @@ import { activateRSPPDFExportExtension } from './pdfexport';
 
 import { activateRSPTAPQueryExtension } from './tapquery';
 
-import { activateRSPSavequitExtension } from './savequit';
+import { activateRSPQuitExtension } from './quit';
 
 import { activateRSPTutorialsExtension } from './tutorials';
 
@@ -49,7 +49,6 @@ function activateRSPExtension(
     );
     logMessage(LogLevels.INFO, cfg, '...got server configuration');
     logMessage(LogLevels.INFO, cfg, 'rsp-jupyter-extensions: loading...');
-    logMessage(LogLevels.INFO, cfg, '...activating savequit extension...');
     logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
     const abnormal = await getAbnormalStartup(app);
     if (abnormal.ABNORMAL_STARTUP) {
@@ -91,8 +90,8 @@ async function activateIndividualExtensions(
   abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse
 ): Promise<void> {
-  logMessage(LogLevels.INFO, cfg, '...activating savequit extension...');
-  activateRSPSavequitExtension(app, mainMenu, docManager, cfg);
+  logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
+  activateRSPQuitExtension(app, mainMenu, cfg);
   logMessage(LogLevels.INFO, cfg, '...checking for abnormal startup...');
   if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog

@@ -12,8 +12,6 @@ import {
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 
-import { IDocumentManager } from '@jupyterlab/docmanager';
-
 import { PageConfig } from '@jupyterlab/coreutils';
 
 import { ServerConnection } from '@jupyterlab/services';
@@ -28,58 +26,47 @@ import { INubladoConfigResponse } from './config';
  */
 export namespace CommandIDs {
   export const justQuit = 'justquit:justquit';
-  export const saveQuit = 'savequit:savequit';
-  export const saveLogout = 'savelogout:savelogout';
+  export const quitLogout = 'quitlogout:quitlogout';
 }
 
 /**
  * Activate the jupyterhub extension.
  */
-export function activateRSPSavequitExtension(
+export function activateRSPQuitExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
-  docManager: IDocumentManager,
   cfg: INubladoConfigResponse
 ): void {
-  logMessage(LogLevels.INFO, null, 'rsp-savequit: loading...');
+  logMessage(LogLevels.INFO, null, 'rsp-quit: loading...');
 
   const { commands } = app;
 
   commands.addCommand(CommandIDs.justQuit, {
-    label: 'Exit Without Saving',
+    label: 'Exit',
     caption: 'Destroy container',
     execute: () => {
       justQuit(app, false, cfg);
     }
   });
 
-  commands.addCommand(CommandIDs.saveQuit, {
-    label: 'Save All and Exit',
-    caption: 'Save open notebooks and destroy container',
+  commands.addCommand(CommandIDs.quitLogout, {
+    label: 'Exit and Log Out',
+    caption: 'Destroy container and log out',
     execute: () => {
-      saveAndQuit(app, docManager, false, cfg);
-    }
-  });
-
-  commands.addCommand(CommandIDs.saveLogout, {
-    label: 'Save All, Exit, and Log Out',
-    caption: 'Save open notebooks, destroy container, and log out',
-    execute: () => {
-      saveAndQuit(app, docManager, true, cfg);
+      justQuit(app, true, cfg);
     }
   });
 
   // Add commands and menu itmes.
   const menu: Menu.IItemOptions[] = [
     { command: CommandIDs.justQuit },
-    { command: CommandIDs.saveQuit },
-    { command: CommandIDs.saveLogout }
+    { command: CommandIDs.quitLogout }
   ];
   // Put it at the bottom of file menu
   const rank = 150;
   mainMenu.fileMenu.addGroup(menu, rank);
 
-  logMessage(LogLevels.INFO, cfg, 'rsp-savequit: ...loaded.');
+  logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
 }
 
 async function hubDeleteRequest(
@@ -92,64 +79,8 @@ async function hubDeleteRequest(
   const init = {
     method: 'DELETE'
   };
-  logMessage(LogLevels.DEBUG, cfg, `savequit: hubRequest URL: ${endpoint}`);
+  logMessage(LogLevels.DEBUG, cfg, `quit: hubRequest URL: ${endpoint}`);
   return ServerConnection.makeRequest(endpoint, init, settings);
-}
-
-async function saveAll(
-  app: JupyterFrontEnd,
-  docManager: IDocumentManager,
-  cfg: INubladoConfigResponse
-): Promise<any> {
-  const promises: Promise<any>[] = [];
-  for (const widget of app.shell.widgets('main')) {
-    if (widget) {
-      const context = docManager.contextForWidget(widget);
-      if (context) {
-        logMessage(
-          LogLevels.DEBUG,
-          cfg,
-          `Saving context for widget: ${widget.id}`
-        );
-        promises.push(context.save());
-      } else {
-        logMessage(
-          LogLevels.WARNING,
-          cfg,
-          `No context for widget: ${widget.id}`
-        );
-      }
-    }
-  }
-  logMessage(
-    LogLevels.DEBUG,
-    cfg,
-    'Waiting for all save-document promises to resolve.'
-  );
-  try {
-    await Promise.all(promises);
-  } catch (error) {
-    logMessage(
-      LogLevels.WARNING,
-      cfg,
-      `Save-document promise(s) failed: ${error}`
-    );
-  }
-}
-
-async function saveAndQuit(
-  app: JupyterFrontEnd,
-  docManager: IDocumentManager,
-  logout: boolean,
-  cfg: INubladoConfigResponse
-): Promise<any> {
-  try {
-    await saveAll(app, docManager, cfg);
-    logMessage(LogLevels.INFO, cfg, 'savequit: all documents saved.');
-    return justQuit(app, logout, cfg);
-  } catch (error) {
-    logMessage(LogLevels.WARNING, cfg, `savequit: saveAll failed: ${error}`);
-  }
 }
 
 async function justQuit(
@@ -157,7 +88,6 @@ async function justQuit(
   logout: boolean,
   cfg: INubladoConfigResponse
 ): Promise<any> {
-  await infoDialog(cfg);
   let targetEndpoint = PageConfig.getOption('hubHost');
   // This needs to be changed when we have service discovery working, but
   // this is a good enough guess for now.  If it fails you just get sent
@@ -174,12 +104,19 @@ async function justQuit(
   }
   logMessage(LogLevels.DEBUG, cfg, `final target endpoint: ${targetEndpoint}`);
   try {
+    // Lack of await for infoDialog() is intentional.  If we leave the page
+    // before the user acknowledges the dialog, that's fine.
+    infoDialog(cfg);
+  } catch (infoError) {
+    logMessage(LogLevels.WARNING, cfg, `quit: infoDialog failed: ${infoError}`);
+  }
+  try {
     await hubDeleteRequest(app, cfg);
     logMessage(LogLevels.INFO, cfg, 'Quit complete.');
     window.location.replace(targetEndpoint);
-    return Promise<null>;
+    return null;
   } catch (error) {
-    logMessage(LogLevels.WARNING, cfg, `savequit: JustQuit failed: ${error}`);
+    logMessage(LogLevels.WARNING, cfg, `quit: justQuit failed: ${error}`);
   }
 }
 
@@ -194,13 +131,13 @@ async function infoDialog(cfg: INubladoConfigResponse): Promise<void> {
 }
 
 /**
- * Initialization data for the rspSavequit extension.
+ * Initialization data for the rspQuit extension.
  */
-const rspSavequitExtension: JupyterFrontEndPlugin<void> = {
-  activate: activateRSPSavequitExtension,
-  id: token.SAVEQUIT_ID,
-  requires: [IMainMenu, IDocumentManager],
+const rspQuitExtension: JupyterFrontEndPlugin<void> = {
+  activate: activateRSPQuitExtension,
+  id: token.QUIT_ID,
+  requires: [IMainMenu],
   autoStart: false
 };
 
-export default rspSavequitExtension;
+export default rspQuitExtension;
