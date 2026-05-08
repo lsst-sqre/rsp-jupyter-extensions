@@ -3,12 +3,16 @@
 Used to encapsulate the queries we need to make to other RSP services.
 """
 
+import asyncio
 import logging
+import os
 from dataclasses import dataclass
 
 import xmltodict
 from httpx import AsyncClient
-from rubin.repertoire import DiscoveryClient
+from rubin.repertoire import (
+    DiscoveryClient,
+)
 
 from ..models.endpoints import Endpoints
 from ..models.query import UnknownDatasetError
@@ -85,6 +89,19 @@ class RSPClient:
             )
         self.discovery_client = discovery_client
         self.endpoints = Endpoints()
+        #
+        # I have not yet figured out how to correctly use respx to mock
+        # httpx in the context of jupyterlab.browser_check.
+        # This is a workaround until I do.
+        #
+        if os.getenv("_INTEGRATION_TESTING"):
+            en = "example.lsst.cloud"
+            bs = f"https://{en}"
+            self.endpoints.environment_name = en
+            self.endpoints.datasets["dp1"] = f"{bs}/api/tap"
+            self.endpoints.ui["logout"] = f"{bs}/logout"
+            self.endpoints.ui["squareone"] = bs
+            self.endpoints.service["times-square"] = f"{bs}/times-square"
 
     async def get_datasets(self) -> list[str]:
         """Get datasets present in the RSP instance.
@@ -318,10 +335,10 @@ class RSPClient:
         """
         if svc not in self.endpoints.service:
             url = await self.discovery_client.url_for_internal(svc)
-            self.endpoints.service[svc] = url or ""
-        self._logger.debug(
-            f"Service endpoint for {svc} is {self.endpoints.service[svc]}"
-        )
+            self._logger.debug(f"Service endpoint for {svc} is {url}")
+            if url is None:
+                return None
+            self.endpoints.service[svc] = url
         return self.endpoints.service[svc]
 
     async def get_times_square_url(self) -> str | None:
@@ -344,9 +361,13 @@ class RSPClient:
         Endpoints
             A fully-populated list of endpoints.
         """
-        await self.get_times_square_url()
-        await self.get_logout_url()
-        await self.get_landing_page_url()
-        await self.retrieve_tap_endpoints()
-        await self.get_environment_name()
+        async with asyncio.TaskGroup() as tg:
+            tasks = (
+                self.get_times_square_url,
+                self.get_logout_url,
+                self.get_landing_page_url,
+                self.retrieve_tap_endpoints,
+                self.get_environment_name,
+            )
+            [tg.create_task(task()) for task in tasks]
         return self.endpoints

@@ -6,7 +6,6 @@ from dataclasses import asdict
 import tornado
 from jupyter_server.base.handlers import APIHandler
 
-from ..models.endpoints import Endpoints
 from .clients import RSPClient
 
 
@@ -20,7 +19,6 @@ class EndpointsHandler(APIHandler):
         if "client" not in self.settings:
             self.settings["client"] = RSPClient(logger=self.log)
         self._rsp_client = self.settings["client"]
-        self._endpoints: Endpoints | None = None
         self.log.info("Initializing EndpointsHandler.")
 
     @tornado.web.authenticated
