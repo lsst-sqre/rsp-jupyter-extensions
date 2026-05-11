@@ -108,6 +108,8 @@ jobs:
         mkdir -p /home/runner/work/etc/nublado/secrets
         echo "gt-dummy" > /home/runner/work/etc/nublado/secrets/token
         python -m pip install .[test]
+        python3 ./rsp_jupyter_extensions/tests/rsp_wrappers/edit-browser-check
+        cd ../../..
 
         pytest -vv -r ap --cov rsp_jupyter_extensions
         jupyter server extension list
@@ -115,8 +117,7 @@ jobs:
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "rsp-jupyter-extensions.*OK"
-        export _INTEGRATION_TESTING="true"
-        python -m jupyterlab.browser_check
+        python -m jupyterlab.mocked_browser_check
 
     - name: Package the extension
       run: |
