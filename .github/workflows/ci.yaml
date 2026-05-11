@@ -108,8 +108,9 @@ jobs:
         mkdir -p /home/runner/work/etc/nublado/secrets
         echo "gt-dummy" > /home/runner/work/etc/nublado/secrets/token
         python -m pip install .[test]
-        python3 ./rsp_jupyter_extensions/tests/rsp_wrappers/edit-browser-check
-        cd ../../..
+        ./rsp_jupyter_extensions/tests/rsp_wrappers/edit-browser-check
+        cp ./rsp_jupyter_extensions/tests/data/etc/nublado/discovery_v1.json \
+           /home/runner/work/etc/nublado/discovery_v1.json
 
         pytest -vv -r ap --cov rsp_jupyter_extensions
         jupyter server extension list
