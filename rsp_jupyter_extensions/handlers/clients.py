@@ -5,7 +5,6 @@ Used to encapsulate the queries we need to make to other RSP services.
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass
 
 import xmltodict
@@ -89,19 +88,6 @@ class RSPClient:
             )
         self.discovery_client = discovery_client
         self.endpoints = Endpoints()
-        #
-        # I have not yet figured out how to correctly use respx to mock
-        # httpx in the context of jupyterlab.browser_check.
-        # This is a workaround until I do.
-        #
-        if os.getenv("_INTEGRATION_TESTING"):
-            en = "example.lsst.cloud"
-            bs = f"https://{en}"
-            self.endpoints.environment_name = en
-            self.endpoints.datasets["dp1"] = f"{bs}/api/tap"
-            self.endpoints.ui["logout"] = f"{bs}/logout"
-            self.endpoints.ui["squareone"] = bs
-            self.endpoints.service["times-square"] = f"{bs}/times-square"
 
     async def get_datasets(self) -> list[str]:
         """Get datasets present in the RSP instance.

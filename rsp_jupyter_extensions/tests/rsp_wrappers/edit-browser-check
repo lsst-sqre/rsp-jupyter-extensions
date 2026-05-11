@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Write modified copy of jupyterlab.browser_check.py that runs under respx."""
+
+from enum import StrEnum
+from pathlib import Path
+from textwrap import dedent
+
+import jupyterlab
+
+
+class _EditorState(StrEnum):
+    TOP = "top"
+    IMPORTED = "imports"
+
+
+class _CheckEditor:
+    def __init__(self) -> None:
+        self._orig = self._find_browser_check()
+        self._mocked = self._orig.parent / "mocked_browser_check.py"
+        self._state = _EditorState.TOP
+
+    def _find_browser_check(self) -> Path:
+        return Path(jupyterlab.__file__).parent / "browser_check.py"
+
+    def generate_mocked_check(self) -> None:
+        mocked_contents = ""
+        with self._orig.open() as f:
+            for line in f:
+                if not (
+                    line.startswith(("import", 'if __name__ == "__main__":'))
+                ):
+                    mocked_contents += line
+                    continue
+                if self._state == _EditorState.TOP:
+                    if not line.startswith("import"):
+                        mocked_contents += line
+                        continue
+                    mocked_contents += self._add_new_imports()
+                    self._state = _EditorState.IMPORTED
+                    continue
+                if line.startswith('if __name__ == "__main__":'):
+                    mocked_contents += self._mock_main()
+                    break
+                mocked_contents += line
+        self._mocked.write_text(mocked_contents)
+
+    def _add_new_imports(self) -> str:
+        return dedent("""
+        import asyncio
+        import json
+        from pathlib import Path
+        import httpx
+        import respx
+
+        """)
+
+    def _mock_main(self) -> list[str]:
+        return dedent("""
+        if __name__ == "__main__":
+            skip_options = ["--no-browser-test", "--no-chrome-test"]
+            for option in skip_options:
+                if option in sys.argv:
+                    BrowserApp.test_browser = False
+                    sys.argv.remove(option)
+            url = os.environ.get("REPERTOIRE_BASE_URL")
+            if url is None:
+                raise RuntimeError("REPERTOIRE_BASE_URL must be set")
+            rtmmd = os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR")
+            if rtmmd is None:
+                raise RuntimeError("NUBLADO_RUNTIME_MOUNTS_DIR must be set")
+            with respx.mock:
+                disco = json.loads(
+                    (Path(rtmmd) / "discovery_v1.json").read_text())
+                respx.route(host="localhost").pass_through()
+                mocked = respx.get(url + "/discovery")
+                mocked.return_value = httpx.Response(200, json=disco)
+
+                BrowserApp.launch_instance()
+        """)
+
+
+if __name__ == "__main__":
+    editor = _CheckEditor()
+    editor.generate_mocked_check()
