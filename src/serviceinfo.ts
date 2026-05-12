@@ -2,18 +2,18 @@ import { JupyterFrontEnd } from '@jupyterlab/application';
 import { PageConfig } from '@jupyterlab/coreutils';
 import { apiRequest } from './request';
 
-// IRSPEndpointsResponse encapsulates the endpoints we need to know about.
-export interface IRSPEndpointsResponse {
-  environment_name: string;
+// IRSPServiceInfoResponse encapsulates the service info we need to know about.
+export interface IRSPServiceInfoResponse {
+  environment_name: string | null;
   datasets: { [key: string]: string };
   service: { [key: string]: string };
   ui: { [key: string]: string };
 }
 
-export async function getEndpoints(
+export async function getServiceInfo(
   app: JupyterFrontEnd
-): Promise<IRSPEndpointsResponse> {
-  const endpoint = PageConfig.getBaseUrl() + 'rubin/endpoints';
+): Promise<IRSPServiceInfoResponse> {
+  const endpoint = PageConfig.getBaseUrl() + 'rubin/serviceinfo';
   const init = {
     method: 'GET'
   };
@@ -21,5 +21,5 @@ export async function getEndpoints(
   const settings = svcManager.serverSettings;
 
   const resp = await apiRequest(endpoint, init, settings);
-  return resp as unknown as IRSPEndpointsResponse;
+  return resp as unknown as IRSPServiceInfoResponse;
 }

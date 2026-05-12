@@ -9,8 +9,8 @@ from jupyter_server.base.handlers import APIHandler
 from .clients import RSPClient
 
 
-class EndpointsHandler(APIHandler):
-    """Endpoints Handler.  Basically a primer for, and wrapper around, the
+class ServiceInfoHandler(APIHandler):
+    """Service Info Handler.  Basically a primer for, and wrapper around, the
     RSP Client.
     """
 
@@ -19,12 +19,12 @@ class EndpointsHandler(APIHandler):
         if "client" not in self.settings:
             self.settings["client"] = RSPClient(logger=self.log)
         self._rsp_client = self.settings["client"]
-        self.log.info("Initializing EndpointsHandler.")
+        self.log.info("Initializing ServiceInfoHandler.")
 
     @tornado.web.authenticated
     async def get(self) -> None:
-        """Emit endpoints to calling HTTP client."""
-        self.log.debug("Assembling RSP Endpoints")
-        ep = await self._rsp_client.get_endpoints()
-        self.log.info("Sending RSP Endpoints")
+        """Emit serviceinfo to calling HTTP client."""
+        self.log.debug("Assembling RSP Service Info")
+        ep = await self._rsp_client.get_serviceinfo()
+        self.log.info("Sending RSP Service Info")
         self.write(json.dumps(asdict(ep), sort_keys=True, indent=2))

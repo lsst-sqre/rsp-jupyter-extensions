@@ -15,7 +15,7 @@ rsp_jupyter_extensions/_version.py
 ui-tests/test-results/
 ui-tests/playwright-report/
 
-# Should I exclude this?
+# CI output
 junit.xml
 
 # Created by https://www.gitignore.io/api/python

@@ -36,6 +36,7 @@ class _CheckEditor:
                         mocked_contents += line
                         continue
                     mocked_contents += self._add_new_imports()
+                    mocked_contents += line
                     self._state = _EditorState.IMPORTED
                     continue
                 if line.startswith('if __name__ == "__main__":'):
@@ -46,7 +47,6 @@ class _CheckEditor:
 
     def _add_new_imports(self) -> str:
         return dedent("""
-        import asyncio
         import json
         from pathlib import Path
         import httpx
