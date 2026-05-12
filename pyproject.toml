@@ -23,11 +23,15 @@ classifiers = [
 # jupyter_server_documents is only listed because this release disables
 # manual saving, and that's only a good idea in the presence of
 # jupyter_server_documents.
+#
+# We pin back jupyter-collaboration because 4.4.0 fails to activate, with
+# an unhelpful error message, and 4.3 seems to do everything we need.
 dependencies = [
     "httpx",
     "jinja2",
     "jupyterlab",
     "jupyter_server>=2.0.1,<3",
+    "jupyter-collaboration!=4.4.0",
     "jupyter-server-documents",
     "jupyterlab>=4,<5",
     "pydantic",
