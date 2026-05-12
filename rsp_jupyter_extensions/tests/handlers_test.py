@@ -114,17 +114,17 @@ async def test_config(
 
 
 @pytest.mark.respx(base_url="https://example.lsst.cloud")
-async def test_endpoints(
+async def test_serviceinfo(
     jp_fetch: Callable,
     rsp_fs: FakeFilesystem,
     monkeypatch: pytest.MonkeyPatch,
     respx_mock: respx.Router,
 ) -> None:
-    """Test `endpoints` endpoint."""
+    """Test `serviceinfo` endpoint."""
     _setup_env(monkeypatch)
     disco = Path("/etc") / "nublado" / "discovery_v1.json"
     register_mock_discovery(respx_mock, disco)
-    response = await jp_fetch("rubin", "endpoints")
+    response = await jp_fetch("rubin", "serviceinfo")
     assert response.code == 200
     payload = json.loads(response.body)
     assert payload == {

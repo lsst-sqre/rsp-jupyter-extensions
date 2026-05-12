@@ -56,7 +56,7 @@ jobs:
         CONTAINER_SIZE: "Small (1.0 CPU, 4Gi RAM)"
         # Used by savequit
         JUPYTERHUB_USER: "irian"
-        JUPYTERHUB_API_TOKEN: "some-token"
+        JUPYTERHUB_API_TOKEN: "this-is-a-fake-token"
         JUPYTERHUB_API_URL: "http://localhost:8080/nb/hub/api"
         JUPYTERHUB_API_SERVICE_PREFIX: "/nb/user/${JUPYTERHUB_USER}/"
         # Used by tutorials
@@ -106,7 +106,7 @@ jobs:
         }
         EOF
         mkdir -p /home/runner/work/etc/nublado/secrets
-        echo "gt-dummy" > /home/runner/work/etc/nublado/secrets/token
+        echo "fake-token" > /home/runner/work/etc/nublado/secrets/token
         python -m pip install .[test]
         ./rsp_jupyter_extensions/tests/rsp_wrappers/edit-browser-check
         cp ./rsp_jupyter_extensions/tests/data/etc/nublado/discovery_v1.json \
@@ -118,6 +118,7 @@ jobs:
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "rsp-jupyter-extensions.*OK"
+        # The mocked browser check runs under respx to mock service discovery
         python -m jupyterlab.mocked_browser_check
 
     - name: Package the extension
@@ -270,7 +271,7 @@ jobs:
         }
         EOF
         mkdir -p /home/runner/work/etc/nublado/secrets
-        echo "gt-dummy" > /home/runner/work/etc/nublado/secrets/token
+        echo "fake-token" > /home/runner/work/etc/nublado/secrets/token
 
         jlpm playwright test
 

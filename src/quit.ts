@@ -20,7 +20,7 @@ import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 import { INubladoConfigResponse } from './config';
-import { getEndpoints } from './endpoints';
+import { getServiceInfo } from './serviceinfo';
 
 /**
  * The command IDs used by the plugin.
@@ -102,37 +102,35 @@ async function justQuit(
     logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
     // Don't rethrow - this is a non-critical background operation
   }
+  let targetEndpoint = '/';
   try {
-    const ep = await getEndpoints(app);
+    const si = await getServiceInfo(app);
     logMessage(
       LogLevels.DEBUG,
       cfg,
-      `Got endpoint response: ${JSON.stringify(ep, undefined, 2)}`
+      `Got serviceinfo response: ${JSON.stringify(si, undefined, 2)}`
     );
-
-    let targetEndpoint = ep.ui['squareone'] || '/';
+    targetEndpoint = si.ui['squareone'];
     if (disposition === QuitDisposition.Logout) {
-      targetEndpoint = ep.ui['logout'] || '/';
-    }
-    logMessage(
-      LogLevels.DEBUG,
-      cfg,
-      `final target endpoint: ${targetEndpoint}`
-    );
-    try {
-      await hubDeleteRequest(app, cfg);
-      logMessage(LogLevels.INFO, cfg, 'Quit complete.');
-      window.location.replace(targetEndpoint);
-      return null;
-    } catch (error) {
-      logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
+      targetEndpoint = si.ui['logout'];
     }
   } catch (error) {
     logMessage(
       LogLevels.WARNING,
       cfg,
-      `exit: finding endpoints failed: ${error}`
+      `exit: finding serviceinfo failed: ${error}`
     );
+    // Just redirect to root (which will be SquareOne or Hub spawner,
+    // depending on whether user domains are in play or not).
+  }
+  logMessage(LogLevels.DEBUG, cfg, `final target endpoint: ${targetEndpoint}`);
+  try {
+    await hubDeleteRequest(app, cfg);
+    logMessage(LogLevels.INFO, cfg, 'Quit complete.');
+    window.location.replace(targetEndpoint);
+    return null;
+  } catch (error) {
+    logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
   }
 }
 

@@ -1,17 +1,15 @@
-"""Endpoint model."""
+"""ServiceInfo model."""
 
 from dataclasses import dataclass, field
 
-__all__ = ["Endpoints"]
+__all__ = ["ServiceInfo"]
 
 
 @dataclass
-class Endpoints:
-    """Endpoints used by this extension."""
+class ServiceInfo:
+    """Service discovery information."""
 
-    environment_name: str | None = field(
-        default=None
-    )  # Not really an endpoint
+    environment_name: str | None = field(default=None)
     datasets: dict[str, str] = field(default_factory=dict)
     ui: dict[str, str] = field(default_factory=dict)
     service: dict[str, str] = field(default_factory=dict)
