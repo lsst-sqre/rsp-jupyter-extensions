@@ -118,7 +118,8 @@ jobs:
 
         jupyter labextension list
         jupyter labextension list 2>&1 | grep -ie "rsp-jupyter-extensions.*OK"
-        # The mocked browser check runs under respx to mock service discovery
+        # The mocked browser check runs under respx to mock service
+        # discovery; it is otherwise a copy of jupyterlab.browser_check
         python -m jupyterlab.mocked_browser_check
 
     - name: Package the extension

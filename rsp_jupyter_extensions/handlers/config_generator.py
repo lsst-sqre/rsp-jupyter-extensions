@@ -36,6 +36,9 @@ class ConfigGenerator:
         return cls._instance
 
     def __init__(self) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        self._initialized = True
         self._config: RSPConfig | None = None
         self._config = self.generate_config()
         _anonymous_client = AsyncClient(
@@ -89,14 +92,16 @@ class ConfigGenerator:
             return ""
         return str(_get_homedir()).lstrip("/")
 
-    def regenerate_config(self) -> None:
-        self._config = None
+    def regenerate_config(self) -> None | RSPConfig:
+        self._config = None  # Force config to be empty, so generate runs.
         self.generate_config()
+        return self._config
 
     def generate_config(self) -> None | RSPConfig:
         """Sanitized version of environment.  Note that eventually we want
         to pass this as a separate config.json, and any remaining environment
-        variables should be namespaced under NUBLADO_* .
+        variables that we control (i.e. are not set by Jupyter) should be
+        namespaced under NUBLADO_* .
         """
         if self._config is not None:
             return self._config
@@ -109,15 +114,21 @@ class ConfigGenerator:
             ),
             spec=os.environ.get("JUPYTER_IMAGE_SPEC", ""),
         )
+        # RSP_SITE_TYPE in particular will be replaced soon.
+        staff_or_science = bool(
+            os.environ.get("RSP_SITE_TYPE") == "science"
+        ) or bool(os.environ.get("RSP_SITE_TYPE") == "staff")
         self._config = RSPConfig(
             container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
             debug=bool(os.environ.get("DEBUG")),
             enable_landing_page=(os.environ.get("RSP_SITE_TYPE") == "science"),
-            enable_queries_menu=bool(
-                os.environ.get("ENABLE_RUBIN_QUERY_MENU")
+            enable_queries_menu=(
+                bool(os.environ.get("ENABLE_RUBIN_QUERY_MENU"))
+                or staff_or_science
             ),
-            enable_tutorials_menu=bool(
-                os.environ.get("ENABLE_TUTORIALS_MENU")
+            enable_tutorials_menu=(
+                bool(os.environ.get("ENABLE_TUTORIALS_MENU"))
+                or staff_or_science
             ),
             file_browser_root=self._fbr_from_env(),
             home_relative_to_file_browser_root=(

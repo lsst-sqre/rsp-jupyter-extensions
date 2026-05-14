@@ -1,25 +1,9 @@
 """Utilities for working with Jupyter Server RSP handlers."""
 
 import os
-from contextlib import suppress
 from pathlib import Path
 
-from ..exceptions import TokenNotAvailableError, UserEnvironmentError
-
-
-def _get_access_token() -> str:
-    """Get our access token, preferred methods first."""
-    # We want this to be a constant static path, but...
-    path = Path("/etc/nublado/secrets/token")
-    if path.exists():
-        return path.read_text().strip()
-    # ... in April 2026 it is not yet, but NUBLADO_RUNTIME_MOUNTS_DIR should
-    # be set.
-    if runtime_dir := os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR"):
-        path = Path(runtime_dir) / "secrets" / "token"
-        with suppress(FileNotFoundError):
-            return path.read_text().strip()
-    raise TokenNotAvailableError("No access token available")
+from ..exceptions import UserEnvironmentError
 
 
 def _get_homedir() -> Path:

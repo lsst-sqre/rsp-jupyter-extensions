@@ -124,7 +124,7 @@ class TutorialsMenuHandler(_BaseRSPAPIHandler):
         # Do we have a cache directory?  Then use it.
         dirname = ""
         self._generator.generate_config()
-        dirname = self.settings["rsp_config"].tutorial_notebooks_url
+        dirname = self.settings["rsp_config"].tutorial_notebooks_cache_dir
         if not dirname:
             dirname = os.getenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", "")
         if dirname:

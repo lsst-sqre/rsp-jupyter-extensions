@@ -21,9 +21,9 @@ class _BaseRSPAPIHandler(APIHandler):
             self._logger.info(f"Initializing RSP Client for {cname}")
             self.settings["client"] = RSPClient(logger=self.log)
         self._rsp_client = self.settings["client"]
+        self._generator = ConfigGenerator()  # Singleton
         if "rsp_config" not in self.settings:
             self._logger.info(f"Initializing ConfigGenerator for {cname}")
-            self._generator = ConfigGenerator()
             self.settings["rsp_config"] = self._generator.generate_config()
         self._logger.info(f"Initializing {cname}")
 

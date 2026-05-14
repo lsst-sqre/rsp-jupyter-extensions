@@ -126,7 +126,7 @@ class RSPClient:
         path = Path("/etc/nublado/secrets/token")
         if path.exists():
             return path.read_text().strip()
-        # ... in April 2026 it is not yet, but...
+        # ... it's not clear when that will happen, so meanwhile...
         runtime_dir = ""
         await self._ensure_config()
         if self._config:
@@ -136,6 +136,7 @@ class RSPClient:
             # ... or NUBLADO_RUNTIME_MOUNTS_DIR should be set...
             runtime_dir = os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR", "")
         if not runtime_dir:
+            # ... or we just have to give up.
             raise TokenNotAvailableError("No access token available")
         path = Path(runtime_dir) / "secrets" / "token"
         with suppress(FileNotFoundError):
@@ -234,10 +235,10 @@ class RSPClient:
             return JobRef(
                 dataset=dataset, jobref_id=new_j_id, endpoint=endpoint
             )
+        await self._ensure_authed_client()
         await self.retrieve_tap_endpoints()
         for dataset, endpoint in self.serviceinfo.datasets.items():
             url = f"{endpoint}/async/{jobref_id}"
-            await self._ensure_authed_client()
             if self.authed_client is None:
                 raise ClientError("No authenticated client")
             resp = await self.authed_client.get(url)
@@ -270,9 +271,9 @@ class RSPClient:
         """
         retval: dict[str, list[dict[str, str]]] = {}
         params = {"last": str(limit)} if limit and limit > 0 else {}
+        await self._ensure_authed_client()
         await self.retrieve_tap_endpoints()
         epoch = "1970-01-01T00:00:00.000Z"
-        await self._ensure_authed_client()
         if self.authed_client is None:
             raise ClientError("No authenticated client")
         for dataset, ep in self.serviceinfo.datasets.items():
