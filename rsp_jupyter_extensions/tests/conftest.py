@@ -4,6 +4,18 @@ from pathlib import Path
 
 import pytest
 from pyfakefs.fake_filesystem import FakeFilesystem
+import respx
+
+from rubin.repertoire import Discovery, register_mock_discovery
+
+@pytest.fixture(autouse=True)
+def mock_discovery(
+    respx_mock: respx.Router, monkeypatch: pytest.MonkeyPatch
+) -> Discovery:
+    monkeypatch.setenv("REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire")
+    path = (Path(__file__).parent / "data" / "etc" / "nublado"
+            / "discovery_v1.json")
+    return register_mock_discovery(respx_mock, path)
 
 def _add_real_directory(
     fs:FakeFilesystem,
@@ -37,6 +49,7 @@ def tutorial_env(tmp_path:Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     in-memory fake filesystem doesn't persist across the spawned
     process.
     """
+    monkeypatch.setenv("REPERTOIRE_BASE_URL", "https://example.com/repertoire")
     # Set up test files
     (tmp_path / "subdir").mkdir()
     (tmp_path / "subdir" / "subsubdir").mkdir()
@@ -49,6 +62,5 @@ def tutorial_env(tmp_path:Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         (p / "hello.py").write_text("print('Hello, world!')\n")
     # Create .git directory so we don't pull the repo.
     (tmp_path / ".git").mkdir()
-    monkeypatch.setenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", str(tmp_path))
 
     return tmp_path

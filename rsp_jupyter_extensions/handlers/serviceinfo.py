@@ -4,22 +4,14 @@ import json
 from dataclasses import asdict
 
 import tornado
-from jupyter_server.base.handlers import APIHandler
 
-from .clients import RSPClient
+from ._base import _BaseRSPAPIHandler
 
 
-class ServiceInfoHandler(APIHandler):
+class ServiceInfoHandler(_BaseRSPAPIHandler):
     """Service Info Handler.  Basically a primer for, and wrapper around, the
     RSP Client.
     """
-
-    def initialize(self) -> None:
-        super().initialize()
-        if "client" not in self.settings:
-            self.settings["client"] = RSPClient(logger=self.log)
-        self._rsp_client = self.settings["client"]
-        self.log.info("Initializing ServiceInfoHandler.")
 
     @tornado.web.authenticated
     async def get(self) -> None:

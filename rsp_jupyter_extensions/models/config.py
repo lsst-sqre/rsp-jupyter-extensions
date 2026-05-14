@@ -62,3 +62,5 @@ class RSPConfig:
     resources: LabResources
     runtime_mounts_dir: str
     statusbar: str
+    tutorial_notebooks_cache_dir: str
+    tutorial_notebooks_url: str

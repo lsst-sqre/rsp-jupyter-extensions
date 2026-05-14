@@ -24,6 +24,7 @@ class _FakeConnect(tornado.httputil.HTTPConnection):
         pass
 
 
+os.environ["REPERTOIRE_BASE_URL"] = "https://example.com/repertoire"
 HDLR = t.TutorialsMenuHandler(
     tornado.web.Application(),
     request=tornado.httputil.HTTPServerRequest(connection=_FakeConnect()),
@@ -226,8 +227,9 @@ def test_ignore_symlinks(tutorial_env: Path) -> None:
     """
     sl = Path(tutorial_env / "symlink")
     sl.mkdir()
-    os.symlink(__file__, sl / "me")
-    os.symlink(Path(__file__).parent, sl / "here")
+    this = Path(__file__)
+    (sl / "me").symlink_to(this)
+    (sl / "here").symlink_to(this.parent)
     (sl / "real_file").write_text("Hello, world!\n")
 
     assert (sl / "me").is_symlink()
@@ -356,12 +358,15 @@ def test_bad_construction() -> None:
             _ = HierarchyEntry.from_primitive(tst.value)
 
 
-def test_demonstrate_cache(tutorial_env: Path) -> None:
+@pytest.mark.asyncio
+async def test_demonstrate_cache(tutorial_env: Path) -> None:
     """Demonstrate that the cache is appropriately populated."""
     new_hdlr = t.TutorialsMenuHandler(
         tornado.web.Application(),
         request=tornado.httputil.HTTPServerRequest(connection=_FakeConnect()),
     )
+    assert new_hdlr._cache["timestamp"] == 0
+    await new_hdlr._populate_tutorials()
     now = time.time()
     assert new_hdlr._cache["timestamp"] > 0
     assert new_hdlr._cache["timestamp"] <= now

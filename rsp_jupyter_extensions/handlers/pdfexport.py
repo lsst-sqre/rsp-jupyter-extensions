@@ -5,41 +5,15 @@ import contextlib
 import json
 import os
 import shutil
-from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import tornado
-from jupyter_server.base.handlers import APIHandler
 
-from ._utils import _get_jupyter_server_root
-
-
-@dataclass
-class PDFExportResponse:
-    """Simple wrapper for the response we will return to the caller.
-
-    It has a "path" key and an "error" key.  If "path" is valid, "error" is
-    ``None``, and vice versa.
-    """
-
-    path: str | None = None
-    error: str | None = None
-
-    def to_str(self) -> str:
-        """Return JSON-serialized version of response."""
-        self._validate()
-        return json.dumps(asdict(self))
-
-    def _validate(self) -> None:
-        """Enforce that exactly one of the two fields is ``None``."""
-        if self.path is None and self.error is None:
-            self.error = "Both 'path' and 'error' cannot be 'None'"
-        elif self.path is not None and self.error is not None:
-            # The fact that there's an error invalidates the path.
-            self.path = None
+from ..models.pdfexport import PDFExportResponse
+from ._base import _BaseRSPAPIHandler
 
 
-class PDFExportHandler(APIHandler):
+class PDFExportHandler(_BaseRSPAPIHandler):
     """Convert notebook to PDF.
 
     The current approach relies on pandoc, which is fairly heavyweight, but
@@ -55,7 +29,7 @@ class PDFExportHandler(APIHandler):
     def initialize(self) -> None:
         """Set rootdir."""
         super().initialize()
-        self._root_dir = _get_jupyter_server_root()
+        self._root_dir: Path | None = None
 
     @tornado.web.authenticated
     async def post(self, *args: str, **kwargs: str) -> None:
@@ -100,6 +74,8 @@ class PDFExportHandler(APIHandler):
             path = os.getenv("PATH", "")
             obj.error = f"No executable 'typst' found on PATH ({path})"
             return obj
+        if self._root_dir is None:
+            self._root_dir = await self._get_jupyter_server_root()
         nb = self._root_dir / nb_path
         if not nb.exists():
             obj.error = f"File {nb} does not exist"

@@ -5,7 +5,10 @@ Used to encapsulate the queries we need to make to other RSP services.
 
 import asyncio
 import logging
+import os
+from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 
 import xmltodict
 from httpx import AsyncClient
@@ -13,9 +16,15 @@ from rubin.repertoire import (
     DiscoveryClient,
 )
 
-from ..models.query import UnknownDatasetError
+from ..exceptions import (
+    ClientError,
+    ConfigError,
+    TokenNotAvailableError,
+    UnknownDatasetError,
+)
+from ..models.config import RSPConfig
 from ..models.serviceinfo import ServiceInfo
-from ._utils import _get_access_token
+from .config_generator import ConfigGenerator
 
 
 @dataclass
@@ -51,6 +60,9 @@ class RSPClient:
     authed_client
         Client for authenticated access to RSP services (optional, created
         if not specified)
+    config
+        RSP instance configuration (optional, discovered on demand if not
+        specified)
     repertoire_url
         URL for Repertoire discovery endpoint (optional, taken from
         $REPERTOIRE_URL if not specified)
@@ -63,6 +75,7 @@ class RSPClient:
         discovery_client: DiscoveryClient | None = None,
         anonymous_client: AsyncClient | None = None,
         authed_client: AsyncClient | None = None,
+        config: RSPConfig | None = None,
         repertoire_url: str | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
@@ -74,20 +87,60 @@ class RSPClient:
                 headers={"Content-Type": "application/json"}
             )
         self.anonymous_client = anonymous_client
-        if authed_client is None:
-            authed_client = AsyncClient(
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {_get_access_token()}",
-                },
-            )
         self.authed_client = authed_client
+        self._config = config
         if discovery_client is None:
             discovery_client = DiscoveryClient(
                 anonymous_client, base_url=repertoire_url
             )
         self.discovery_client = discovery_client
         self.serviceinfo = ServiceInfo()
+
+    async def _ensure_config(self) -> None:
+        if self._config is None:
+            self._logger.info("Creating Config generator for Client config")
+            self._generator = ConfigGenerator()
+            # Populate config settings
+            self._config = self._generator.generate_config()
+            await self._generator.update_statusbar()
+
+    async def get_config(self) -> RSPConfig:
+        await self._ensure_config()
+        if self._config is None:
+            raise ConfigError("Cannot determine config")
+        return self._config
+
+    async def _ensure_authed_client(self) -> None:
+        if self.authed_client is None:
+            auth = f"Bearer {await self._get_access_token()}"
+            self.authed_client = AsyncClient(
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": auth,
+                },
+            )
+
+    async def _get_access_token(self) -> str:
+        """Get our access token, preferred methods first."""
+        # We want this to be a constant static path, but...
+        path = Path("/etc/nublado/secrets/token")
+        if path.exists():
+            return path.read_text().strip()
+        # ... in April 2026 it is not yet, but...
+        runtime_dir = ""
+        await self._ensure_config()
+        if self._config:
+            # ... the config should have it...
+            runtime_dir = self._config.runtime_mounts_dir
+        if not runtime_dir:
+            # ... or NUBLADO_RUNTIME_MOUNTS_DIR should be set...
+            runtime_dir = os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR", "")
+        if not runtime_dir:
+            raise TokenNotAvailableError("No access token available")
+        path = Path(runtime_dir) / "secrets" / "token"
+        with suppress(FileNotFoundError):
+            return path.read_text().strip()
+        raise TokenNotAvailableError("No access token available")
 
     async def get_datasets(self) -> list[str]:
         """Get datasets present in the RSP instance.
@@ -184,6 +237,9 @@ class RSPClient:
         await self.retrieve_tap_endpoints()
         for dataset, endpoint in self.serviceinfo.datasets.items():
             url = f"{endpoint}/async/{jobref_id}"
+            await self._ensure_authed_client()
+            if self.authed_client is None:
+                raise ClientError("No authenticated client")
             resp = await self.authed_client.get(url)
             if resp.status_code == 200:
                 return JobRef(
@@ -216,6 +272,9 @@ class RSPClient:
         params = {"last": str(limit)} if limit and limit > 0 else {}
         await self.retrieve_tap_endpoints()
         epoch = "1970-01-01T00:00:00.000Z"
+        await self._ensure_authed_client()
+        if self.authed_client is None:
+            raise ClientError("No authenticated client")
         for dataset, ep in self.serviceinfo.datasets.items():
             resp = await self.authed_client.get(ep + "/async", params=params)
             if resp.status_code >= 300:
@@ -230,7 +289,7 @@ class RSPClient:
             if jobrefs := history.get("uws:jobs", {}).get("uws:jobref"):
                 # Sort jobrefs by timestamp
                 jobrefs.sort(
-                    key=lambda e: (e.get("uws:creationTime", epoch)),
+                    key=lambda e: e.get("uws:creationTime", epoch),
                     reverse=True,
                 )
                 self._logger.debug(f"{dataset} jobs -> {jobrefs}")

@@ -4,19 +4,16 @@ import json
 import os
 
 import tornado
-from jupyter_server.base.handlers import APIHandler
+
+from ._base import _BaseRSPAPIHandler
 
 
-class AbnormalStartupHandler(APIHandler):
+class AbnormalStartupHandler(_BaseRSPAPIHandler):
     """
     Abnormal Startup Handler.  If any environment variables beginning with
     ABNORMAL_STARTUP are found, return them as JSON where the key is the
     variable name and the value is its value.
     """
-
-    def initialize(self) -> None:
-        super().initialize()
-        self.log.info("Initializing AbnormalStartupHandler")
 
     @tornado.web.authenticated
     def get(self) -> None:

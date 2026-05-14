@@ -58,17 +58,13 @@ def _setup_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JUPYTERHUB_HOST", "https://nb.example.lsst.cloud")
 
 
-@pytest.mark.respx(base_url="https://example.lsst.cloud")
 async def test_config(
     jp_fetch: Callable,
     rsp_fs: FakeFilesystem,
     monkeypatch: pytest.MonkeyPatch,
-    respx_mock: respx.Router,
 ) -> None:
     """Test `config` endpoint."""
     _setup_env(monkeypatch)
-    disco = Path("/etc") / "nublado" / "discovery_v1.json"
-    register_mock_discovery(respx_mock, disco)
     response = await jp_fetch("rubin", "config")
     assert response.code == 200
     payload = json.loads(response.body)
@@ -109,6 +105,10 @@ async def test_config(
         "statusbar": (
             "Daily 2026_03_31 [ae3bfaed...] (sciplat-lab:d_2026_03_31) "
             "example.lsst.cloud"
+        ),
+        "tutorial_notebooks_cache_dir": "",
+        "tutorial_notebooks_url": (
+            "https://github.com/lsst/tutorial-notebooks@main"
         ),
     }
 
