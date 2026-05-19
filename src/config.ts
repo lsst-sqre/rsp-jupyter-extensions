@@ -31,6 +31,8 @@ export interface INubladoConfigResponse {
   reset_user_env: boolean;
   runtime_mounts_dir: string;
   statusbar: string;
+  tutorial_notebooks_cache_dir: string;
+  tutorial_notebooks_url: string;
 }
 
 export async function getServerConfig(

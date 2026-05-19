@@ -7,7 +7,9 @@ from urllib.parse import urljoin
 
 from jupyter_server.base.handlers import JupyterHandler
 
+from ..exceptions import UnknownInstanceError
 from ._utils import _peel_route
+from .clients import RSPClient
 
 
 class GhostwriterHandler(JupyterHandler):
@@ -27,17 +29,27 @@ class GhostwriterHandler(JupyterHandler):
     use to receive a redirection.
     """
 
-    def prepare(self) -> None:  # type: ignore[override]
+    def initialize(self) -> None:
+        super().initialize()
+        cname = self.__class__.__name__
+        self._logger = self.log
+        if "client" not in self.settings:
+            self._logger.info(f"Initializing RSP Client for {cname}")
+            self.settings["client"] = RSPClient(logger=self.log)
+        self._rsp_client = self.settings["client"]
+
+    async def prepare(self, *, _redirect_to_login: bool = True) -> None:
         """Issue a redirect based on the request path."""
-        # the implicit None return can also function as a null coroutine,
-        # and in Python 3.13, "None" becomes a valid return type from it.
-        #
-        # So once we're at Python 3.13, we can remove that type: ignore.
         redir = _peel_route(self.request.path, "/rubin/ghostwriter")
-        # If we don't have EXTERNAL_INSTANCE_URL, we don't have ghostwriter.
-        # Just crash the handler, I guess?  It'll look like a no-op to the
-        # user with some nastiness in the browser console.
-        ext_url = os.environ["EXTERNAL_INSTANCE_URL"]
+        # Try to get the URL for the landing page of our RSP instance.
+        # Fall back to EXTERNAL_INSTANCE_URL if we fail.
+        # Crash if we don't have that, and that will put something in the
+        # logs pointing us in the right direction.
+        ext_url = await self._rsp_client.get_squareone_url()
+        if not ext_url:
+            ext_url = os.environ.get("EXTERNAL_INSTANCE_URL")
+        if not ext_url:
+            raise UnknownInstanceError("Cannot determine RSP instance URL")
         if redir:
             # We want to go all the way back out to the top level and
             # hit the external ghostwriter redirect again.

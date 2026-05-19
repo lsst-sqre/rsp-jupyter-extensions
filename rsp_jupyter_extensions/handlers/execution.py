@@ -1,7 +1,6 @@
 """Handler Module to provide an endpoint for notebook execution."""
 
 import json
-import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -11,21 +10,19 @@ from urllib.parse import parse_qs
 import nbconvert
 import nbformat
 import tornado
-from jupyter_server.base.handlers import APIHandler
 from nbconvert.preprocessors import CellExecutionError
+
+from ._base import _BaseRSPAPIHandler
+from ._utils import _get_homedir
 
 NBFORMAT_VERSION = 4
 
 
-class ExecutionHandler(APIHandler):
+class ExecutionHandler(_BaseRSPAPIHandler):
     """RSP templated Execution Handler."""
 
-    @property
-    def rubinexecution(self) -> dict[str, str]:
-        return self.settings["rubinexecution"]
-
     @tornado.web.authenticated
-    def post(self) -> None:
+    async def post(self) -> None:
         """Handle ``POST /rubin/execution``.
 
         This handler executes a notebook, and returns the rendered notebook,
@@ -75,7 +72,7 @@ class ExecutionHandler(APIHandler):
         self.write(output_str)
 
     def _clear_site_packages(self, kernel_name: str | None = None) -> None:
-        homedir = os.getenv("HOME", "")
+        homedir = _get_homedir()
         if not homedir or homedir == "/":
             return
         top = Path(homedir) / ".local" / "lib"

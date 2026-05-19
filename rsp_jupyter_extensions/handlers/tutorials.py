@@ -16,7 +16,6 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 import tornado
-from jupyter_server.base.handlers import APIHandler
 
 from ..models.tutorials import (
     Actions,
@@ -24,41 +23,12 @@ from ..models.tutorials import (
     Hierarchy,
     HierarchyEntry,
     HierarchyError,
-    TagError,
-    UserEnvironmentError,
 )
-from ._utils import _get_homedir, _get_jupyter_server_root
-
-
-def _find_repo() -> str | None:
-    repo = os.getenv(
-        "TUTORIAL_NOTEBOOKS_URL",
-        "https://github.com/lsst/tutorial-notebooks@main",
-    )
-    if "@" not in repo:
-        repo += "@main"
-    return repo
-
-
-def _get_tag() -> str:
-    image = os.getenv("JUPYTER_IMAGE_SPEC")
-    if not image:
-        raise UserEnvironmentError(
-            "Environment variable 'JUPYTER_IMAGE_SPEC' is not set"
-        )
-    colon = image.find(":")
-    atsign = image.find("@")
-    if colon < 0 or atsign <= colon:
-        raise TagError("Could not extract tag from image spec")
-    tag = image[colon + 1 : atsign]
-    if not tag:
-        raise TagError("Could not determine image tag")
-    return tag
+from ._base import _BaseRSPAPIHandler
+from ._utils import _get_homedir
 
 
 # Generic clone method
-
-
 def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
     proc = subprocess.run(
         [
@@ -80,16 +50,6 @@ def _clone_repo(repo_url: str, branch: str, dirname: str) -> None:
 
 
 # RSP-specific tutorial locations
-
-
-def _reabsolutize_path(path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    # We need to re-absolutize it so it doesn't get written to wherever
-    # the Lab extension is running from.  If it is relative, it's relative
-    # to the Jupyter Server root, which might be $HOME or might be /.
-    root_dir = _get_jupyter_server_root()
-    return root_dir / path
 
 
 def _copy_content(entry: HierarchyEntry, dest: Path) -> None:
@@ -124,66 +84,13 @@ def _copy_content(entry: HierarchyEntry, dest: Path) -> None:
         shutil.copy(entry.src, dest)
 
 
-def _check_containment(dest: Path) -> None:
-    root_dir = _get_jupyter_server_root()
-    abs_dest = _reabsolutize_path(dest)
-    try:
-        _ = abs_dest.relative_to(root_dir)
-    except ValueError as exc:
-        raise HierarchyError(
-            f"'{abs_dest!s}' is not contained by '{root_dir}'"
-        ) from exc
-
-
-def _get_notebook_path(dest: Path) -> str:
-    root_dir = _get_jupyter_server_root()
-    abs_dest = _reabsolutize_path(dest)
-    return str(abs_dest.relative_to(root_dir))
-
-
-def _copy_and_guide(input_document: dict[str, Any]) -> _UIGuidance:
-    entry = HierarchyEntry.from_primitive(input_document)
-    # For this extension, the target should always be inside the user's
-    # home directory.  This is a consequence of the RSP design, where
-    # the user is not root within the container, and most of the container
-    # is read-only to the user.
-    destpath = Path(entry.dest)
-    if not destpath.is_absolute():
-        dest = _get_homedir() / destpath
-    else:
-        # This shouldn't happen: dest should have been supplied as a relative
-        # path.  If it isn't, though, assume we know what we're doing.
-        dest = destpath
-    _check_containment(dest)
-    if dest.exists():
-        disposition = entry.disposition
-        if disposition == Dispositions.PROMPT:
-            # Send a 409 back to the UI and let it decide what to do.
-            return _UIGuidance(status_code=409)
-        elif disposition == Dispositions.ABORT:
-            # Shouldn't get here--just don't send a request from UI
-            # layer instead.
-            return _UIGuidance(status_code=204)
-        else:
-            # Otherwise, just fall through and overwrite the file.
-            pass
-    _copy_content(entry, dest)  # Dest path may have changed.
-    # We don't want to issue the redirect, because we don't want to
-    # mess with opening a new window in the JupyterLab API.  Instead,
-    # we should just return a 200 with the destination field filled
-    # out with a path relative to the server root, and let the UI
-    # extension handle opening the file it finds there.
-    guide = _get_notebook_path(dest)
-    return _UIGuidance(status_code=200, dest=guide)
-
-
 @dataclass
 class _UIGuidance:
     status_code: int
     dest: str | None = None
 
 
-class TutorialsMenuHandler(APIHandler):
+class TutorialsMenuHandler(_BaseRSPAPIHandler):
     """Produce a JSON representation of the layout of the on-disk
     tutorials that were baked into the container at build time: will
     do a clone of the current state of the tutorial repository to get that
@@ -194,8 +101,8 @@ class TutorialsMenuHandler(APIHandler):
     require a container restart to update those values.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def initialize(self) -> None:
+        super().initialize()
         self.tutorials: Hierarchy | None = None
         if "tutorials" not in self.settings:
             self.settings["tutorials"] = {}
@@ -206,9 +113,8 @@ class TutorialsMenuHandler(APIHandler):
             self._cache["timestamp"] = 0.0
         if "hierarchy" not in self._cache:
             self._cache["hierarchy"] = None
-        self._populate_tutorials()
 
-    def _populate_tutorials(self) -> None:
+    async def _populate_tutorials(self) -> None:
         stash = self._check_cache()
         if stash:
             # Extant and not expired; use it.
@@ -216,7 +122,12 @@ class TutorialsMenuHandler(APIHandler):
             return
         # Need to rebuild the structure.
         # Do we have a cache directory?  Then use it.
-        if dirname := os.getenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", ""):
+        dirname = ""
+        self._generator.generate_config()
+        dirname = self.settings["rsp_config"].tutorial_notebooks_cache_dir
+        if not dirname:
+            dirname = os.getenv("TUTORIAL_NOTEBOOKS_CACHE_DIR", "")
+        if dirname:
             self.log.debug(f"Getting tutorials from fs cache {dirname!s}")
             self.tutorials = self._get_github_tutorials(
                 dirname, from_cache=True
@@ -250,21 +161,22 @@ class TutorialsMenuHandler(APIHandler):
         return self._cache["hierarchy"]
 
     @tornado.web.authenticated
-    def get(self) -> None:
+    async def get(self) -> None:
         """Retrieve information about our tutorials."""
         self.log.info("Sending Tutorials menu information")
+        await self._populate_tutorials()
         if self.tutorials is None:  # It shouldn't be.
             self.write(json.dumps({}))
             return
         self.write(json.dumps(self.tutorials.to_primitive()))
 
     @tornado.web.authenticated
-    def post(self) -> None:
+    async def post(self) -> None:
         """Do the copy and return guide to the UI."""
         self.log.info("Received POST request for tutorial copy")
         input_str = self.request.body.decode("utf-8")
         input_document = json.loads(input_str)
-        guide = _copy_and_guide(input_document)
+        guide = await self._copy_and_guide(input_document)
         self.log.debug(f"Copy/guide got: {guide}")
         if guide.dest is None:
             dest = input_document["dest"]
@@ -284,6 +196,59 @@ class TutorialsMenuHandler(APIHandler):
         self.log.debug(f"Replying with dest = '{guide.dest}'")
         self.write(json.dumps({"dest": guide.dest}))
 
+    async def _check_containment(self, dest: Path) -> None:
+        root_dir = await self._get_jupyter_server_root()
+        abs_dest = await self._reabsolutize_path(dest)
+        try:
+            _ = abs_dest.relative_to(root_dir)
+        except ValueError as exc:
+            raise HierarchyError(
+                f"'{abs_dest!s}' is not contained by '{root_dir}'"
+            ) from exc
+
+    async def _copy_and_guide(
+        self, input_document: dict[str, Any]
+    ) -> _UIGuidance:
+        entry = HierarchyEntry.from_primitive(input_document)
+        # For this extension, the target should always be inside the user's
+        # home directory.  This is a consequence of the RSP design, where
+        # the user is not root within the container, and most of the container
+        # is read-only to the user.
+        destpath = Path(entry.dest)
+        if not destpath.is_absolute():
+            dest = _get_homedir() / destpath
+        else:
+            # This shouldn't happen: dest should have been supplied as
+            # a relative path.  If it isn't, though, assume we know
+            # what we're doing.
+            dest = destpath
+        await self._check_containment(dest)
+        if dest.exists():
+            disposition = entry.disposition
+            if disposition == Dispositions.PROMPT:
+                # Send a 409 back to the UI and let it decide what to do.
+                return _UIGuidance(status_code=409)
+            elif disposition == Dispositions.ABORT:
+                # Shouldn't get here--just don't send a request from UI
+                # layer instead.
+                return _UIGuidance(status_code=204)
+            else:
+                # Otherwise, just fall through and overwrite the file.
+                pass
+        _copy_content(entry, dest)  # Dest path may have changed.
+        # We don't want to issue the redirect, because we don't want to
+        # mess with opening a new window in the JupyterLab API.  Instead,
+        # we should just return a 200 with the destination field filled
+        # out with a path relative to the server root, and let the UI
+        # extension handle opening the file it finds there.
+        guide = await self._get_notebook_path(dest)
+        return _UIGuidance(status_code=200, dest=guide)
+
+    async def _get_notebook_path(self, dest: Path) -> str:
+        root_dir = await self._get_jupyter_server_root()
+        abs_dest = await self._reabsolutize_path(dest)
+        return str(abs_dest.relative_to(root_dir))
+
     def _get_github_tutorials(
         self, dirname: str, *, from_cache: bool = False
     ) -> Hierarchy:
@@ -297,7 +262,7 @@ class TutorialsMenuHandler(APIHandler):
             if not repo_git.is_dir():
                 self.log.debug("get_gh: Not a repo: force new clone")
                 use_cache = False  # force new clone
-        repo = _find_repo()
+        repo = self._find_repo()
         if not repo:
             self.log.debug("get_gh: No repository found")
             return Hierarchy()
@@ -407,3 +372,16 @@ class TutorialsMenuHandler(APIHandler):
                 h.entries = {}
             h.entries[nm] = h_entry
         return h
+
+    def _find_repo(self) -> str | None:
+        repo = ""
+        if self.settings["rsp_config"]:
+            repo = self.settings["rsp_config"].tutorial_notebooks_url
+        else:
+            repo = os.getenv(
+                "TUTORIAL_NOTEBOOKS_URL",
+                "https://github.com/lsst/tutorial-notebooks@main",
+            )
+        if "@" not in repo:
+            repo += "@main"
+        return repo

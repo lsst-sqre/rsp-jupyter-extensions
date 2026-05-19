@@ -1,31 +1,9 @@
 """Utilities for working with Jupyter Server RSP handlers."""
 
-import json
 import os
-from contextlib import suppress
 from pathlib import Path
-from urllib.parse import urlsplit
 
-from ..models.tutorials import UserEnvironmentError
-
-
-class TokenNotAvailableError(RuntimeError):
-    """No Gafaelfawr token is available."""
-
-
-def _get_access_token() -> str:
-    """Get our access token, preferred methods first."""
-    # We want this to be a constant static path, but...
-    path = Path("/etc/nublado/secrets/token")
-    if path.exists():
-        return path.read_text().strip()
-    # ... in April 2026 it is not yet, but NUBLADO_RUNTIME_MOUNTS_DIR should
-    # be set.
-    if runtime_dir := os.environ.get("NUBLADO_RUNTIME_MOUNTS_DIR"):
-        path = Path(runtime_dir) / "secrets" / "token"
-        with suppress(FileNotFoundError):
-            return path.read_text().strip()
-    raise TokenNotAvailableError("No access token available")
+from ..exceptions import UserEnvironmentError
 
 
 def _get_homedir() -> Path:
@@ -33,32 +11,6 @@ def _get_homedir() -> Path:
     if not homedir:
         raise UserEnvironmentError("home directory is not set")
     return Path(homedir)
-
-
-def _get_jupyter_server_root() -> Path:
-    # We can't use JUPYTER_SERVER_ROOT, as it's set by the JupyterLab process
-    # for the subprocesses it spawns, but not in the parent process.
-    srv_root = os.getenv("FILEBROWSER_ROOT", "home")
-    if srv_root == "root":
-        return Path("/")
-    return _get_homedir()
-
-
-def _get_base_url() -> str:
-    # Stopgap until we have service discovery.
-    hub_host = os.getenv("JUPYTERHUB_HOST", "https://localhost:8080")
-    usplit = urlsplit(hub_host)
-    scheme = ""
-    if usplit.scheme:
-        scheme = usplit.scheme + "://"
-    netloc = usplit.netloc
-    # Ad-hoc, but works pre-service discovery.  What we really
-    # want is the Times-Square UI endpoint.
-    #
-    # If we have user domains enabled, this will be "nb.rsp_instance"
-    pref = "nb."
-    netloc = netloc.removeprefix(pref)
-    return f"{scheme}{netloc}"
 
 
 def _peel_route(path: str, stem: str) -> str | None:
@@ -73,25 +25,3 @@ def _peel_route(path: str, stem: str) -> str | None:
     if not shorty or shorty == "/" or shorty.startswith(stem):
         return None
     return shorty
-
-
-def _write_notebook_response(nb_text: str, target: Path) -> str:
-    """Given notebook text and a filename where it should go, return
-    a response for Jupyter to give back to the extension to open that file
-    in the JupyterLab UI.
-    """
-    dirname = target.parent
-    fname = target.name
-    # JUPYTER_SERVER_ROOT is set *by* JupyterLab, not in its environment.
-    rname = target.relative_to(_get_jupyter_server_root())
-    dirname.mkdir(parents=True, exist_ok=True)
-    target.write_text(nb_text)
-    top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "")
-    retval = {
-        "status": 200,
-        "filename": str(fname),
-        "path": str(rname),
-        "url": f"{top}/tree/{rname!s}",
-        "body": nb_text,
-    }
-    return json.dumps(retval)

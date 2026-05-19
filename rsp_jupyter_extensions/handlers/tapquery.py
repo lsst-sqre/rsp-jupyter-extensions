@@ -1,4 +1,4 @@
-"""Handler Module to provide an endpoint for templated queries."""
+"""Handler Module to provide an endpoint for templated TAP queries."""
 
 import json
 import os
@@ -8,32 +8,28 @@ from urllib.parse import urljoin
 import tornado
 import xmltodict
 from httpx import ReadTimeout
-from jupyter_server.base.handlers import APIHandler
 
-from ..models.query import (
+from ..exceptions import (
     NotANotebookError,
-    TAPQuery,
     UnimplementedQueryResolutionError,
     UnsupportedQueryTypeError,
 )
-from ._utils import _peel_route, _write_notebook_response
-from .clients import RSPClient
+from ..models.query import TAPQuery
+from ._base import _BaseRSPAPIHandler
+from ._utils import _get_homedir, _peel_route
 
 
-class QueryHandler(APIHandler):
+class TAPQueryHandler(_BaseRSPAPIHandler):
     """RSP templated Query Handler."""
 
     def initialize(self) -> None:
         """Get a client to talk to Times Square and TAP APIs."""
         super().initialize()
-        self._home_dir = Path(os.getenv("HOME", ""))
+        self._home_dir = _get_homedir()
         if "query" not in self.settings:
             self.settings["query"] = {}
         if "cache" not in self.settings["query"]:
             self.settings["query"]["cache"] = {}
-        if "client" not in self.settings["query"]:
-            self.settings["query"]["client"] = RSPClient(logger=self.log)
-        self._rsp_client = self.settings["query"]["client"]
         self._cache = self.settings["query"]["cache"]
 
     @tornado.web.authenticated
@@ -118,7 +114,7 @@ class QueryHandler(APIHandler):
             nb = await self._get_tap_query_notebook(url)
         await self.refresh_query_history()  # Opportunistic
         self.log.debug(f"Creating file {fname!s}")
-        return _write_notebook_response(nb, fname)
+        return await self._write_notebook_response(nb, fname)
 
     async def _get_ts_query_notebook(
         self,
@@ -144,6 +140,7 @@ class QueryHandler(APIHandler):
         # We do a little sanity check: if what we get back isn't JSON, it
         # definitely isn't a notebook, and we shouldn't write it to the
         # user's space.
+        await self._rsp_client.ensure_authed_client()
         resp = await self._rsp_client.authed_client.get(
             rendered_url, params=params
         )
@@ -159,6 +156,7 @@ class QueryHandler(APIHandler):
         self, notebook: str, params: dict[str, str]
     ) -> str:
         """Partially-curried function with invariant parameters filled in."""
+        # Maybe these should be configuration options.
         org = os.getenv("NUBLADO_SEEDS_ORG", "lsst-sqre")
         repo = os.getenv("NUBLADO_SEEDS_REPO", "nublado-seeds")
         directory = os.getenv("NUBLADO_SEEDS_DIR", "tap")
@@ -280,7 +278,7 @@ class QueryHandler(APIHandler):
             / "tap_query_history.ipynb"
         )
         await self.refresh_query_history()  # Opportunistic
-        return _write_notebook_response(output, fname)
+        return await self._write_notebook_response(output, fname)
 
     async def _get_query_text_list(
         self, job_ids: dict[str, list[dict[str, str]]]
@@ -315,11 +313,35 @@ class QueryHandler(APIHandler):
                     retval[dataset].append(qtext)
         return retval
 
+    async def _write_notebook_response(
+        self, nb_text: str, target: Path
+    ) -> str:
+        """Given notebook text and a filename where it should go, return
+        a response for Jupyter to give back to the extension to open that file
+        in the JupyterLab UI.
+        """
+        dirname = target.parent
+        fname = target.name
+        # JUPYTER_SERVER_ROOT is set *by* JupyterLab, not in its environment.
+        rname = target.relative_to(await self._get_jupyter_server_root())
+        dirname.mkdir(parents=True, exist_ok=True)
+        target.write_text(nb_text)
+        top = os.environ.get("JUPYTERHUB_SERVICE_PREFIX", "")
+        retval = {
+            "status": 200,
+            "filename": str(fname),
+            "path": str(rname),
+            "url": f"{top}/tree/{rname!s}",
+            "body": nb_text,
+        }
+        return json.dumps(retval)
+
     async def _get_query_text_job(self, job: str) -> TAPQuery:
         if job in self._cache:
             return TAPQuery(jobref=job, text=self._cache[job])
         jobref = await self._rsp_client.resolve_jobref_id(job)
         self.log.debug(f"{job} -> {jobref}")
+        await self._rsp_client.ensure_authed_client()
         resp = await self._rsp_client.authed_client.get(
             f"{jobref.endpoint}/async/{jobref.jobref_id}"
         )

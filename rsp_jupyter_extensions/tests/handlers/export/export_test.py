@@ -11,12 +11,13 @@ import os
 import shutil
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
 
 import pytest
 import tornado
 
 from rsp_jupyter_extensions.handlers.pdfexport import PDFExportHandler
+
+from ..._fake import _FakeConnect
 
 
 @pytest.fixture
@@ -28,7 +29,10 @@ def _fake_root(
     patched, and the process spawn gets mad, because the working
     directory only exists in memory).
     """
-    data_dir = Path(__file__).parent / "data"
+    monkeypatch.setenv(
+        "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
+    )
+    data_dir = Path(__file__).parent.parent.parent / "data"
     for directory in ("home", "usr"):
         shutil.copytree(data_dir / directory, tmp_path / directory)
     t_home = tmp_path / "home" / "irian"
@@ -53,11 +57,6 @@ def _fake_root(
             pandoc.rmdir()
         else:
             pandoc.unlink()
-
-
-class _FakeConnect(tornado.httputil.HTTPConnection):
-    def set_close_callback(self, arg: Any) -> None:
-        pass
 
 
 @pytest.mark.usefixtures("_fake_root")

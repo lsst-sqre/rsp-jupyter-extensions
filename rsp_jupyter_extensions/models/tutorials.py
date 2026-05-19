@@ -9,6 +9,8 @@ from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel, Field, model_validator
 
+from ..exceptions import HierarchyError
+
 
 class Actions(StrEnum):
     """Allowable transformations for file movement."""
@@ -23,18 +25,6 @@ class Dispositions(StrEnum):
     PROMPT = auto()
     OVERWRITE = auto()
     ABORT = auto()
-
-
-class HierarchyError(Exception):
-    """Class to indicate something went wrong with Hierarchy construction."""
-
-
-class TagError(Exception):
-    """Class to indicate something went wrong with the image tag."""
-
-
-class UserEnvironmentError(Exception):
-    """Class to indicate something went wrong with user environment."""
 
 
 class HierarchyEntry(BaseModel):

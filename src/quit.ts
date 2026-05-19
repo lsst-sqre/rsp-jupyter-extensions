@@ -20,6 +20,7 @@ import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
 import { INubladoConfigResponse } from './config';
+import { getServiceInfo } from './serviceinfo';
 
 /**
  * The command IDs used by the plugin.
@@ -27,6 +28,11 @@ import { INubladoConfigResponse } from './config';
 export namespace CommandIDs {
   export const justQuit = 'justquit:justquit';
   export const quitLogout = 'quitlogout:quitlogout';
+}
+
+enum QuitDisposition {
+  Quit = 'QUIT',
+  Logout = 'LOGOUT'
 }
 
 /**
@@ -45,7 +51,7 @@ export function activateRSPQuitExtension(
     label: 'Exit',
     caption: 'Destroy container',
     execute: () => {
-      justQuit(app, false, cfg);
+      justQuit(app, QuitDisposition.Quit, cfg);
     }
   });
 
@@ -53,7 +59,7 @@ export function activateRSPQuitExtension(
     label: 'Exit and Log Out',
     caption: 'Destroy container and log out',
     execute: () => {
-      justQuit(app, true, cfg);
+      justQuit(app, QuitDisposition.Logout, cfg);
     }
   });
 
@@ -85,38 +91,46 @@ async function hubDeleteRequest(
 
 async function justQuit(
   app: JupyterFrontEnd,
-  logout: boolean,
+  disposition: QuitDisposition,
   cfg: INubladoConfigResponse
 ): Promise<any> {
-  let targetEndpoint = PageConfig.getOption('hubHost');
-  // This needs to be changed when we have service discovery working, but
-  // this is a good enough guess for now.  If it fails you just get sent
-  // back to the Hub rather than the landing page (and logout probably doesn't
-  // work).
-  if (targetEndpoint.substring(0, 10) === 'http://nb.') {
-    targetEndpoint = 'http://' + targetEndpoint.substring(10);
+  // Don't await infoDialog(): if we navigate away before the user
+  // acknowledges, that's OK.
+  try {
+    infoDialog(cfg);
+  } catch (error) {
+    logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
+    // Don't rethrow - this is a non-critical background operation
   }
-  if (targetEndpoint.substring(0, 11) === 'https://nb.') {
-    targetEndpoint = 'https://' + targetEndpoint.substring(11);
-  }
-  if (logout) {
-    targetEndpoint = targetEndpoint + '/logout';
+  let targetEndpoint = '/';
+  try {
+    const si = await getServiceInfo(app);
+    logMessage(
+      LogLevels.DEBUG,
+      cfg,
+      `Got serviceinfo response: ${JSON.stringify(si, undefined, 2)}`
+    );
+    targetEndpoint = si.ui['squareone'];
+    if (disposition === QuitDisposition.Logout) {
+      targetEndpoint = si.ui['logout'];
+    }
+  } catch (error) {
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `exit: finding serviceinfo failed: ${error}`
+    );
+    // Just redirect to root (which will be SquareOne or Hub spawner,
+    // depending on whether user domains are in play or not).
   }
   logMessage(LogLevels.DEBUG, cfg, `final target endpoint: ${targetEndpoint}`);
-  try {
-    // Lack of await for infoDialog() is intentional.  If we leave the page
-    // before the user acknowledges the dialog, that's fine.
-    infoDialog(cfg);
-  } catch (infoError) {
-    logMessage(LogLevels.WARNING, cfg, `quit: infoDialog failed: ${infoError}`);
-  }
   try {
     await hubDeleteRequest(app, cfg);
     logMessage(LogLevels.INFO, cfg, 'Quit complete.');
     window.location.replace(targetEndpoint);
     return null;
   } catch (error) {
-    logMessage(LogLevels.WARNING, cfg, `quit: justQuit failed: ${error}`);
+    logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
   }
 }
 
