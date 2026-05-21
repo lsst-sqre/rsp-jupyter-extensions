@@ -7,6 +7,7 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 <!-- scriv-insert-here -->
 
 <a id='changelog-v0.24.1'></a>
+
 ## v0.24.1 (2026-05-21)
 
 ### Other changes
