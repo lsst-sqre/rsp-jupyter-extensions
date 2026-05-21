@@ -48,7 +48,7 @@ export function activateRSPQuitExtension(
   const { commands } = app;
 
   commands.addCommand(CommandIDs.justQuit, {
-    label: 'Exit',
+    label: 'Autosave and Exit',
     caption: 'Destroy container',
     execute: () => {
       justQuit(app, QuitDisposition.Quit, cfg);
@@ -56,7 +56,7 @@ export function activateRSPQuitExtension(
   });
 
   commands.addCommand(CommandIDs.quitLogout, {
-    label: 'Exit and Log Out',
+    label: 'Autosave, Exit, and Log Out',
     caption: 'Destroy container and log out',
     execute: () => {
       justQuit(app, QuitDisposition.Logout, cfg);
