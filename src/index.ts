@@ -137,7 +137,7 @@ async function activateIndividualExtensions(
       `Error activating pdfexport extension: ${error}`
     );
   }
-  if (cfg.enable_queries_menu) {
+  if (cfg.enable_jobs_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
       await activateRSPTAPQueriesExtension(app, mainMenu, docManager, cfg);

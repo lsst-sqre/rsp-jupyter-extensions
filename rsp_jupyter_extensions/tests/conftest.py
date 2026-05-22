@@ -1,10 +1,10 @@
 """Fixture for test suite."""
 import os
 from pathlib import Path
+from typing import Iterator
 
 import pytest
 from pyfakefs.fake_filesystem import FakeFilesystem
-from typing import Iterator
 import respx
 
 from rubin.repertoire import Discovery, register_mock_discovery
@@ -54,7 +54,7 @@ def mock_discovery(
 ) -> Iterator[Discovery]:
     """Mock out service discovery."""
     with monkeypatch.context() as mc:
-        monkeypatch.setenv("REPERTOIRE_BASE_URL",
+        mc.setenv("REPERTOIRE_BASE_URL",
                            "https://example.lsst.cloud/repertoire")
         path = (Path(__file__).parent / "data" / "etc" / "nublado"
                 / "discovery_v1.json")
@@ -68,7 +68,6 @@ def _add_real_directory(
     fs.add_real_directory(
         datadir / pathname,
         target_path = f"/{pathname}",
-        read_only = True
     )
 
 @pytest.fixture
@@ -80,10 +79,10 @@ def rsp_fs(
     for dd in ("etc", "home", "usr"):
         _add_real_directory(fs, dd)
     with monkeypatch.context() as mc:
-        monkeypatch.setenv("HOME", "/home/irian")
+        mc.setenv("HOME", "/home/irian")
         env_p=os.getenv("PATH", "/bin:/usr/bin")
         env_p=f"/usr/local/bin:{env_p}"
-        monkeypatch.setenv("PATH", env_p)
+        mc.setenv("PATH", env_p)
         yield fs
 
 @pytest.fixture
@@ -107,3 +106,9 @@ def tutorial_env(tmp_path:Path) -> Path:
     (tmp_path / ".git").mkdir()
 
     return tmp_path
+
+@pytest.fixture
+def labcfg() -> str:
+    return (
+        Path(__file__).parent / "data" / "config" / "lab-config.json"
+    ).read_text()

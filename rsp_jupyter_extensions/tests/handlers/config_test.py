@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 
 from pyfakefs.fake_filesystem import FakeFilesystem
 
@@ -17,8 +18,8 @@ async def test_config(
     assert payload == {
         "container_size": "Large (4.0 CPU, 16Gi RAM)",
         "debug": False,
+        "enable_jobs_menu": False,
         "enable_landing_page": False,
-        "enable_queries_menu": False,
         "enable_tutorials_menu": False,
         "file_browser_root": "home",
         "home_relative_to_file_browser_root": "",
@@ -57,3 +58,28 @@ async def test_config(
             "https://github.com/lsst/tutorial-notebooks@main"
         ),
     }
+
+
+async def test_config_file(
+    labcfg: str,
+    jp_fetch: Callable,
+    rsp_fs: FakeFilesystem,
+) -> None:
+    """Test `config` endpoint."""
+    cfg = json.loads(labcfg)
+    Path("/etc/nublado/config").mkdir()
+    Path("/etc/nublado/config/lab-config.json").write_text(labcfg)
+    response = await jp_fetch("rubin", "config")
+    assert response.code == 200
+    payload = json.loads(response.body)
+    # Add the calculated-later fields
+    cfg["enable_landing_page"] = False
+    cfg["statusbar"] = (
+        "Experimental Weekly 2026_21 [ai] [89e0fd32...]"
+        " (sciplat-lab:exp_w_2026_21_ai) example.lsst.cloud"
+    )
+    cfg["tutorial_notebooks_cache_dir"] = ""
+    cfg["tutorial_notebooks_url"] = (
+        "https://github.com/lsst/tutorial-notebooks@main"
+    )
+    assert payload == cfg
