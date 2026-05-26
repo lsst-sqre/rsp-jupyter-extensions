@@ -105,12 +105,20 @@ class RSPClient:
             await self._generator.update_statusbar()
 
     async def get_config(self) -> RSPConfig:
+        """Retrieve RSP Config.
+
+        Returns
+        -------
+        RSPConfig
+            Configuration for this RSP instance.
+        """
         await self._ensure_config()
         if self._config is None:
             raise ConfigError("Cannot determine config")
         return self._config
 
-    async def _ensure_authed_client(self) -> None:
+    async def ensure_authed_client(self) -> None:
+        """If we do not have an authenticated client, create one."""
         if self.authed_client is None:
             auth = f"Bearer {await self._get_access_token()}"
             self.authed_client = AsyncClient(
@@ -235,7 +243,7 @@ class RSPClient:
             return JobRef(
                 dataset=dataset, jobref_id=new_j_id, endpoint=endpoint
             )
-        await self._ensure_authed_client()
+        await self.ensure_authed_client()
         await self.retrieve_tap_endpoints()
         for dataset, endpoint in self.serviceinfo.datasets.items():
             url = f"{endpoint}/async/{jobref_id}"
@@ -271,7 +279,7 @@ class RSPClient:
         """
         retval: dict[str, list[dict[str, str]]] = {}
         params = {"last": str(limit)} if limit and limit > 0 else {}
-        await self._ensure_authed_client()
+        await self.ensure_authed_client()
         await self.retrieve_tap_endpoints()
         epoch = "1970-01-01T00:00:00.000Z"
         if self.authed_client is None:

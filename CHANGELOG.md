@@ -6,6 +6,18 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-v0.25.0'></a>
+
+## v0.25.0 (2026-05-26)
+
+### New features
+
+- Read from lab-config.json if it exists.
+
+### Other changes
+
+- Rebuilt package.json and tsconfig.json with current JupyterLab dependencies.
+
 <a id='changelog-v0.24.1'></a>
 
 ## v0.24.1 (2026-05-21)

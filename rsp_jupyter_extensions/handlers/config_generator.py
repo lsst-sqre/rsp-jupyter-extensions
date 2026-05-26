@@ -1,12 +1,17 @@
 """Send baked-in config.
 
-Eventually this will probably be mounted as a configmap.  For right now, it
-is calculated from the environment, so what we are returning is a sanitized
-derived subset of the process environment.  We use the Tornado settings dict
-in order to cache the results between handler calls.
+If this is mounted into the container, use that version (augmented with
+statusbar (calculated asynchronously) and tutorial cache information).
+
+If not, calculate it from the environment.
+
+We use the Tornado settings dict to cache results between handler calls.
 """
 
+import json
+import logging
 import os
+from pathlib import Path
 from typing import Any, Self
 
 from httpx import AsyncClient
@@ -39,6 +44,7 @@ class ConfigGenerator:
         if hasattr(self, "_initialized"):
             return
         self._initialized = True
+        self._logger = logging.getLogger(__name__)
         self._config: RSPConfig | None = None
         self._config = self.generate_config()
         _anonymous_client = AsyncClient(
@@ -92,19 +98,40 @@ class ConfigGenerator:
             return ""
         return str(_get_homedir()).lstrip("/")
 
-    def regenerate_config(self) -> None | RSPConfig:
-        self._config = None  # Force config to be empty, so generate runs.
-        self.generate_config()
-        return self._config
+    def regenerate_config(self) -> RSPConfig | None:
+        """Force regeneration of config.
 
-    def generate_config(self) -> None | RSPConfig:
-        """Sanitized version of environment.  Note that eventually we want
-        to pass this as a separate config.json, and any remaining environment
-        variables that we control (i.e. are not set by Jupyter) should be
-        namespaced under NUBLADO_* .
+        Returns
+        -------
+        RSPConfig|None
+            Lab configuration.
+        """
+        self._config = None  # Force config to be empty, so generate must run.
+        return self.generate_config()
+
+    def generate_config(self) -> RSPConfig | None:
+        """Generate Lab configuration.  Check first for a mounted configuration
+        file and use that if it exists; otherwise, use a sanitized version of
+        the environment.
+
+        Returns
+        -------
+        RSPConfig|None
+            Lab configuration.
         """
         if self._config is not None:
             return self._config
+        cfg_file = (
+            Path(os.getenv("NUBLADO_RUNTIME_MOUNTS_DIR", "/etc/nublado"))
+            / "config"
+            / "lab-config.json"
+        )
+        if cfg_file.exists():
+            cf = self._load_config_file(cfg_file)
+            if cf:
+                self._config = cf
+                return cf
+            self._logger.warning("Falling back to environment-based config")
         image = LabImage(
             description=os.environ.get(
                 "IMAGE_DESCRIPTION", self._image_spec_to_tag()
@@ -121,11 +148,11 @@ class ConfigGenerator:
         self._config = RSPConfig(
             container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
             debug=bool(os.environ.get("DEBUG")),
-            enable_landing_page=(os.environ.get("RSP_SITE_TYPE") == "science"),
-            enable_queries_menu=(
+            enable_jobs_menu=(
                 bool(os.environ.get("ENABLE_RUBIN_QUERY_MENU"))
                 or staff_or_science
             ),
+            enable_landing_page=(os.environ.get("RSP_SITE_TYPE") == "science"),
             enable_tutorials_menu=(
                 bool(os.environ.get("ENABLE_TUTORIALS_MENU"))
                 or staff_or_science
@@ -162,6 +189,25 @@ class ConfigGenerator:
         )
         return self._config
 
+    def _load_config_file(self, cfg_file: Path) -> RSPConfig | None:
+        rspcfg: RSPConfig | None = None
+        try:
+            obj = json.loads(cfg_file.read_text())
+            obj["enable_landing_page"] = (
+                os.environ.get("RSP_SITE_TYPE") == "science"
+            )
+            obj["tutorial_notebooks_cache_dir"] = os.environ.get(
+                "TUTORIAL_NOTEBOOKS_CACHE_DIR", ""
+            )
+            obj["tutorial_notebooks_url"] = os.environ.get(
+                "TUTORIAL_NOTEBOOKS_URL",
+                "https://github.com/lsst/tutorial-notebooks@main",
+            )
+            rspcfg = RSPConfig.model_validate(obj)
+        except Exception:
+            self._logger.exception(f"Loading config file {cfg_file!s} failed")
+        return rspcfg
+
     async def update_statusbar(self) -> None:
         if self._config is None:
             raise ConfigError("Config could not be determined")
@@ -170,6 +216,9 @@ class ConfigGenerator:
         descr = self._config.image.description
         spec = self._config.image.spec
         digest = self._config.image.digest
+        if digest.find(":") > -1:
+            # Throw away method (e.g. sha256:0942... -> 0942...)
+            digest = digest.split(":", 2)[1]
         digest_str = f" [{digest[0:8]}...]"
         img_arr = spec.split("/")
         try:

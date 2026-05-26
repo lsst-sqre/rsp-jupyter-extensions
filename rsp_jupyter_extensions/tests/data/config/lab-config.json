@@ -1,0 +1,27 @@
+{
+  "container_size": "Large (4.0 CPU, 16Gi RAM)",
+  "debug": true,
+  "enable_jobs_menu": true,
+  "enable_tutorials_menu": true,
+  "file_browser_root": "root",
+  "home_relative_to_file_browser_root": "home/adam",
+  "image": {
+    "description": "Experimental Weekly 2026_21 [ai]",
+    "digest": "sha256:89e0fd322fed64cb7098fc25dc3653f76db57b6c1cf28240bd8b15a946b261ca",
+    "spec": "us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/sciplat-lab:exp_w_2026_21_ai@sha256:89e0fd322fed64cb7098fc25dc3653f76db57b6c1cf28240bd8b15a946b261ca"
+  },
+  "jupyterlab_config_dir": "/opt/lsst/software/jupyterlab",
+  "repertoire_base_url": "https://example.lsst.cloud/repertoire",
+  "reset_user_env": false,
+  "resources": {
+    "limits": {
+      "cpu": 4.0,
+      "memory": 17179869184
+    },
+    "requests": {
+      "cpu": 1.0,
+      "memory": 4294967296
+    }
+  },
+  "runtime_mounts_dir": "/etc/nublado"
+}

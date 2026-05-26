@@ -7,7 +7,6 @@ in order to cache the results between handler calls.
 """
 
 import json
-from dataclasses import asdict
 
 import tornado
 
@@ -44,7 +43,7 @@ class ConfigHandler(_BaseRSPAPIHandler):
         else:
             self.write(
                 json.dumps(
-                    asdict(self.settings["rsp_config"]),
+                    self.settings["rsp_config"].model_dump(),
                     sort_keys=True,
                     indent=2,
                 )
