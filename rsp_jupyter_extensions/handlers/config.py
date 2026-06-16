@@ -10,9 +10,7 @@ import json
 
 import tornado
 
-from ..models.config import (
-    RSPConfig,
-)
+from ..models.config import RSPConfig
 from ._base import _BaseRSPAPIHandler
 
 

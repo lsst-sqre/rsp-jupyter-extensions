@@ -123,6 +123,11 @@ asyncio_mode = "strict"
 [tool.ruff]
 extend = "ruff-shared.toml"
 
+[tool.ruff.lint.isort]
+known-first-party = [
+    "rsp_jupyter_extensions"
+]
+
 [tool.scriv]
 categories = [
     "Backwards-incompatible changes",

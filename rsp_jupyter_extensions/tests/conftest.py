@@ -40,6 +40,7 @@ def rsp_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         mc.setenv(
         "JUPYTERLAB_CONFIG_DIR", "/opt/lsst/software/jupyterlab"
     )
+        mc.setenv("NUBLADO_COLLAB_DIR", "/collab")
         mc.setenv("NUBLADO_RUNTIME_MOUNTS_DIR", "/etc/nublado")
         mc.setenv("CPU_LIMIT", "4.0")
         mc.setenv("CPU_GUARANTEE", "1.0")
@@ -76,7 +77,7 @@ def rsp_fs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[FakeFilesystem]:
     """Simulate enough of an RSP filesystem to run tests."""
-    for dd in ("etc", "home", "usr"):
+    for dd in ("etc", "home", "usr", "collab"):
         _add_real_directory(fs, dd)
     with monkeypatch.context() as mc:
         mc.setenv("HOME", "/home/irian")
