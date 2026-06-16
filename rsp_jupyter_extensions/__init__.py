@@ -1,9 +1,23 @@
+"""Register handlers for RSP extension routes."""
+
+import os
+from pathlib import Path
 import jupyterlab
 import jupyter_server
+from jupyter_server.services.contents.largefilemanager import (
+    AsyncLargeFileManager,
+)
 
 from jupyter_server.utils import url_path_join as ujoin
 
 from .handlers.abnormal import AbnormalStartupHandler
+from .handlers.collab_filebrowser import (
+    CollabContentsHandler,
+    CollabCheckpointsHandler,
+    CollabModifyCheckpointsHandler,
+    CollabTrustNotebooksHandler,
+    COLLAB_SETTINGS_KEY
+)
 from .handlers.config import ConfigHandler
 from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
@@ -39,9 +53,32 @@ def _jupyter_server_extension_points() -> list[dict[str, str]]:
 def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
                     ) -> None:
     """Sets up the route handlers to call the appropriate functionality."""
+
+    path_regex = r"(?P<path>(?:/.*)*)"
+    checkpoint_id_regex = r"(?P<checkpoint_id>[\w-]+)"
     web_app = server_app.web_app
+    collab_dir = os.environ.get("NUBLADO_COLLAB_DIR")
+    if collab_dir:
+        collab_path = Path(collab_dir)
+        if collab_path.is_dir():
+            cm = AsyncLargeFileManager(
+                parent=server_app,
+                log=server_app.log,
+                root_dir=collab_dir
+            )
+            web_app.settings[COLLAB_SETTINGS_KEY] = cm
+        else:
+            server_app.log.warning(f"{collab_dir} is not a directory")
+            web_app.settings[COLLAB_SETTINGS_KEY] = None
+    else:
+        web_app.settings[COLLAB_SETTINGS_KEY] = None
     extmap = {
         r"/rubin/abnormal": AbnormalStartupHandler,
+        r"/rubin/collab/checkpoints": CollabCheckpointsHandler,
+        ("/rubin/collab/checkpoints/"
+         rf"{checkpoint_id_regex}"): CollabModifyCheckpointsHandler,
+        rf"/rubin/collab{path_regex}/trust": CollabTrustNotebooksHandler,
+        rf"/rubin/collab{path_regex}": CollabContentsHandler,
         r"/rubin/config": ConfigHandler,
         r"/rubin/execution": ExecutionHandler,
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,

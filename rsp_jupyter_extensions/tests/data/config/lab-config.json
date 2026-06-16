@@ -1,4 +1,5 @@
 {
+  "collab_dir": "/",
   "container_size": "Large (4.0 CPU, 16Gi RAM)",
   "debug": true,
   "enable_jobs_menu": true,

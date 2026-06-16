@@ -12,9 +12,7 @@ from pathlib import Path
 
 import xmltodict
 from httpx import AsyncClient
-from rubin.repertoire import (
-    DiscoveryClient,
-)
+from rubin.repertoire import DiscoveryClient
 
 from ..exceptions import (
     ClientError,

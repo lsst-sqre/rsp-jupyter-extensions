@@ -146,6 +146,7 @@ class ConfigGenerator:
             os.environ.get("RSP_SITE_TYPE") == "science"
         ) or bool(os.environ.get("RSP_SITE_TYPE") == "staff")
         self._config = RSPConfig(
+            collab_dir=os.environ.get("NUBLADO_COLLAB_DIR"),
             container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
             debug=bool(os.environ.get("DEBUG")),
             enable_jobs_menu=(
