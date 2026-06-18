@@ -113,7 +113,11 @@ before-build-python = ["jlpm clean:all"]
 ignore = ["W002"]
 
 [[tool.mypy.overrides]]
-module = ["jupyterlab.*"]
+module = [
+    "jupyterlab.*",
+    "jupyter_server_documents.*",
+    "jupyter_server_fileid.*"
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -122,6 +126,11 @@ asyncio_mode = "strict"
 
 [tool.ruff]
 extend = "ruff-shared.toml"
+
+[tool.ruff.lint.extend-per-file-ignores]
+"rsp_jupyter_extensions/handlers/collab_filebrowser.py" = [
+    "C901", # All those inner classes do get pretty complex
+]
 
 [tool.ruff.lint.isort]
 known-first-party = [
