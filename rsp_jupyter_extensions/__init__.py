@@ -83,6 +83,7 @@ def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
             )
             cm.log = server_app.log
             cm.parent = server_app
+            _check_link(collab_path, cm.log)
     web_app.settings[COLLAB_SETTINGS_KEY] = cm
     extmap = {
         r"/rubin/abnormal": AbnormalStartupHandler,
@@ -126,6 +127,27 @@ def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
                 ydoc_classes = ydoc_classes,
                 collab_dir = collab_dir,
             )
+
+def _check_link(collab_path:Path, log: logging.Logger) -> None:
+    homedir = Path(os.environ.get("HOME", ""))
+    local_link = homedir / ".collab" / collab_path.name
+    if local_link.is_symlink():
+        link=local_link.readlink()
+        if link != collab_path:
+            log.warning(f"{local_link!s} points to {link!s}, not "
+                        f"{collab_path!s}")
+        return
+    if local_link.exists():
+        log.warning(f"{local_link!s} exists but is not a symlink to"
+                             f" {collab_path!s}")
+        return
+    local_link.parent.mkdir(exist_ok=True)
+    log.info(f"Creating link from {collab_path!s} to {local_link!s}")
+    try:
+        local_link.symlink_to(collab_path)
+    except Exception:
+        log.exception("Link creation failed")
+
 
 def _extract_ydoc_handlers(
     extmap: dict[str, type[JupyterHandler]],

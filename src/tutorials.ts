@@ -53,12 +53,12 @@ class TutorialsEntry implements ITutorialsEntryResponse {
   dest: string;
 
   constructor(inp: ITutorialsEntryResponse) {
-    (this.menu_name = inp.menu_name),
+    ((this.menu_name = inp.menu_name),
       (this.action = inp.action),
       (this.disposition = inp.disposition),
       (this.parent = inp.parent),
       (this.src = inp.src),
-      (this.dest = inp.dest);
+      (this.dest = inp.dest));
   }
 }
 

@@ -12,6 +12,8 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { INotebookTracker } from '@jupyterlab/notebook';
 
+import { IStateDB } from '@jupyterlab/statedb';
+
 import { activateRSPCollabBrowserExtension } from './collab_browser';
 
 import { getServerConfig, INubladoConfigResponse } from './config';
@@ -42,7 +44,8 @@ function activateRSPExtension(
   docManager: IDocumentManager,
   statusBar: IStatusBar,
   tracker: INotebookTracker,
-  restorer: ILayoutRestorer | null
+  restorer: ILayoutRestorer | null,
+  statedb: IStateDB | null
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server configuration...');
   getServerConfig(app).then(async cfg => {
@@ -74,6 +77,7 @@ function activateRSPExtension(
         tracker,
         abnormal,
         restorer,
+        statedb,
         cfg
       );
     } catch (error) {
@@ -94,6 +98,7 @@ async function activateIndividualExtensions(
   tracker: INotebookTracker,
   abnormal: IAbnormalResponse,
   restorer: ILayoutRestorer | null,
+  statedb: IStateDB | null,
   cfg: INubladoConfigResponse
 ): Promise<void> {
   /* Do this first so we have quit menu items even in abnormal startup. */
@@ -188,7 +193,13 @@ async function activateIndividualExtensions(
       '...activating collab filebrowser extension...'
     );
     try {
-      activateRSPCollabBrowserExtension(app, docManager, cfg, restorer);
+      activateRSPCollabBrowserExtension(
+        app,
+        docManager,
+        cfg,
+        restorer,
+        statedb
+      );
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -214,7 +225,7 @@ const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
   requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
-  optional: [ILayoutRestorer],
+  optional: [ILayoutRestorer, IStateDB],
   autoStart: true
 };
 

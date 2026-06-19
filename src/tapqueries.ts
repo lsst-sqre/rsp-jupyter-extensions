@@ -54,7 +54,7 @@ class RecentTAPQueryResponse implements IRecentTAPQueryResponse {
   text: string;
 
   constructor(inp: IRecentTAPQueryResponse) {
-    (this.jobref = inp.jobref), (this.text = inp.text);
+    ((this.jobref = inp.jobref), (this.text = inp.text));
   }
 }
 
