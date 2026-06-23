@@ -23,12 +23,18 @@ def _mock_discovery() -> None:
         ).read_text()
     )
     url = os.environ.get("REPERTOIRE_BASE_URL")
+    restore = False
     if url is None:
-        raise RuntimeError("REPERTOIRE_BASE_URL must be set")
+        restore = True
+        url = "https://example.com/repertoire"
+        os.environ["REPERTOIRE_BASE_URL"] = url
     mocked = respx.get(url + "/discovery")
     mocked.return_value = Response(200, json=disco)
 
-    sys.exit(main())
+    rc = main()
+    if restore:
+        del os.environ["REPERTOIRE_BASE_URL"]
+    sys.exit(rc)
 
 
 if __name__ == "__main__":
