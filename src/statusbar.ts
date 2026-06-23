@@ -50,6 +50,7 @@ export function activateRSPStatusBarExtension(
 const rspStatusBarExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPStatusBarExtension,
   id: token.DISPLAYVERSION_ID,
+  description: 'Display RSP container info in status bar',
   requires: [IStatusBar],
   autoStart: false
 };

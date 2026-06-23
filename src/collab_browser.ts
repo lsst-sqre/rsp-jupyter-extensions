@@ -13,6 +13,7 @@ import { Drive, ServerConnection } from '@jupyterlab/services';
 import { IStateDB } from '@jupyterlab/statedb';
 import type { SharedDocumentFactory, Contents } from '@jupyterlab/services';
 import { folderIcon } from '@jupyterlab/ui-components';
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
 import { WebsocketProvider } from 'y-websocket';
 import type * as Y from 'yjs';
 
@@ -150,7 +151,7 @@ interface ICollabProviderOptions {
   /** The Y.Doc to sync with the server. */
   ydoc: Y.Doc;
   /** Shared awareness object from the YDocument (for cursor / presence). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   awareness: any;
   /** Server connection settings carrying baseUrl, wsUrl, and auth token. */
   serverSettings: ServerConnection.ISettings;
@@ -276,7 +277,8 @@ export function activateRSPCollabBrowserExtension(
   docManager: IDocumentManager,
   cfg: INubladoConfigResponse,
   restorer: ILayoutRestorer | null,
-  stateDB: IStateDB | null
+  stateDB: IStateDB | null,
+  translator: ITranslator | null
 ): void {
   if (!cfg.collab_dir) {
     logMessage(
@@ -287,6 +289,8 @@ export function activateRSPCollabBrowserExtension(
     return;
   }
   logMessage(LogLevels.INFO, cfg, 'Registering collab browser extension');
+
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
 
   // ------------------------------------------------------------------
   // 1. Register the custom Drive with the application ContentsManager.
@@ -316,7 +320,7 @@ export function activateRSPCollabBrowserExtension(
     })
   });
 
-  collabBrowser.title.caption = 'Collaboration Space (/collab)';
+  collabBrowser.title.caption = trans.__('Collaboration Space (/collab)');
   collabBrowser.title.icon = folderIcon;
 
   // ------------------------------------------------------------------
@@ -344,8 +348,9 @@ export function activateRSPCollabBrowserExtension(
 const rspTutorialsExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPCollabBrowserExtension,
   id: token.COLLAB_ID,
+  description: 'Tutorial Menu extension for RSP',
   requires: [IDocumentManager, IFileBrowserFactory],
-  optional: [ILayoutRestorer, IStateDB],
+  optional: [ILayoutRestorer, IStateDB, ITranslator],
   autoStart: false
 };
 

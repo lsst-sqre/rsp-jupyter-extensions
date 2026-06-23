@@ -12,6 +12,8 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { INotebookTracker } from '@jupyterlab/notebook';
 
+import { ITranslator } from '@jupyterlab/translation';
+
 import { IStateDB } from '@jupyterlab/statedb';
 
 import { activateRSPCollabBrowserExtension } from './collab_browser';
@@ -45,7 +47,8 @@ function activateRSPExtension(
   statusBar: IStatusBar,
   tracker: INotebookTracker,
   restorer: ILayoutRestorer | null,
-  statedb: IStateDB | null
+  statedb: IStateDB | null,
+  translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server configuration...');
   getServerConfig(app).then(async cfg => {
@@ -78,7 +81,8 @@ function activateRSPExtension(
         abnormal,
         restorer,
         statedb,
-        cfg
+        cfg,
+        translator
       );
     } catch (error) {
       logMessage(
@@ -99,12 +103,13 @@ async function activateIndividualExtensions(
   abnormal: IAbnormalResponse,
   restorer: ILayoutRestorer | null,
   statedb: IStateDB | null,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
   try {
-    activateRSPQuitExtension(app, mainMenu, cfg);
+    activateRSPQuitExtension(app, mainMenu, cfg, translator);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -117,7 +122,7 @@ async function activateIndividualExtensions(
   if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog
     try {
-      await abnormalDialog(abnormal, cfg);
+      await abnormalDialog(abnormal, cfg, translator);
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
@@ -139,7 +144,14 @@ async function activateIndividualExtensions(
   }
   logMessage(LogLevels.INFO, cfg, '...activating pdfexport extension...');
   try {
-    activateRSPPDFExportExtension(app, mainMenu, docManager, cfg, tracker);
+    activateRSPPDFExportExtension(
+      app,
+      mainMenu,
+      docManager,
+      cfg,
+      tracker,
+      translator
+    );
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -151,7 +163,13 @@ async function activateIndividualExtensions(
   if (cfg.enable_jobs_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
-      await activateRSPTAPQueriesExtension(app, mainMenu, docManager, cfg);
+      await activateRSPTAPQueriesExtension(
+        app,
+        mainMenu,
+        docManager,
+        cfg,
+        translator
+      );
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -170,7 +188,7 @@ async function activateIndividualExtensions(
   if (cfg.enable_tutorials_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating tutorials extension...');
     try {
-      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg);
+      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg, translator);
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -198,7 +216,8 @@ async function activateIndividualExtensions(
         docManager,
         cfg,
         restorer,
-        statedb
+        statedb,
+        translator
       );
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
@@ -224,8 +243,9 @@ async function activateIndividualExtensions(
 const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
+  description: 'Collection of extensions for the Rubin Science Platform',
   requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
-  optional: [ILayoutRestorer, IStateDB],
+  optional: [ILayoutRestorer, IStateDB, ITranslator],
   autoStart: true
 };
 

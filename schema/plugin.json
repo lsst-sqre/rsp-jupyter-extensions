@@ -1,0 +1,8 @@
+{
+  "jupyter.lab.shortcuts": [],
+  "title": "rsp-jupyter-extensions",
+  "description": "rsp-jupyter-extensions settings.",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
