@@ -18,14 +18,14 @@ collaboration features, which is the entire point of the collaboration
 directory.
 
 Thus we also need to build new classes that do all the YDoc handling
-that jupyter-server-documents does.
+that jupyter-collaboration (the ``jupyter_server_ydoc`` machinery) does,
+but scoped to the collab directory rather than ``$HOME``.
 """
 
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
-import jupyter_server
-from jupyter_events import EventLogger
+from jupyter_server.auth.decorator import authorized
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.services.contents.handlers import (
     CheckpointsHandler,
@@ -34,15 +34,23 @@ from jupyter_server.services.contents.handlers import (
     TrustNotebooksHandler,
 )
 from jupyter_server.services.contents.manager import ContentsManager
-from jupyter_server_documents.handlers import FileIDIndexHandler
-from jupyter_server_documents.outputs import OutputsManager
-from jupyter_server_documents.rooms.yroom_manager import YRoomManager
-from jupyter_server_documents.websockets import YRoomWebsocket
-from jupyter_server_fileid.manager import LocalFileIdManager
+from jupyter_server_fileid.manager import BaseFileIdManager, LocalFileIdManager
+from jupyter_server_ydoc.handlers import YDocWebSocketHandler
+from jupyter_server_ydoc.loaders import FileLoaderMapping
+from jupyter_server_ydoc.stores import SQLiteYStore
+from jupyter_server_ydoc.utils import SERVER_SESSION
+from jupyter_server_ydoc.websocketserver import (
+    JupyterWebsocketServer,
+    exception_logger,
+)
+from tornado import web
+from tornado.escape import json_encode
 
 from .config_generator import ConfigGenerator
 
 COLLAB_SETTINGS_KEY = "collab_contents_manager"
+# web_app.settings key holding the collab-scoped LocalFileIdManager.
+COLLAB_FILE_ID_MANAGER_KEY = "collab_file_id_manager"
 
 # Retrieve collaboration directory, if set.
 _cfggen = ConfigGenerator()
@@ -87,20 +95,24 @@ class CollabTrustNotebooksHandler(_CollabContentsMixin, TrustNotebooksHandler):
 ### YDoc collaboration
 
 
-def build_collab_ydoc_classes() -> dict[str, type] | None:
+def build_collab_ydoc_classes() -> dict[str, Any] | None:
     """Build YDoc handler/manager classes for COLLAB_DIR.
 
     Returns
     -------
-    dict[str, class] | None
-        Mapping between class name and class itself for the YRoom subclass
-        implementation, or None if COLLAB_DIR doesn't exist or is not a
-        directory.
+    dict[str, Any] | None
+        Mapping between symbol name and the class (or callable) itself for
+        the ``jupyter_server_ydoc`` collaboration implementation, or None if
+        COLLAB_DIR doesn't exist or is not a directory.  The collab-scoped
+        handler classes are built dynamically here; the remaining
+        ``jupyter_server_ydoc`` building blocks are passed through so that all
+        wiring (and the choice of collaboration backend) stays localized.
 
     Notes
     -----
-    This requires both ``jupyter_server_documents`` and
-    ``jupyter_server_fileid``.  Both of these are in the RSP already.
+    This requires both ``jupyter_server_ydoc`` (shipped as part of
+    ``jupyter-collaboration``) and ``jupyter_server_fileid``.  Both of
+    these are in the RSP already.
     """
     if COLLAB_DIR is None:
         return None
@@ -109,115 +121,92 @@ def build_collab_ydoc_classes() -> dict[str, type] | None:
     # CollabFileIDIndexHandler
     # ------------------------------------------------------------------
 
-    class CollabFileIDIndexHandler(FileIDIndexHandler):
+    class CollabFileIDIndexHandler(APIHandler):
         """
         Serves ``POST .../fileid/index``.
 
-        Redirects the ``file_id_manager`` property to the collab-scoped
-        LocalFileIdManager so that file IDs issued for collab files are
-        tracked against the collab root, not $HOME.
+        Reimplements the trivial file-ID index endpoint (which lives in
+        neither jupyter_server nor jupyter_server_ydoc proper) against the
+        collab-scoped LocalFileIdManager, so that file IDs issued for collab
+        files are tracked against the collab root, not ``$HOME``.
+
+        The response shape ``{"id": ..., "path": ...}`` matches what the
+        front end (``collab_browser.ts``) expects.
         """
 
+        auth_resource = "contents"
+
         @property
-        def file_id_manager(self) -> LocalFileIdManager:
+        def file_id_manager(self) -> BaseFileIdManager:
             return cast(
-                "LocalFileIdManager", self.settings["collab_file_id_manager"]
+                "BaseFileIdManager",
+                self.settings[COLLAB_FILE_ID_MANAGER_KEY],
             )
 
-    # ------------------------------------------------------------------
-    # CollabYRoomManager
-    # ------------------------------------------------------------------
-
-    class CollabYRoomManager(YRoomManager):
-        """
-        YRoomManager for collab files.
-
-        Initialised with ``parent=None`` (no config inheritance from a
-        ServerDocsApp) and direct references to the collab contents manager
-        and file-ID manager.
-
-        The base-class ``__init__`` starts the auto-free background task via
-        ``asyncio.get_event_loop().create_task()``.  The caller must ensure
-        the event loop is already running at instantiation time, which is
-        guaranteed because ``_load_jupyter_server_extension`` is invoked from
-        within Jupyter Server's async startup sequence.
-        """
-
-        def __init__(
-            self,
-            *,
-            server_app: jupyter_server.serverapp.ServerApp,
-            collab_cm: ContentsManager,
-        ) -> None:
-            super().__init__(parent=None)  # starts _auto_free_rooms_task
-            self._server_app = server_app
-            self._collab_cm = collab_cm
-            self.log = server_app.log  # propagate logs to server logger
-
-        @property
-        def contents_manager(self) -> ContentsManager:
-            return self._collab_cm
-
-        @property
-        def fileid_manager(self) -> LocalFileIdManager:
-            """
-            Returns the collab-scoped LocalFileIdManager stored in
-            web_app.settings by _load_jupyter_server_extension().
-            """
-            # Settings is a map of str to Any.
-            return cast(
-                "LocalFileIdManager",
-                self._server_app.web_app.settings["collab_file_id_manager"],
-            )
-
-        @property
-        def event_logger(self) -> EventLogger | None:
-            return self._server_app.event_logger
-
-        @property
-        def outputs_manager(self) -> OutputsManager:
-            """
-            Reuse the OutputsManager registered by ServerDocsApp (stored at
-            settings["outputs_manager"]).  Returns None if not present; in
-            that case YRoomFileAPI skips notebook-output processing.
-            """
-            return cast(
-                "OutputsManager",
-                self._server_app.web_app.settings.get("outputs_manager"),
-            )
+        @web.authenticated
+        @authorized
+        def post(self) -> None:
+            try:
+                path = self.get_argument("path")
+            except web.MissingArgumentError:
+                raise web.HTTPError(
+                    400,
+                    log_message=(
+                        "'path' parameter was not provided in the request."
+                    ),
+                ) from None
+            file_id = self.file_id_manager.index(path)
+            self.write(json_encode({"id": file_id, "path": path}))
 
     # ------------------------------------------------------------------
-    # CollabYRoomWebsocket
+    # CollabYDocWebSocketHandler
     # ------------------------------------------------------------------
 
-    class CollabYRoomWebsocket(YRoomWebsocket):
+    class CollabYDocWebSocketHandler(YDocWebSocketHandler):
         """
         WebSocket handler for ``.../collaboration/room/<room_id>``.
 
-        Overrides the three Tornado-settings lookups so that this handler
-        drives the collab YRoomManager, file-ID manager, and contents
-        manager completely independently of the default $HOME stack.
+        Subclasses the stock ``jupyter_server_ydoc`` handler.  The collab
+        websocket server, file-loader mapping, YStore class, and room locks
+        are all injected via the Tornado route's ``initialize`` kwargs (see
+        ``_register_collab_ydoc`` in the package ``__init__``), so this
+        handler drives a collab-scoped stack that is fully independent of the
+        default ``$HOME`` real-time-collaboration stack.
+
+        Two seams are overridden:
+
+        * ``initialize`` repoints the handler's ``file_id_manager`` at the
+          collab-scoped manager.  The base class reads
+          ``self.settings["file_id_manager"]`` (the ``$HOME`` manager); the
+          only place it is used directly is event emission (``_emit``), and we
+          want those paths resolved against the collab root.
+
+        * ``get_query_argument`` spoofs the ``sessionId`` query argument.  The
+          base ``open()`` gates reconnections on a ``sessionId`` handshake used
+          by the official jupyter-docprovider front end and closes any client
+          that does not negotiate one (close code 1003, ``reloadable=True``).
+          The RSP front end connects with a plain ``y-websocket`` provider that
+          sends no ``sessionId``, so we report the current server session and
+          let the base handler skip the reload-gating branch entirely.
         """
 
-        @property
-        def yroom_manager(self) -> YRoomManager:
-            return cast("YRoomManager", self.settings["collab_yroom_manager"])
+        def initialize(self, *args: Any, **kwargs: Any) -> None:
+            super().initialize(*args, **kwargs)
+            self._file_id_manager = self.settings[COLLAB_FILE_ID_MANAGER_KEY]
 
-        @property
-        def fileid_manager(self) -> LocalFileIdManager:
-            return cast(
-                "LocalFileIdManager", self.settings["collab_file_id_manager"]
-            )
-
-        @property
-        def contents_manager(self) -> ContentsManager:
-            return cast(
-                "ContentsManager", self.settings["collab_contents_manager"]
-            )
+        def get_query_argument(  # type: ignore[override]
+            self, name: str, *args: Any, **kwargs: Any
+        ) -> Any:
+            if name == "sessionId":
+                return SERVER_SESSION
+            return super().get_query_argument(name, *args, **kwargs)
 
     return {
         "CollabFileIDIndexHandler": CollabFileIDIndexHandler,
-        "CollabYRoomManager": CollabYRoomManager,
-        "CollabYRoomWebsocket": CollabYRoomWebsocket,
+        "CollabYDocWebSocketHandler": CollabYDocWebSocketHandler,
+        "FileLoaderMapping": FileLoaderMapping,
+        "JupyterWebsocketServer": JupyterWebsocketServer,
+        "SQLiteYStore": SQLiteYStore,
         "LocalFileIdManager": LocalFileIdManager,
+        "exception_logger": exception_logger,
     }

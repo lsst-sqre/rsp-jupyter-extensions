@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
     "httpx",
     "jupyter_server>=2.4.0,<3",
-    "jupyter-server-documents",
+    "jupyter-collaboration",
     "pydantic",
     "requests",
     "rubin-repertoire",
@@ -107,7 +107,7 @@ ignore = ["W002"]
 [[tool.mypy.overrides]]
 module = [
     "jupyterlab.*",
-    "jupyter_server_documents.*",
+    "jupyter_server_ydoc.*",
     "jupyter_server_fileid.*"
 ]
 ignore_missing_imports = true
