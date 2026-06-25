@@ -1,21 +1,27 @@
 """Test that environment works with both abnormal and config endpoints."""
 
 import json
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from pyfakefs.fake_filesystem import FakeFilesystem
+import pytest
+
+from rsp_jupyter_extensions.handlers.config_generator import ConfigGenerator
+from rsp_jupyter_extensions.models.config import RSPConfig
 
 
 async def test_config(
+    caplog: pytest.LogCaptureFixture,
     jp_fetch: Callable,
-    rsp_fs: FakeFilesystem,
 ) -> None:
     """Test `config` endpoint."""
     response = await jp_fetch("rubin", "config")
     assert response.code == 200
     payload = json.loads(response.body)
+    # Note that collab_dir is set in the config (to "/collab")
     assert payload == {
+        "collab_dir": None,
         "container_size": "Large (4.0 CPU, 16Gi RAM)",
         "debug": False,
         "enable_jobs_menu": False,
@@ -58,28 +64,68 @@ async def test_config(
             "https://github.com/lsst/tutorial-notebooks@main"
         ),
     }
+    messages = [
+        x.message
+        for x in caplog.get_records("setup")
+        if x.levelno == logging.WARNING
+    ]
+    # Check that "/collab" was unset when the extension loaded and determined
+    # it to be missing.
+    assert "Collab dir /collab does not exist" in messages
 
 
 async def test_config_file(
     labcfg: str,
-    jp_fetch: Callable,
-    rsp_fs: FakeFilesystem,
+    monkeypatch: pytest.MonkeyPatch,
+    rsp_fs: Path,
 ) -> None:
-    """Test `config` endpoint."""
+    """Test loading config from file."""
     cfg = json.loads(labcfg)
-    Path("/etc/nublado/config").mkdir()
-    Path("/etc/nublado/config/lab-config.json").write_text(labcfg)
-    response = await jp_fetch("rubin", "config")
-    assert response.code == 200
-    payload = json.loads(response.body)
-    # Add the calculated-later fields
-    cfg["enable_landing_page"] = False
-    cfg["statusbar"] = (
-        "Experimental Weekly 2026_21 [ai] [89e0fd32...]"
-        " (sciplat-lab:exp_w_2026_21_ai) example.lsst.cloud"
-    )
-    cfg["tutorial_notebooks_cache_dir"] = ""
-    cfg["tutorial_notebooks_url"] = (
-        "https://github.com/lsst/tutorial-notebooks@main"
-    )
-    assert payload == cfg
+    cfg_obj = RSPConfig.model_validate(cfg)
+
+    cfg_path = Path("/etc") / "nublado" / "config" / "lab-config.json"
+    cfg_path.parent.mkdir(parents=True)
+    cfg_path.write_text(labcfg)
+
+    cg = ConfigGenerator()
+    # Try standard file
+    new_cfg_obj = cg.regenerate_config()
+
+    # Copy calculated fields
+    for fld in (
+        "statusbar",
+        "tutorial_notebooks_cache_dir",
+        "tutorial_notebooks_url",
+    ):
+        setattr(cfg_obj, fld, getattr(new_cfg_obj, fld))
+
+    assert new_cfg_obj == cfg_obj
+    assert new_cfg_obj.runtime_mounts_dir == "/etc/nublado"
+    # Check that collab dir is set since it exists in rsp_fs.
+    assert new_cfg_obj.collab_dir == "/collab"
+
+    # Now change config and put somewhere else.
+
+    monkeypatch.setenv("NUBLADO_RUNTIME_MOUNTS_DIR", "/collab")
+    cfg_path = Path("/collab") / "config" / "lab-config.json"
+    cfg["debug"] = False
+    cfg["enable_tutorials"] = False
+    cfg["runtime_mounts_dir"] = "/collab"
+    cfg_path.parent.mkdir()
+    cfg_path.write_text(json.dumps(cfg))
+
+    cfg_obj = RSPConfig.model_validate(cfg)
+    cg = ConfigGenerator()
+    # Try standard file
+    new_cfg_obj = cg.regenerate_config()
+
+    # Copy calculated fields
+    for fld in (
+        "statusbar",
+        "tutorial_notebooks_cache_dir",
+        "tutorial_notebooks_url",
+    ):
+        setattr(cfg_obj, fld, getattr(new_cfg_obj, fld))
+
+    assert new_cfg_obj == cfg_obj
+    assert new_cfg_obj.runtime_mounts_dir == "/collab"

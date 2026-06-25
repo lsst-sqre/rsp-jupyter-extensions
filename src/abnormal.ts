@@ -1,6 +1,7 @@
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { PageConfig } from '@jupyterlab/coreutils';
 import { showDialog, Dialog } from '@jupyterlab/apputils';
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
 import { INubladoConfigResponse } from './config';
 import { LogLevels, logMessage } from './logger';
 import { apiRequest } from './request';
@@ -29,15 +30,17 @@ export async function getAbnormalStartup(
 
 export async function abnormalDialog(
   abnormal: IAbnormalResponse,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   // Someday it would be nice to have a DialogBox class that understood
   // markdown.
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   const options = {
     title: 'Abnormal Lab Start',
     body: getDialogBody(abnormal),
     focusNodeSelector: 'input',
-    buttons: [Dialog.warnButton({ label: 'OK' })]
+    buttons: [Dialog.warnButton({ label: trans.__('OK') })]
   };
   try {
     const result = await showDialog(options);

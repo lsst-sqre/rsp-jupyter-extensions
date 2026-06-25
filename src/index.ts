@@ -1,4 +1,5 @@
 import {
+  ILayoutRestorer,
   JupyterFrontEnd,
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
@@ -10,6 +11,12 @@ import { IMainMenu } from '@jupyterlab/mainmenu';
 import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { INotebookTracker } from '@jupyterlab/notebook';
+
+import { ITranslator } from '@jupyterlab/translation';
+
+import { IStateDB } from '@jupyterlab/statedb';
+
+import { activateRSPCollabBrowserExtension } from './collab_browser';
 
 import { getServerConfig, INubladoConfigResponse } from './config';
 
@@ -38,7 +45,10 @@ function activateRSPExtension(
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   statusBar: IStatusBar,
-  tracker: INotebookTracker
+  tracker: INotebookTracker,
+  restorer: ILayoutRestorer | null,
+  statedb: IStateDB | null,
+  translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server configuration...');
   getServerConfig(app).then(async cfg => {
@@ -69,7 +79,10 @@ function activateRSPExtension(
         statusBar,
         tracker,
         abnormal,
-        cfg
+        restorer,
+        statedb,
+        cfg,
+        translator
       );
     } catch (error) {
       logMessage(
@@ -88,12 +101,15 @@ async function activateIndividualExtensions(
   statusBar: IStatusBar,
   tracker: INotebookTracker,
   abnormal: IAbnormalResponse,
-  cfg: INubladoConfigResponse
+  restorer: ILayoutRestorer | null,
+  statedb: IStateDB | null,
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
   try {
-    activateRSPQuitExtension(app, mainMenu, cfg);
+    activateRSPQuitExtension(app, mainMenu, cfg, translator);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -106,7 +122,7 @@ async function activateIndividualExtensions(
   if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog
     try {
-      await abnormalDialog(abnormal, cfg);
+      await abnormalDialog(abnormal, cfg, translator);
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
@@ -128,7 +144,14 @@ async function activateIndividualExtensions(
   }
   logMessage(LogLevels.INFO, cfg, '...activating pdfexport extension...');
   try {
-    activateRSPPDFExportExtension(app, mainMenu, docManager, cfg, tracker);
+    activateRSPPDFExportExtension(
+      app,
+      mainMenu,
+      docManager,
+      cfg,
+      tracker,
+      translator
+    );
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -140,7 +163,13 @@ async function activateIndividualExtensions(
   if (cfg.enable_jobs_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
-      await activateRSPTAPQueriesExtension(app, mainMenu, docManager, cfg);
+      await activateRSPTAPQueriesExtension(
+        app,
+        mainMenu,
+        docManager,
+        cfg,
+        translator
+      );
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -159,7 +188,7 @@ async function activateIndividualExtensions(
   if (cfg.enable_tutorials_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating tutorials extension...');
     try {
-      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg);
+      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg, translator);
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -175,6 +204,36 @@ async function activateIndividualExtensions(
       '...skipping tutorials extension (disabled in config)...'
     );
   }
+  if (cfg.collab_dir) {
+    logMessage(
+      LogLevels.INFO,
+      cfg,
+      '...activating collab filebrowser extension...'
+    );
+    try {
+      activateRSPCollabBrowserExtension(
+        app,
+        docManager,
+        cfg,
+        restorer,
+        statedb,
+        translator
+      );
+      logMessage(LogLevels.INFO, cfg, '...activated...');
+    } catch (error) {
+      logMessage(
+        LogLevels.ERROR,
+        cfg,
+        `Error activating collab filebrowser extension: ${error}`
+      );
+    }
+  } else {
+    logMessage(
+      LogLevels.INFO,
+      cfg,
+      '...skipping collab filebrowser extension (no collab directory)...'
+    );
+  }
   logMessage(LogLevels.INFO, cfg, '...loaded rsp-jupyter-extensions.');
 }
 
@@ -184,7 +243,9 @@ async function activateIndividualExtensions(
 const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
+  description: 'Collection of extensions for the Rubin Science Platform',
   requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
+  optional: [ILayoutRestorer, IStateDB, ITranslator],
   autoStart: true
 };
 

@@ -42,9 +42,14 @@ class ConfigGenerator:
 
     def __init__(self) -> None:
         if hasattr(self, "_initialized"):
+            # If it's been initialized, it will also have a logger.
+            self._logger.debug(  # type:ignore[has-type]
+                "Config generator already created"
+            )
             return
         self._initialized = True
         self._logger = logging.getLogger(__name__)
+        self._logger.debug("Config generator initializing")
         self._config: RSPConfig | None = None
         self._config = self.generate_config()
         _anonymous_client = AsyncClient(
@@ -55,6 +60,7 @@ class ConfigGenerator:
         self._discovery_client = DiscoveryClient(
             _anonymous_client, base_url=self._config.repertoire_base_url
         )
+        self._logger.info("Config generator initialized")
 
     @staticmethod
     def _image_spec_to_tag() -> str:
@@ -98,7 +104,7 @@ class ConfigGenerator:
             return ""
         return str(_get_homedir()).lstrip("/")
 
-    def regenerate_config(self) -> RSPConfig | None:
+    def regenerate_config(self) -> RSPConfig:
         """Force regeneration of config.
 
         Returns
@@ -109,7 +115,7 @@ class ConfigGenerator:
         self._config = None  # Force config to be empty, so generate must run.
         return self.generate_config()
 
-    def generate_config(self) -> RSPConfig | None:
+    def generate_config(self) -> RSPConfig:
         """Generate Lab configuration.  Check first for a mounted configuration
         file and use that if it exists; otherwise, use a sanitized version of
         the environment.
@@ -119,19 +125,27 @@ class ConfigGenerator:
         RSPConfig|None
             Lab configuration.
         """
+        self._logger.debug("Generating config")
         if self._config is not None:
+            self._logger.debug("Returning cached config")
             return self._config
         cfg_file = (
             Path(os.getenv("NUBLADO_RUNTIME_MOUNTS_DIR", "/etc/nublado"))
             / "config"
             / "lab-config.json"
         )
+        self._logger.debug(f"Searching for config file at {cfg_file!s}")
         if cfg_file.exists():
             cf = self._load_config_file(cfg_file)
             if cf:
                 self._config = cf
+                self._logger.debug(f"Loaded config from {cfg_file!s}")
+                self._check_collab_config()
                 return cf
-            self._logger.warning("Falling back to environment-based config")
+            self._logger.warning(f"Failed to load config from {cfg_file!s}")
+        else:
+            self._logger.warning(f"{cfg_file!s} does not exist")
+        self._logger.warning("Falling back to environment-based config")
         image = LabImage(
             description=os.environ.get(
                 "IMAGE_DESCRIPTION", self._image_spec_to_tag()
@@ -146,6 +160,7 @@ class ConfigGenerator:
             os.environ.get("RSP_SITE_TYPE") == "science"
         ) or bool(os.environ.get("RSP_SITE_TYPE") == "staff")
         self._config = RSPConfig(
+            collab_dir=os.environ.get("NUBLADO_COLLAB_DIR"),
             container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
             debug=bool(os.environ.get("DEBUG")),
             enable_jobs_menu=(
@@ -187,7 +202,29 @@ class ConfigGenerator:
                 "https://github.com/lsst/tutorial-notebooks@main",
             ),
         )
+        self._check_collab_config()
         return self._config
+
+    def _check_collab_config(self) -> None:
+        cfg = self._config
+        if not cfg:  # Placate mypy.  We will certainly have it before now.
+            return
+        collab_dir = cfg.collab_dir
+        if collab_dir:
+            collab_path = Path(collab_dir)
+            if collab_path.exists():
+                if collab_path.is_dir():
+                    self._logger.debug(
+                        f"Collab dir {collab_dir} exists and is directory"
+                    )
+                    return
+                else:
+                    self._logger.warning(
+                        f"Collab dir {collab_dir} exists but is not directory"
+                    )
+            else:
+                self._logger.warning(f"Collab dir {collab_dir} does not exist")
+            cfg.collab_dir = None
 
     def _load_config_file(self, cfg_file: Path) -> RSPConfig | None:
         rspcfg: RSPConfig | None = None
