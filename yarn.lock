@@ -9306,7 +9306,7 @@ __metadata:
     "@eslint/js": ^9.0.0
     "@jupyter/builder": ^1.0.0
     "@jupyter/eslint-plugin": ^0.0.5
-    "@jupyter/ydoc": ^3.0.0
+    "@jupyter/ydoc": ^3.5.0
     "@jupyterlab/application": ^4.0.0
     "@jupyterlab/coreutils": ^6.0.0
     "@jupyterlab/mainmenu": ^4.0.0

@@ -11,6 +11,7 @@ export default defineConfig([
       'node_modules',
       'dist',
       'coverage',
+      'rspack.config.cjs',
       '**/*.js',
       '**/*.d.ts',
       '.venv',
