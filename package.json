@@ -68,7 +68,7 @@
         "@eslint/js": "^9.0.0",
         "@jupyter/builder": "^1.0.0",
         "@jupyter/eslint-plugin": "^0.0.5",
-        "@jupyter/ydoc": "^3.5.0",
+        "@jupyter/ydoc": "^4.0.0",
         "@jupyterlab/testutils": "^4.0.0",
         "@types/jest": "^29.2.0",
         "@types/json-schema": "^7.0.11",
@@ -95,8 +95,7 @@
         "yjs": "^13.5.0"
     },
     "resolutions": {
-        "lib0": "0.2.111",
-        "@jupyter/ydoc": "3.5.0"
+        "lib0": "0.2.111"
     },
     "sideEffects": [
         "style/*.css",

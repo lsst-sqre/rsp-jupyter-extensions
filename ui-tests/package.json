@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "JupyterLab rsp-jupyter-extensions Integration Tests",
   "private": true,
-  "resolutions": {
-    "@jupyter/ydoc": "3.5.0"
-  },
   "scripts": {
     "start": "../rsp_jupyter_extensions/tests/rsp_wrappers/ui-test-wrapper --config jupyter_server_test_config.py",
     "test": "jlpm playwright install && jlpm playwright test",

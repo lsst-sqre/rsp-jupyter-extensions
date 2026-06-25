@@ -43,7 +43,7 @@ from .handlers.tapquery import TAPQueryHandler
 from .handlers.tutorials import TutorialsMenuHandler
 
 try:
-    from ._version import __version__  # noqa: [import-untyped]
+    from ._version import __version__  # type:ignore[import-untyped]
 except ImportError:
     # Fallback when using the package in dev mode without installing
     # in editable mode with pip. It is highly recommended to install

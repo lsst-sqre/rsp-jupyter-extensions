@@ -2172,9 +2172,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@jupyter/ydoc@npm:3.5.0":
-  version: 3.5.0
-  resolution: "@jupyter/ydoc@npm:3.5.0"
+"@jupyter/ydoc@npm:^4.0.0":
+  version: 4.0.0
+  resolution: "@jupyter/ydoc@npm:4.0.0"
   dependencies:
     "@jupyterlab/nbformat": ^3.0.0 || ^4.0.0-alpha.21 || ^4.0.0
     "@lumino/coreutils": ^1.11.0 || ^2.0.0
@@ -2182,7 +2182,7 @@ __metadata:
     "@lumino/signaling": ^1.10.0 || ^2.0.0
     y-protocols: ^1.0.5
     yjs: ^13.5.40
-  checksum: 7cf5459bb801a68097dcbe271ed9f620d6749943b9351bb04e13e82041aaf24c903af3492a367a3ed7bcae9ab6857cd78e61f47905521c1fb4c5bb048ebabbe5
+  checksum: 771b095f9e8acdf08fff32852d55e285171add78dd495949544a48c07702bb3be32aee2ad1325a2583e121e09929b6b2f7dcea8c6490d57929c872fa4a69a7fd
   languageName: node
   linkType: hard
 
@@ -9306,7 +9306,7 @@ __metadata:
     "@eslint/js": ^9.0.0
     "@jupyter/builder": ^1.0.0
     "@jupyter/eslint-plugin": ^0.0.5
-    "@jupyter/ydoc": ^3.5.0
+    "@jupyter/ydoc": ^4.0.0
     "@jupyterlab/application": ^4.0.0
     "@jupyterlab/coreutils": ^6.0.0
     "@jupyterlab/mainmenu": ^4.0.0
