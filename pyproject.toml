@@ -33,7 +33,7 @@ dynamic = ["version", "description", "authors", "urls", "keywords"]
 
 [project.optional-dependencies]
 dev = [
-  "jupyterlab>=4.6,<5",
+  "jupyterlab>=4,<4.5",
   "jupyter-builder>=1.0.0",
 ]
 test = [
@@ -143,7 +143,3 @@ new_fragment_template = "file:changelog.d/_template.md.jinja"
 skip_fragments = "_template.md.jinja"
 
 [tool.uv.sources]
-jupyter-collaboration = { git = "https://github.com/jupyterlab/jupyter-collaboration", subdirectory = "projects/jupyter-collaboration" }
-jupyter-collaboration-ui = { git = "https://github.com/jupyterlab/jupyter-collaboration", subdirectory = "projects/jupyter-collaboration-ui" }
-jupyter-docprovider = { git = "https://github.com/jupyterlab/jupyter-collaboration", subdirectory = "projects/jupyter-docprovider" }
-jupyter-server-ydoc = { git = "https://github.com/jupyterlab/jupyter-collaboration", subdirectory = "projects/jupyter-server-ydoc" }

@@ -9,6 +9,7 @@
     "test:update": "jlpm playwright install && jlpm playwright test --update-snapshots"
   },
   "devDependencies": {
+    "@jupyter/ydoc": "^3.5.0",
     "@jupyterlab/galata": "^5.0.5",
     "@playwright/test": "^1.60.0"
   }
