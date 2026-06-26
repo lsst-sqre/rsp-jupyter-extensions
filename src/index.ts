@@ -9,7 +9,11 @@ import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import { IDocumentManager } from '@jupyterlab/docmanager';
 
+import { IFileBrowserFactory } from '@jupyterlab/filebrowser';
+
 import { INotebookTracker } from '@jupyterlab/notebook';
+
+import { activateRSPCollabExtension } from './collab';
 
 import { getServerConfig, INubladoConfigResponse } from './config';
 
@@ -38,7 +42,8 @@ function activateRSPExtension(
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   statusBar: IStatusBar,
-  tracker: INotebookTracker
+  tracker: INotebookTracker,
+  fileBrowserFactory: IFileBrowserFactory
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server configuration...');
   getServerConfig(app).then(async cfg => {
@@ -68,6 +73,7 @@ function activateRSPExtension(
         docManager,
         statusBar,
         tracker,
+        fileBrowserFactory,
         abnormal,
         cfg
       );
@@ -87,6 +93,7 @@ async function activateIndividualExtensions(
   docManager: IDocumentManager,
   statusBar: IStatusBar,
   tracker: INotebookTracker,
+  fileBrowserFactory: IFileBrowserFactory,
   abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse
 ): Promise<void> {
@@ -175,6 +182,25 @@ async function activateIndividualExtensions(
       '...skipping tutorials extension (disabled in config)...'
     );
   }
+  if (cfg.collab_dir) {
+    logMessage(LogLevels.INFO, cfg, '...activating collab extension...');
+    try {
+      await activateRSPCollabExtension(app, fileBrowserFactory, cfg);
+      logMessage(LogLevels.INFO, cfg, '...activated...');
+    } catch (error) {
+      logMessage(
+        LogLevels.ERROR,
+        cfg,
+        `Error activating collab extension: ${error}`
+      );
+    }
+  } else {
+    logMessage(
+      LogLevels.INFO,
+      cfg,
+      '...skipping collab extension (no collab_dir in config)...'
+    );
+  }
   logMessage(LogLevels.INFO, cfg, '...loaded rsp-jupyter-extensions.');
 }
 
@@ -184,7 +210,13 @@ async function activateIndividualExtensions(
 const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
-  requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
+  requires: [
+    IMainMenu,
+    IDocumentManager,
+    IStatusBar,
+    INotebookTracker,
+    IFileBrowserFactory
+  ],
   autoStart: true
 };
 

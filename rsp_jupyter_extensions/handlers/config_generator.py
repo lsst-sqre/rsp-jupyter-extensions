@@ -98,7 +98,7 @@ class ConfigGenerator:
             return ""
         return str(_get_homedir()).lstrip("/")
 
-    def regenerate_config(self) -> RSPConfig | None:
+    def regenerate_config(self) -> RSPConfig:
         """Force regeneration of config.
 
         Returns
@@ -109,7 +109,7 @@ class ConfigGenerator:
         self._config = None  # Force config to be empty, so generate must run.
         return self.generate_config()
 
-    def generate_config(self) -> RSPConfig | None:
+    def generate_config(self) -> RSPConfig:
         """Generate Lab configuration.  Check first for a mounted configuration
         file and use that if it exists; otherwise, use a sanitized version of
         the environment.
@@ -146,6 +146,7 @@ class ConfigGenerator:
             os.environ.get("RSP_SITE_TYPE") == "science"
         ) or bool(os.environ.get("RSP_SITE_TYPE") == "staff")
         self._config = RSPConfig(
+            collab_dir=os.environ.get("NUBLADO_COLLAB_DIR", ""),
             container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
             debug=bool(os.environ.get("DEBUG")),
             enable_jobs_menu=(

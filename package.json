@@ -1,6 +1,6 @@
 {
     "name": "rsp-jupyter-extensions",
-    "version": "0.25.0",
+    "version": "0.26.0",
     "description": "Jupyter Extensions for the Rubin Science Platform",
     "keywords": [
         "jupyter",
@@ -59,8 +59,10 @@
     "dependencies": {
         "@jupyterlab/application": "^4.0.0",
         "@jupyterlab/coreutils": "^6.0.0",
+        "@jupyterlab/filebrowser": "^4.0.0",
         "@jupyterlab/mainmenu": "^4.0.0",
         "@jupyterlab/services": "^7.0.0",
+        "@jupyterlab/ui-components": "^4.0.0",
         "sql-formatter": "^15.8.0"
     },
     "devDependencies": {

@@ -48,6 +48,7 @@ class RSPConfig(BaseModel):
     """Configuration of RSP Lab container."""
 
     container_size: str
+    collab_dir: str = ""
     debug: bool
     enable_jobs_menu: bool
     enable_landing_page: bool = False
