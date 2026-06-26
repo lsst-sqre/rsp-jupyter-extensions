@@ -5,11 +5,11 @@
   "private": true,
   "scripts": {
     "start": "../rsp_jupyter_extensions/tests/rsp_wrappers/ui-test-wrapper --config jupyter_server_test_config.py",
-    "test": "jlpm playwright test",
-    "test:update": "jlpm playwright test --update-snapshots"
+    "test": "jlpm playwright install && jlpm playwright test",
+    "test:update": "jlpm playwright install && jlpm playwright test --update-snapshots"
   },
   "devDependencies": {
     "@jupyterlab/galata": "^5.0.5",
-    "@playwright/test": "^1.37.0"
+    "@playwright/test": "^1.60.0"
   }
 }

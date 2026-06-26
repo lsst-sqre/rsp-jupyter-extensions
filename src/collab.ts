@@ -25,13 +25,16 @@ import * as token from './tokens';
  */
 const COLLAB_FOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" viewBox="0 0 24 24">
   <path fill="#616161" d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8z" class="jp-icon3 jp-icon-selectable"/>
-  <text x="12" y="17" font-size="11" text-anchor="middle" font-family="sans-serif" fill="#bdbdbd">C</text>
+  <text x="12" y="17" font-size="11" text-anchor="middle" font-family="sans-serif" fill="#dbdbdb">C</text>
 </svg>`;
 
 const collabFolderIcon = new LabIcon({
   name: 'rsp-jupyterlab:collab-folder',
   svgstr: COLLAB_FOLDER_SVG
 });
+
+// Sleep helper function.
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /**
  * Activate the collab extension.
@@ -73,14 +76,37 @@ export async function activateRSPCollabExtension(
   // swallows a 404 internally -- it logs, emits connectionFailure, falls back
   // to the root, and still resolves -- so a missing directory is tolerated.
   // The try/catch is defensive in case that contract ever changes.
-  try {
-    await browser.model.cd('collab');
-  } catch (error) {
-    logMessage(
-      LogLevels.WARNING,
-      cfg,
-      `rsp-collab: could not navigate to 'collab': ${error}`
-    );
+
+  // For right now, the sciplat-lab startup ensures that if the environment
+  // variable NUBLADO_COLLAB_DIR is set, $HOME/collab is set up (assuming it
+  // did not already exist) as a symbolic link to it.
+
+  // If the user has their own $HOME/collab already, the browser will point
+  // to it but the contents will be whatever the user put there, not the
+  // link to NUBLADO_COLLAB_DIR.
+
+  // There appears to be a race condition such that the symlink may not be
+  // available immediately, so we retry up to three times.
+
+  const home = cfg.home_relative_to_file_browser_root;
+  const collabPath = home ? `${home}/collab` : 'collab';
+  logMessage(
+    LogLevels.INFO,
+    cfg,
+    `...attempting to open directory at ${collabPath}`
+  );
+  for (let i = 0; i < 3; i++) {
+    try {
+      await browser.model.cd(collabPath);
+      break;
+    } catch (error) {
+      logMessage(
+        LogLevels.WARNING,
+        cfg,
+        `rsp-collab: {i+1}/3: could not navigate to 'collab': ${error}`
+      );
+      await sleep(1000); // 1 second
+    }
   }
 
   logMessage(LogLevels.INFO, cfg, 'rsp-collab: ... loaded');

@@ -353,8 +353,8 @@ async function getRecentTAPQueryMenu(
           // character isn't present).
           const jr = tqr.jobref.substring(1 + tqr.jobref.indexOf(':'));
           commands.addCommand(submcmdId, {
-            label: trans.__(jr), // Show just the jobref as the label
-            caption: trans.__(tqr.text), // Use full SQL as the caption/tooltip
+            label: jr, // Show just the jobref as the label
+            caption: tqr.text, // Use the full SQL as the caption/tooltip
             describedBy: {},
             execute: async () => {
               await openTAPQueryFromJobref(

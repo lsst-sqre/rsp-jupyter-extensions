@@ -103,7 +103,7 @@ class ConfigGenerator:
 
         Returns
         -------
-        RSPConfig|None
+        RSPConfig
             Lab configuration.
         """
         self._config = None  # Force config to be empty, so generate must run.
@@ -116,7 +116,7 @@ class ConfigGenerator:
 
         Returns
         -------
-        RSPConfig|None
+        RSPConfig
             Lab configuration.
         """
         if self._config is not None:
