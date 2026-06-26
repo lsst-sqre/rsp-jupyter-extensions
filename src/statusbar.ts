@@ -50,6 +50,7 @@ export function activateRSPStatusBarExtension(
 const rspStatusBarExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPStatusBarExtension,
   id: token.DISPLAYVERSION_ID,
+  description: 'Status bar for the RSP',
   requires: [IStatusBar],
   autoStart: false
 };

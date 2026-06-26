@@ -16,6 +16,8 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { ServiceManager } from '@jupyterlab/services';
 
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
+
 import { PageConfig } from '@jupyterlab/coreutils';
 
 import { Widget } from '@lumino/widgets';
@@ -54,7 +56,8 @@ class RecentTAPQueryResponse implements IRecentTAPQueryResponse {
   text: string;
 
   constructor(inp: IRecentTAPQueryResponse) {
-    (this.jobref = inp.jobref), (this.text = inp.text);
+    this.jobref = inp.jobref;
+    this.text = inp.text;
   }
 }
 
@@ -84,19 +87,28 @@ export async function activateRSPTAPQueriesExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   logMessage(LogLevels.INFO, cfg, 'rsp-tapqueries...loading');
 
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   const svcManager = app.serviceManager;
   const { commands } = app;
   const jobsmenu = new Menu({
     commands
   });
   mainMenu.addMenu(jobsmenu);
-  jobsmenu.title.label = 'Jobs';
+  jobsmenu.title.label = trans.__('Jobs');
 
-  await replaceJobsmenuContents(app, docManager, svcManager, cfg, jobsmenu);
+  await replaceJobsmenuContents(
+    app,
+    docManager,
+    svcManager,
+    cfg,
+    jobsmenu,
+    translator
+  );
 
   logMessage(LogLevels.INFO, cfg, 'rsp-tapqueries...loaded');
 }
@@ -106,24 +118,28 @@ async function replaceJobsmenuContents(
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  jobsmenu: Menu
+  jobsmenu: Menu,
+  translator: ITranslator | null
 ): Promise<void> {
   const { commands } = app;
-
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   if (!commands.hasCommand(CommandIDs.tapqueryitem)) {
     commands.addCommand(CommandIDs.tapqueryitem, {
-      label: 'Open from your TAP query history...',
-      caption:
-        'Open notebook from supplied query jobref ID, dataset:id, or URL',
+      label: trans.__('Open from your TAP query history...'),
+      caption: trans.__(
+        'Open notebook from supplied query jobref ID, dataset:id, or URL'
+      ),
+      describedBy: {},
       execute: () => {
-        tapQuery(app, docManager, svcManager, cfg, jobsmenu);
+        tapQuery(app, docManager, svcManager, cfg, jobsmenu, translator);
       }
     });
   }
   if (!commands.hasCommand(CommandIDs.tapquerynb)) {
     commands.addCommand(CommandIDs.tapquerynb, {
-      label: 'All TAP queries',
-      caption: 'Open notebook requesting all TAP query history',
+      label: trans.__('All TAP queries'),
+      caption: trans.__('Open notebook requesting all TAP query history'),
+      describedBy: {},
       execute: () => {
         tapQueryAllHistory(docManager, svcManager, cfg);
       }
@@ -131,15 +147,17 @@ async function replaceJobsmenuContents(
   }
   if (!commands.hasCommand(CommandIDs.tapqueryrefresh)) {
     commands.addCommand(CommandIDs.tapqueryrefresh, {
-      label: 'Refresh TAP query history',
-      caption: 'Refresh TAP query history',
+      label: trans.__('Refresh TAP query history'),
+      caption: trans.__('Refresh TAP query history'),
+      describedBy: {},
       execute: async () => {
         await replaceJobsmenuContents(
           app,
           docManager,
           svcManager,
           cfg,
-          jobsmenu
+          jobsmenu,
+          translator
         );
       }
     });
@@ -168,7 +186,8 @@ async function replaceJobsmenuContents(
       docManager,
       svcManager,
       cfg,
-      jobsmenu
+      jobsmenu,
+      translator
     );
     logMessage(LogLevels.DEBUG, cfg, 'recent TAP query menu retrieved');
     logMessage(LogLevels.DEBUG, cfg, 'inserting recent TAQ query menu...');
@@ -202,13 +221,18 @@ class TAPQueryHandler extends Widget {
 }
 
 async function tapQueryDialog(
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<string | void> {
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   const options = {
-    title: 'TAP Query Jobref ID or URL',
+    title: trans.__('TAP Query Jobref ID or URL'),
     body: new TAPQueryHandler(),
     focusNodeSelector: 'input',
-    buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'CREATE' })]
+    buttons: [
+      Dialog.cancelButton(),
+      Dialog.okButton({ label: trans.__('CREATE') })
+    ]
   };
   try {
     const result = await showDialog(options);
@@ -280,12 +304,14 @@ async function getRecentTAPQueryMenu(
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  jobsmenu: Menu
+  jobsmenu: Menu,
+  translator: ITranslator | null
 ): Promise<Menu> {
   logMessage(LogLevels.INFO, cfg, 'Retrieving recent TAP query menu');
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
-  retval.title.label = 'Recent Queries';
+  retval.title.label = trans.__('Recent Queries');
 
   try {
     const qhist = await tapQueryRecentHistory(svcManager, cfg);
@@ -327,8 +353,9 @@ async function getRecentTAPQueryMenu(
           // character isn't present).
           const jr = tqr.jobref.substring(1 + tqr.jobref.indexOf(':'));
           commands.addCommand(submcmdId, {
-            label: jr, // Show just the jobref as the label
-            caption: tqr.text, // Use the full SQL as the caption/tooltip
+            label: trans.__(jr), // Show just the jobref as the label
+            caption: trans.__(tqr.text), // Use full SQL as the caption/tooltip
+            describedBy: {},
             execute: async () => {
               await openTAPQueryFromJobref(
                 app,
@@ -336,7 +363,8 @@ async function getRecentTAPQueryMenu(
                 svcManager,
                 cfg,
                 tqr.jobref,
-                jobsmenu
+                jobsmenu,
+                translator
               );
             }
           });
@@ -411,10 +439,11 @@ async function tapQuery(
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  jobsmenu: Menu
+  jobsmenu: Menu,
+  translator: ITranslator | null
 ): Promise<void> {
   try {
-    const jobref = await tapQueryDialog(cfg);
+    const jobref = await tapQueryDialog(cfg, translator);
     logMessage(LogLevels.DEBUG, cfg, `TAP Query URL / ID is ${jobref}`);
     if (!jobref) {
       logMessage(LogLevels.WARNING, cfg, "TAP Query URL was null'");
@@ -426,7 +455,8 @@ async function tapQuery(
       svcManager,
       cfg,
       jobref,
-      jobsmenu
+      jobsmenu,
+      translator
     );
   } catch (error) {
     logMessage(LogLevels.ERROR, cfg, `Error performing TAP query ${error}`);
@@ -440,7 +470,8 @@ async function openTAPQueryFromJobref(
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
   jobref: string,
-  jobsmenu: Menu
+  jobsmenu: Menu,
+  translator: ITranslator | null
 ): Promise<void> {
   logMessage(LogLevels.INFO, cfg, `Opening TAP query for ${jobref}`);
   const body = JSON.stringify({
@@ -462,16 +493,21 @@ async function openTAPQueryFromJobref(
     docManager.open(path);
 
     // Update menu in background (fire-and-forget) to avoid blocking UI
-    replaceJobsmenuContents(app, docManager, svcManager, cfg, jobsmenu).catch(
-      error => {
-        logMessage(
-          LogLevels.WARNING,
-          cfg,
-          `Background menu refresh failed: ${error}`
-        );
-        // Don't rethrow - this is a non-critical background operation
-      }
-    );
+    replaceJobsmenuContents(
+      app,
+      docManager,
+      svcManager,
+      cfg,
+      jobsmenu,
+      translator
+    ).catch(error => {
+      logMessage(
+        LogLevels.WARNING,
+        cfg,
+        `Background menu refresh failed: ${error}`
+      );
+      // Don't rethrow - this is a non-critical background operation
+    });
   } catch (error) {
     logMessage(
       LogLevels.ERROR,
@@ -496,7 +532,9 @@ export function createSQLCard(sqlQuery: string, title?: string): HTMLElement {
 const rspTAPQueriesExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPTAPQueriesExtension,
   id: token.TAPQUERY_ID,
+  description: 'Menu for retrieving and executing TAP queries in the RSP',
   requires: [IMainMenu, IDocumentManager],
+  optional: [ITranslator],
   autoStart: false
 };
 

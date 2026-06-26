@@ -13,6 +13,8 @@ import { IFileBrowserFactory } from '@jupyterlab/filebrowser';
 
 import { INotebookTracker } from '@jupyterlab/notebook';
 
+import { ITranslator } from '@jupyterlab/translation';
+
 import { activateRSPCollabExtension } from './collab';
 
 import { getServerConfig, INubladoConfigResponse } from './config';
@@ -43,7 +45,8 @@ function activateRSPExtension(
   docManager: IDocumentManager,
   statusBar: IStatusBar,
   tracker: INotebookTracker,
-  fileBrowserFactory: IFileBrowserFactory
+  fileBrowserFactory: IFileBrowserFactory,
+  translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server configuration...');
   getServerConfig(app).then(async cfg => {
@@ -75,7 +78,8 @@ function activateRSPExtension(
         tracker,
         fileBrowserFactory,
         abnormal,
-        cfg
+        cfg,
+        translator
       );
     } catch (error) {
       logMessage(
@@ -95,12 +99,13 @@ async function activateIndividualExtensions(
   tracker: INotebookTracker,
   fileBrowserFactory: IFileBrowserFactory,
   abnormal: IAbnormalResponse,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
   try {
-    activateRSPQuitExtension(app, mainMenu, cfg);
+    activateRSPQuitExtension(app, mainMenu, cfg, translator);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -113,7 +118,7 @@ async function activateIndividualExtensions(
   if (abnormal.ABNORMAL_STARTUP) {
     // Give the user a warning dialog
     try {
-      await abnormalDialog(abnormal, cfg);
+      await abnormalDialog(abnormal, cfg, translator);
     } catch (error) {
       logMessage(
         LogLevels.ERROR,
@@ -135,7 +140,14 @@ async function activateIndividualExtensions(
   }
   logMessage(LogLevels.INFO, cfg, '...activating pdfexport extension...');
   try {
-    activateRSPPDFExportExtension(app, mainMenu, docManager, cfg, tracker);
+    activateRSPPDFExportExtension(
+      app,
+      mainMenu,
+      docManager,
+      cfg,
+      tracker,
+      translator
+    );
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -147,7 +159,13 @@ async function activateIndividualExtensions(
   if (cfg.enable_jobs_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating TAP queries extension...');
     try {
-      await activateRSPTAPQueriesExtension(app, mainMenu, docManager, cfg);
+      await activateRSPTAPQueriesExtension(
+        app,
+        mainMenu,
+        docManager,
+        cfg,
+        translator
+      );
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -166,7 +184,7 @@ async function activateIndividualExtensions(
   if (cfg.enable_tutorials_menu) {
     logMessage(LogLevels.INFO, cfg, '...activating tutorials extension...');
     try {
-      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg);
+      activateRSPTutorialsExtension(app, mainMenu, docManager, cfg, translator);
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -185,7 +203,12 @@ async function activateIndividualExtensions(
   if (cfg.collab_dir) {
     logMessage(LogLevels.INFO, cfg, '...activating collab extension...');
     try {
-      await activateRSPCollabExtension(app, fileBrowserFactory, cfg);
+      await activateRSPCollabExtension(
+        app,
+        fileBrowserFactory,
+        cfg,
+        translator
+      );
       logMessage(LogLevels.INFO, cfg, '...activated...');
     } catch (error) {
       logMessage(
@@ -210,6 +233,7 @@ async function activateIndividualExtensions(
 const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
+  description: 'Collection of JupyterLab extensions for the RSP',
   requires: [
     IMainMenu,
     IDocumentManager,
@@ -217,6 +241,7 @@ const rspExtension: JupyterFrontEndPlugin<void> = {
     INotebookTracker,
     IFileBrowserFactory
   ],
+  optional: [ITranslator],
   autoStart: true
 };
 

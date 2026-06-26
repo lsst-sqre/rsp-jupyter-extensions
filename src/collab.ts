@@ -8,6 +8,8 @@ import {
 
 import { IFileBrowserFactory } from '@jupyterlab/filebrowser';
 
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
+
 import { LabIcon } from '@jupyterlab/ui-components';
 
 import { INubladoConfigResponse } from './config';
@@ -41,7 +43,8 @@ const collabFolderIcon = new LabIcon({
 export async function activateRSPCollabExtension(
   app: JupyterFrontEnd,
   factory: IFileBrowserFactory,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   logMessage(LogLevels.INFO, cfg, 'rsp-collab: loading...');
 
@@ -49,15 +52,19 @@ export async function activateRSPCollabExtension(
   // contents root as the default file browser.  restore:false + auto:false so
   // the browser deterministically opens at `collab` on every reload rather
   // than restoring a previously-visited directory.
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   const browser = factory.createFileBrowser(token.COLLAB_ID, {
     auto: false,
     restore: false
   });
 
   browser.title.icon = collabFolderIcon;
-  browser.title.caption = 'Collaborative Files';
+  browser.title.caption = trans.__('Collaborative Files');
   browser.node.setAttribute('role', 'region');
-  browser.node.setAttribute('aria-label', 'Collab File Browser Section');
+  browser.node.setAttribute(
+    'aria-label',
+    trans.__('Collab File Browser Section')
+  );
 
   // rank 101 places this directly below the default file browser (rank 100).
   app.shell.add(browser, 'left', { rank: 101, type: 'Collab File Browser' });
@@ -85,7 +92,9 @@ export async function activateRSPCollabExtension(
 const rspCollabExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPCollabExtension,
   id: token.COLLAB_ID,
+  description: 'Secondary Filebrowser for collaborative files in the RSP',
   requires: [IFileBrowserFactory],
+  optional: [ITranslator],
   autoStart: false
 };
 

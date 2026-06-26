@@ -16,6 +16,8 @@ import { PageConfig } from '@jupyterlab/coreutils';
 
 import { ServerConnection } from '@jupyterlab/services';
 
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
+
 import { LogLevels, logMessage } from './logger';
 
 import * as token from './tokens';
@@ -41,25 +43,29 @@ enum QuitDisposition {
 export function activateRSPQuitExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'rsp-quit: loading...');
 
   const { commands } = app;
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
 
   commands.addCommand(CommandIDs.justQuit, {
-    label: 'Autosave and Exit',
-    caption: 'Destroy container',
+    label: trans.__('Autosave and Exit'),
+    caption: trans.__('Destroy container'),
+    describedBy: {},
     execute: () => {
-      justQuit(app, QuitDisposition.Quit, cfg);
+      justQuit(app, QuitDisposition.Quit, cfg, translator);
     }
   });
 
   commands.addCommand(CommandIDs.quitLogout, {
-    label: 'Autosave, Exit, and Log Out',
-    caption: 'Destroy container and log out',
+    label: trans.__('Autosave, Exit, and Log Out'),
+    caption: trans.__('Destroy container and log out'),
+    describedBy: {},
     execute: () => {
-      justQuit(app, QuitDisposition.Logout, cfg);
+      justQuit(app, QuitDisposition.Logout, cfg, translator);
     }
   });
 
@@ -92,12 +98,13 @@ async function hubDeleteRequest(
 async function justQuit(
   app: JupyterFrontEnd,
   disposition: QuitDisposition,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<any> {
   // Don't await infoDialog(): if we navigate away before the user
   // acknowledges, that's OK.
   try {
-    infoDialog(cfg);
+    infoDialog(cfg, translator);
   } catch (error) {
     logMessage(LogLevels.WARNING, cfg, `Exit dialog failed: ${error}`);
     // Don't rethrow - this is a non-critical background operation
@@ -134,11 +141,15 @@ async function justQuit(
   }
 }
 
-async function infoDialog(cfg: INubladoConfigResponse): Promise<void> {
+async function infoDialog(
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
+): Promise<void> {
+  const trans = (translator ?? nullTranslator).load('jupyterlab');
   const options = {
-    title: 'Redirecting to landing page',
-    body: 'JupyterLab cleaning up and redirecting to landing page.',
-    buttons: [Dialog.okButton({ label: 'Got it!' })]
+    title: trans.__('Redirecting to landing page'),
+    body: trans.__('JupyterLab cleaning up and redirecting to landing page.'),
+    buttons: [Dialog.okButton({ label: trans.__('Got it!') })]
   };
   await showDialog(options);
   logMessage(LogLevels.DEBUG, cfg, 'Info dialog panel displayed');
@@ -150,7 +161,9 @@ async function infoDialog(cfg: INubladoConfigResponse): Promise<void> {
 const rspQuitExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPQuitExtension,
   id: token.QUIT_ID,
+  description: 'Shut down JupyterLab by communicating with the Hub',
   requires: [IMainMenu],
+  optional: [ITranslator],
   autoStart: false
 };
 
