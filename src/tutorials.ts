@@ -287,7 +287,7 @@ async function overwriteDialog(
   const trans = (translator ?? nullTranslator).load('jupyterlab');
   const dialogOptions = {
     title: trans.__('Target file exists'),
-    body: `Overwrite file '${dest}' ?`,
+    body: trans.__('Overwrite file "%1" ?', dest),
     buttons: [
       Dialog.cancelButton(),
       Dialog.okButton({ label: trans.__('OVERWRITE') })

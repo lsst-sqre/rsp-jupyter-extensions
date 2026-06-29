@@ -33,9 +33,6 @@ const collabFolderIcon = new LabIcon({
   svgstr: COLLAB_FOLDER_SVG
 });
 
-// Sleep helper function.
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
 /**
  * Activate the collab extension.
  *
@@ -72,42 +69,12 @@ export async function activateRSPCollabExtension(
   // rank 101 places this directly below the default file browser (rank 100).
   app.shell.add(browser, 'left', { rank: 101, type: 'Collab File Browser' });
 
-  // `collab` may not exist yet (it will eventually be a symlink).  model.cd()
-  // swallows a 404 internally -- it logs, emits connectionFailure, falls back
-  // to the root, and still resolves -- so a missing directory is tolerated.
-  // The try/catch is defensive in case that contract ever changes.
-
-  // For right now, the sciplat-lab startup ensures that if the environment
-  // variable NUBLADO_COLLAB_DIR is set, $HOME/collab is set up (assuming it
-  // did not already exist) as a symbolic link to it.
-
-  // If the user has their own $HOME/collab already, the browser will point
-  // to it but the contents will be whatever the user put there, not the
-  // link to NUBLADO_COLLAB_DIR.
-
-  // There appears to be a race condition such that the symlink may not be
-  // available immediately, so we retry up to three times.
+  // The backend server will verify that the collab dir exists; if it doesn't
+  // cfg.collab_dir will be the empty string and we won't get this far.
 
   const home = cfg.home_relative_to_file_browser_root;
   const collabPath = home ? `${home}/collab` : 'collab';
-  logMessage(
-    LogLevels.INFO,
-    cfg,
-    `...attempting to open directory at ${collabPath}`
-  );
-  for (let i = 0; i < 3; i++) {
-    try {
-      await browser.model.cd(collabPath);
-      break;
-    } catch (error) {
-      logMessage(
-        LogLevels.WARNING,
-        cfg,
-        `rsp-collab: {i+1}/3: could not navigate to 'collab': ${error}`
-      );
-      await sleep(1000); // 1 second
-    }
-  }
+  await browser.model.cd(collabPath);
 
   logMessage(LogLevels.INFO, cfg, 'rsp-collab: ... loaded');
 }

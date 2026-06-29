@@ -241,8 +241,6 @@ class ConfigGenerator:
                     f"{user_path!s} exists, but is not a symlink"
                 )
                 return ""
-            self._logger.debug(f"{user_path!s} exists; leaving alone")
-            return collab_vol
         try:
             self._logger.info(
                 f"Creating symlink {user_path!s} -> {collab_path!s}"
