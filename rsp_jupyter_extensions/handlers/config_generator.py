@@ -134,8 +134,7 @@ class ConfigGenerator:
             if cf:
                 self._config = cf
                 # Check that collab_dir is good.
-                collab = self._check_collab(cf.collab_dir)
-                cf.collab_dir = collab
+                cf.collab_dir = self._check_collab(cf.collab_dir)
                 return cf
             self._logger.warning("Falling back to environment-based config")
         image = LabImage(
@@ -201,14 +200,13 @@ class ConfigGenerator:
 
     def _check_collab(self, collab_vol: str) -> str:
         """If the user symlink $HOME/collab to the collab volume exists
-        or can be made to exist, return the value of NUBLADO_COLLAB_DIR.
-
-        Otherwise, return the empty string.
+        or can be made to exist, return collab_vol; otherwise return the
+        empty string.
 
         Returns
         -------
         string
-            NUBLADO_COLLAB_DIR if usable, empty string otherwise
+            collab_vol if usable, empty string otherwise.
         """
         if not collab_vol:
             return ""
