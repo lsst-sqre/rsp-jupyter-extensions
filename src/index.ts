@@ -97,7 +97,7 @@ async function activateIndividualExtensions(
   docManager: IDocumentManager,
   statusBar: IStatusBar,
   tracker: INotebookTracker,
-  fileBrowserFactory: IFileBrowserFactory,
+  fileBrowserFactory: IFileBrowserFactory | null,
   abnormal: IAbnormalResponse,
   cfg: INubladoConfigResponse,
   translator: ITranslator | null
@@ -200,7 +200,7 @@ async function activateIndividualExtensions(
       '...skipping tutorials extension (disabled in config)...'
     );
   }
-  if (cfg.collab_dir) {
+  if (cfg.collab_dir && fileBrowserFactory) {
     logMessage(LogLevels.INFO, cfg, '...activating collab extension...');
     try {
       await activateRSPCollabExtension(
@@ -234,14 +234,8 @@ const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
   description: 'Collection of JupyterLab extensions for the RSP',
-  requires: [
-    IMainMenu,
-    IDocumentManager,
-    IStatusBar,
-    INotebookTracker,
-    IFileBrowserFactory
-  ],
-  optional: [ITranslator],
+  requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
+  optional: [ITranslator, IFileBrowserFactory],
   autoStart: true
 };
 
