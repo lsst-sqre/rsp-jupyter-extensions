@@ -284,7 +284,7 @@ async function overwriteDialog(
   cfg: INubladoConfigResponse,
   translator: ITranslator | null
 ): Promise<string | void> {
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const dialogOptions = {
     title: trans.__('Target file exists'),
     body: trans.__('Overwrite file "%1" ?', dest),
@@ -341,7 +341,7 @@ export function activateRSPTutorialsExtension(
     translator: ITranslator | null
   ): void {
     logMessage(LogLevels.DEBUG, cfg, `building tutorials menu for ${name}`);
-    const trans = (translator ?? nullTranslator).load('jupyterlab');
+    const trans = (translator || nullTranslator).load('jupyterlab');
     if (parentmenu === null) {
       // Set up submenu
       const { commands } = app;

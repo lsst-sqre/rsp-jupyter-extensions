@@ -52,7 +52,7 @@ export async function activateRSPCollabExtension(
   // contents root as the default file browser.  restore:false + auto:false so
   // the browser deterministically opens at `collab` on every reload rather
   // than restoring a previously-visited directory.
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const browser = factory.createFileBrowser(token.COLLAB_ID, {
     auto: false,
     restore: false

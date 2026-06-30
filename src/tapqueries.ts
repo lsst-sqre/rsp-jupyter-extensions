@@ -91,8 +91,7 @@ export async function activateRSPTAPQueriesExtension(
   translator: ITranslator | null
 ): Promise<void> {
   logMessage(LogLevels.INFO, cfg, 'rsp-tapqueries...loading');
-
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const svcManager = app.serviceManager;
   const { commands } = app;
   const jobsmenu = new Menu({
@@ -122,7 +121,7 @@ async function replaceJobsmenuContents(
   translator: ITranslator | null
 ): Promise<void> {
   const { commands } = app;
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   if (!commands.hasCommand(CommandIDs.tapqueryitem)) {
     commands.addCommand(CommandIDs.tapqueryitem, {
       label: trans.__('Open from your TAP query history...'),
@@ -224,7 +223,7 @@ async function tapQueryDialog(
   cfg: INubladoConfigResponse,
   translator: ITranslator | null
 ): Promise<string | void> {
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const options = {
     title: trans.__('TAP Query Jobref ID or URL'),
     body: new TAPQueryHandler(),
@@ -308,7 +307,7 @@ async function getRecentTAPQueryMenu(
   translator: ITranslator | null
 ): Promise<Menu> {
   logMessage(LogLevels.INFO, cfg, 'Retrieving recent TAP query menu');
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const { commands } = app;
   const retval: Menu = new Menu({ commands });
   retval.title.label = trans.__('Recent Queries');

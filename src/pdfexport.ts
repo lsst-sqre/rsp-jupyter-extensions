@@ -50,7 +50,7 @@ export function activateRSPPDFExportExtension(
 ): void {
   logMessage(LogLevels.INFO, cfg, 'rsp-pdfexport: loading...');
 
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const svcManager = app.serviceManager;
 
   const { commands } = app;
@@ -147,7 +147,7 @@ export async function PDFError(
   err: string,
   translator: ITranslator | null
 ): Promise<void> {
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   await showDialog({
     title: trans.__('PDF Conversion Error'),
     body: err,

@@ -49,7 +49,7 @@ export function activateRSPQuitExtension(
   logMessage(LogLevels.INFO, null, 'rsp-quit: loading...');
 
   const { commands } = app;
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
 
   commands.addCommand(CommandIDs.justQuit, {
     label: trans.__('Autosave and Exit'),
@@ -145,7 +145,7 @@ async function infoDialog(
   cfg: INubladoConfigResponse,
   translator: ITranslator | null
 ): Promise<void> {
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const options = {
     title: trans.__('Redirecting to landing page'),
     body: trans.__('JupyterLab cleaning up and redirecting to landing page.'),

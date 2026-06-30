@@ -35,7 +35,7 @@ export async function abnormalDialog(
 ): Promise<void> {
   // Someday it would be nice to have a DialogBox class that understood
   // markdown.
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const options = {
     title: trans.__('Abnormal Lab Start'),
     body: getDialogBody(abnormal, translator),
@@ -68,7 +68,7 @@ function getDialogBody(
   abnormal: IAbnormalResponse,
   translator: ITranslator | null
 ): string {
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   let errno = -1;
   if (abnormal.ABNORMAL_STARTUP_ERRNO) {
     errno = parseInt(abnormal.ABNORMAL_STARTUP_ERRNO);
@@ -104,7 +104,7 @@ function getSupplementalBody(
   errorcode: string,
   translator: ITranslator | null
 ): string {
-  const trans = (translator ?? nullTranslator).load('jupyterlab');
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const no_trust =
     ' ' + trans.__('This Lab should not be trusted for work you want to keep.');
   const delete_something =

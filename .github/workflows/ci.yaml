@@ -67,6 +67,7 @@ jobs:
         NUBLADO_RUNTIME_MOUNTS_DIR: "/home/runner/work/etc/nublado"
         REPERTOIRE_BASE_URL: "https://example.lsst.cloud"
       run: |
+        set -eux
         mkdir -p /home/runner/work/git/tutorial-notebooks
         cat << EOF > /home/runner/work/git/tutorial-notebooks/hello.ipynb
         {

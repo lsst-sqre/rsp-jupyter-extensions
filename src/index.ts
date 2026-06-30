@@ -45,7 +45,7 @@ function activateRSPExtension(
   docManager: IDocumentManager,
   statusBar: IStatusBar,
   tracker: INotebookTracker,
-  fileBrowserFactory: IFileBrowserFactory,
+  fileBrowserFactory: IFileBrowserFactory | null,
   translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'getting server configuration...');
@@ -235,7 +235,7 @@ const rspExtension: JupyterFrontEndPlugin<void> = {
   id: token.PLUGIN_ID,
   description: 'Collection of JupyterLab extensions for the RSP',
   requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
-  optional: [ITranslator, IFileBrowserFactory],
+  optional: [IFileBrowserFactory, ITranslator],
   autoStart: true
 };
 
