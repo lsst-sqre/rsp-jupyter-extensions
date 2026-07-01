@@ -14,9 +14,10 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { ServerConnection } from '@jupyterlab/services';
 
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
+
 import { Menu } from '@lumino/widgets';
 
-//import { ServiceManager, ServerConnection } from '@jupyterlab/services';
 import { IMainMenu } from '@jupyterlab/mainmenu';
 
 import * as token from './tokens';
@@ -53,12 +54,12 @@ class TutorialsEntry implements ITutorialsEntryResponse {
   dest: string;
 
   constructor(inp: ITutorialsEntryResponse) {
-    (this.menu_name = inp.menu_name),
-      (this.action = inp.action),
-      (this.disposition = inp.disposition),
-      (this.parent = inp.parent),
-      (this.src = inp.src),
-      (this.dest = inp.dest);
+    this.menu_name = inp.menu_name;
+    this.action = inp.action;
+    this.disposition = inp.disposition;
+    this.parent = inp.parent;
+    this.src = inp.src;
+    this.dest = inp.dest;
   }
 }
 
@@ -193,7 +194,8 @@ async function apiPostTutorialsEntry(
   settings: ServerConnection.ISettings,
   docManager: IDocumentManager,
   entry: TutorialsEntry,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   // Fake out URL check in makeRequest
   logMessage(
@@ -216,7 +218,12 @@ async function apiPostTutorialsEntry(
     if (response.status === 409) {
       // File exists; prompt user
       try {
-        const verb = await overwriteDialog(entry.dest, docManager, cfg);
+        const verb = await overwriteDialog(
+          entry.dest,
+          docManager,
+          cfg,
+          translator
+        );
         logMessage(LogLevels.DEBUG, cfg, `Dialog result was ${verb}`);
 
         if (verb !== 'OVERWRITE') {
@@ -235,7 +242,13 @@ async function apiPostTutorialsEntry(
         const newEntry = new TutorialsEntry(newEntryModel);
 
         // Resubmit response with request to overwrite file.
-        await apiPostTutorialsEntry(settings, docManager, newEntry, cfg);
+        await apiPostTutorialsEntry(
+          settings,
+          docManager,
+          newEntry,
+          cfg,
+          translator
+        );
       } catch (error) {
         logMessage(LogLevels.ERROR, cfg, `Error in overwrite dialog: ${error}`);
       }
@@ -268,12 +281,17 @@ interface IDialogResult {
 async function overwriteDialog(
   dest: string,
   manager: IDocumentManager,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<string | void> {
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const dialogOptions = {
-    title: 'Target file exists',
-    body: `Overwrite file '${dest}' ?`,
-    buttons: [Dialog.cancelButton(), Dialog.okButton({ label: 'OVERWRITE' })]
+    title: trans.__('Target file exists'),
+    body: trans.__('Overwrite file "%1" ?', dest),
+    buttons: [
+      Dialog.cancelButton(),
+      Dialog.okButton({ label: trans.__('OVERWRITE') })
+    ]
   };
 
   try {
@@ -308,7 +326,8 @@ export function activateRSPTutorialsExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, cfg, 'rsp-tutorials: loading...');
   const svcManager = app.serviceManager;
@@ -318,14 +337,16 @@ export function activateRSPTutorialsExtension(
     name: string,
     hierarchy: ITutorialsHierarchyResponse,
     parentmenu: Menu | null,
-    cfg: INubladoConfigResponse
+    cfg: INubladoConfigResponse,
+    translator: ITranslator | null
   ): void {
     logMessage(LogLevels.DEBUG, cfg, `building tutorials menu for ${name}`);
+    const trans = (translator || nullTranslator).load('jupyterlab');
     if (parentmenu === null) {
       // Set up submenu
       const { commands } = app;
       const tutorialsmenu = new Menu({ commands });
-      tutorialsmenu.title.label = 'Tutorials';
+      tutorialsmenu.title.label = trans.__('Tutorials');
       parentmenu = tutorialsmenu;
       logMessage(LogLevels.DEBUG, cfg, 'set up top level Tutorials menu');
       mainMenu.addMenu(tutorialsmenu);
@@ -367,7 +388,7 @@ export function activateRSPTutorialsExtension(
         parentmenu.addItem({ submenu: smenu, type: 'submenu' });
         logMessage(LogLevels.DEBUG, cfg, `recurse: hierarchy ${subh}`);
         // Now recurse down new menu/subhierarchy
-        buildTutorialsMenu(subh, s_obj, smenu, cfg);
+        buildTutorialsMenu(subh, s_obj, smenu, cfg, translator);
         logMessage(
           LogLevels.DEBUG,
           cfg,
@@ -394,8 +415,15 @@ export function activateRSPTutorialsExtension(
         );
         commands.addCommand(cmdId, {
           label: entry,
+          describedBy: {},
           execute: () => {
-            apiPostTutorialsEntry(settings, docManager, entry_obj, cfg);
+            apiPostTutorialsEntry(
+              settings,
+              docManager,
+              entry_obj,
+              cfg,
+              translator
+            );
           }
         });
         logMessage(LogLevels.DEBUG, cfg, `adding item ${cmdId} to ${parent}`);
@@ -413,7 +441,7 @@ export function activateRSPTutorialsExtension(
       const res = await apiGetTutorialsHierarchy(settings, cfg);
       if (res) {
         const o_res = res as TutorialsHierarchy;
-        buildTutorialsMenu('root', o_res, null, cfg);
+        buildTutorialsMenu('root', o_res, null, cfg, translator);
       }
     } catch (error) {
       logMessage(
@@ -433,7 +461,9 @@ export function activateRSPTutorialsExtension(
 const rspTutorialsExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPTutorialsExtension,
   id: token.TUTORIALS_ID,
+  description: 'Tutorials menu for the RSP',
   requires: [IMainMenu, IDocumentManager],
+  optional: [ITranslator],
   autoStart: false
 };
 

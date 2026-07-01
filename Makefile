@@ -9,8 +9,9 @@ help:
 .PHONY: init
 init:
 	pip install --upgrade uv
+	uv pip install prek
 	uv pip install --editable '.[test]' jupyterlab
-	pre-commit install
+	prek install
 
 .PHONY: typing
 typing:
@@ -20,7 +21,7 @@ typing:
 .PHONY: lint
 lint:
 	jlpm run lint
-	pre-commit run --all-files
+	prek run --all-files
 
 .PHONY: test
 test:

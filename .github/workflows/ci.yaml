@@ -67,6 +67,7 @@ jobs:
         NUBLADO_RUNTIME_MOUNTS_DIR: "/home/runner/work/etc/nublado"
         REPERTOIRE_BASE_URL: "https://example.lsst.cloud"
       run: |
+        set -eux
         mkdir -p /home/runner/work/git/tutorial-notebooks
         cat << EOF > /home/runner/work/git/tutorial-notebooks/hello.ipynb
         {
@@ -207,7 +208,7 @@ jobs:
         key: ${{ runner.os }}-${{ hashFiles('ui-tests/yarn.lock') }}
 
     - name: Install browser
-      run: jlpm playwright install chromium
+      run: jlpm playwright install
       working-directory: ui-tests
 
     - name: Execute integration tests

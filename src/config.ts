@@ -4,6 +4,7 @@ import { apiRequest } from './request';
 
 // INubladoConfigResponse encapsulates the Nublado configuration.
 export interface INubladoConfigResponse {
+  collab_dir: string;
   container_size: string;
   debug: boolean;
   enable_jobs_menu: boolean;

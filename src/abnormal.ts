@@ -1,6 +1,7 @@
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { PageConfig } from '@jupyterlab/coreutils';
 import { showDialog, Dialog } from '@jupyterlab/apputils';
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
 import { INubladoConfigResponse } from './config';
 import { LogLevels, logMessage } from './logger';
 import { apiRequest } from './request';
@@ -29,15 +30,17 @@ export async function getAbnormalStartup(
 
 export async function abnormalDialog(
   abnormal: IAbnormalResponse,
-  cfg: INubladoConfigResponse
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
 ): Promise<void> {
   // Someday it would be nice to have a DialogBox class that understood
   // markdown.
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const options = {
-    title: 'Abnormal Lab Start',
-    body: getDialogBody(abnormal),
+    title: trans.__('Abnormal Lab Start'),
+    body: getDialogBody(abnormal, translator),
     focusNodeSelector: 'input',
-    buttons: [Dialog.warnButton({ label: 'OK' })]
+    buttons: [Dialog.warnButton({ label: trans.__('OK') })]
   };
   try {
     const result = await showDialog(options);
@@ -61,7 +64,11 @@ export async function abnormalDialog(
   }
 }
 
-function getDialogBody(abnormal: IAbnormalResponse): string {
+function getDialogBody(
+  abnormal: IAbnormalResponse,
+  translator: ITranslator | null
+): string {
+  const trans = (translator || nullTranslator).load('jupyterlab');
   let errno = -1;
   if (abnormal.ABNORMAL_STARTUP_ERRNO) {
     errno = parseInt(abnormal.ABNORMAL_STARTUP_ERRNO);
@@ -71,7 +78,7 @@ function getDialogBody(abnormal: IAbnormalResponse): string {
     errorcode = abnormal.ABNORMAL_STARTUP_ERRORCODE;
   }
 
-  let strerror = 'unknown error';
+  let strerror = trans.__('unknown error');
   if (abnormal.ABNORMAL_STARTUP_STRERROR) {
     strerror = abnormal.ABNORMAL_STARTUP_STRERROR;
   }
@@ -79,29 +86,49 @@ function getDialogBody(abnormal: IAbnormalResponse): string {
   if (abnormal.ABNORMAL_STARTUP_MESSAGE) {
     msg = abnormal.ABNORMAL_STARTUP_MESSAGE;
   }
-  let body = getSupplementalBody(errorcode);
+  let body = getSupplementalBody(errorcode, translator);
   body =
     body +
     '\n\n' +
-    `JupyterLab started in an abnormal state: error # ${errno} (${errorcode}) [${strerror}] "${msg}"`;
+    trans.__(
+      'JupyterLab started in an abnormal state: Error # %1 (%2) [%3] "%4"',
+      errno,
+      errorcode,
+      strerror,
+      msg
+    );
   return body;
 }
 
-function getSupplementalBody(errorcode: string): string {
-  const no_trust = ' This Lab should not be trusted for work you want to keep.';
+function getSupplementalBody(
+  errorcode: string,
+  translator: ITranslator | null
+): string {
+  const trans = (translator || nullTranslator).load('jupyterlab');
+  const no_trust =
+    ' ' + trans.__('This Lab should not be trusted for work you want to keep.');
   const delete_something =
-    ' Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.';
-  const no_storage = 'You have run out of filesystem space.' + delete_something;
+    ' ' +
+    trans.__(
+      'Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.'
+    );
+  const no_storage =
+    trans.__('You have run out of filesystem space.') + delete_something;
   const no_quota =
-    'You have exceeded your filesystem quota.' + delete_something;
+    trans.__('You have exceeded your filesystem quota.') + delete_something;
   const no_permission =
-    'You do not have permission to write. Ask your RSP site administrator to check ownership and permissions on your directories.' +
-    no_trust;
+    trans.__(
+      'You do not have permission to write. Ask your RSP site administrator to check ownership and permissions on your directories.'
+    ) + no_trust;
   const no_idea =
-    'Please open an issue with your RSP site administrator with the error number, description, and message shown above.' +
-    no_trust;
+    trans.__(
+      'Please open an issue with your RSP site administrator with the error number, description, and message shown above.'
+    ) + no_trust;
   const no_environment =
-    'You are missing environment variables necessary for RSP operation. ' +
+    trans.__(
+      'You are missing environment variables necessary for RSP operation.'
+    ) +
+    ' ' +
     no_idea;
   switch (errorcode) {
     case 'EACCES':

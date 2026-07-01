@@ -98,25 +98,28 @@ class ConfigGenerator:
             return ""
         return str(_get_homedir()).lstrip("/")
 
-    def regenerate_config(self) -> RSPConfig | None:
+    def regenerate_config(self) -> RSPConfig:
         """Force regeneration of config.
 
         Returns
         -------
-        RSPConfig|None
+        RSPConfig
             Lab configuration.
         """
         self._config = None  # Force config to be empty, so generate must run.
         return self.generate_config()
 
-    def generate_config(self) -> RSPConfig | None:
+    def generate_config(self) -> RSPConfig:
         """Generate Lab configuration.  Check first for a mounted configuration
         file and use that if it exists; otherwise, use a sanitized version of
         the environment.
 
+        Also check for the existence of the collab volume and set up a
+        symbolic link for the user if it exists.
+
         Returns
         -------
-        RSPConfig|None
+        RSPConfig
             Lab configuration.
         """
         if self._config is not None:
@@ -130,6 +133,8 @@ class ConfigGenerator:
             cf = self._load_config_file(cfg_file)
             if cf:
                 self._config = cf
+                # Check that collab_dir is good.
+                cf.collab_dir = self._check_collab(cf.collab_dir)
                 return cf
             self._logger.warning("Falling back to environment-based config")
         image = LabImage(
@@ -145,7 +150,11 @@ class ConfigGenerator:
         staff_or_science = bool(
             os.environ.get("RSP_SITE_TYPE") == "science"
         ) or bool(os.environ.get("RSP_SITE_TYPE") == "staff")
+        collab_dir = self._check_collab(
+            os.environ.get("NUBLADO_COLLAB_DIR", "")
+        )
         self._config = RSPConfig(
+            collab_dir=collab_dir,
             container_size=os.environ.get("CONTAINER_SIZE", "Unknown"),
             debug=bool(os.environ.get("DEBUG")),
             enable_jobs_menu=(
@@ -189,6 +198,59 @@ class ConfigGenerator:
         )
         return self._config
 
+    def _check_collab(self, collab_vol: str) -> str:
+        """If the user symlink $HOME/collab to the collab volume exists
+        or can be made to exist, return collab_vol; otherwise return the
+        empty string.
+
+        Returns
+        -------
+        string
+            collab_vol if usable, empty string otherwise.
+        """
+        if not collab_vol:
+            return ""
+        collab_path = Path(collab_vol)
+        if not collab_path.exists():
+            self._logger.warning(
+                f"Collab dir set to {collab_vol} but it does not exist"
+            )
+            return ""
+        if not collab_path.is_dir():
+            self._logger.warning(
+                f"Collab dir set to {collab_vol} but it is not a directory"
+            )
+            return ""
+        user_path = _get_homedir() / "collab"
+        if user_path.exists():
+            if user_path.is_symlink():
+                rl = user_path.readlink()
+                if rl == collab_path:
+                    # Happy path.  This is the right link.
+                    return collab_vol
+                else:
+                    self._logger.warning(
+                        f"{user_path!s} exists, but points to {rl!s},"
+                        f" not {collab_path!s}"
+                    )
+                    return ""
+            else:
+                self._logger.warning(
+                    f"{user_path!s} exists, but is not a symlink"
+                )
+                return ""
+        try:
+            self._logger.info(
+                f"Creating symlink {user_path!s} -> {collab_path!s}"
+            )
+            user_path.symlink_to(collab_path)
+        except Exception:
+            self._logger.exception(
+                f"Symlink {user_path!s} -> {collab_path!s} failed"
+            )
+            return ""
+        return collab_vol
+
     def _load_config_file(self, cfg_file: Path) -> RSPConfig | None:
         rspcfg: RSPConfig | None = None
         try:
@@ -209,6 +271,7 @@ class ConfigGenerator:
         return rspcfg
 
     async def update_statusbar(self) -> None:
+        """Update the RSP statusbar field."""
         if self._config is None:
             raise ConfigError("Config could not be determined")
         if self._config.statusbar:

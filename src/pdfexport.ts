@@ -15,6 +15,8 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 
 import { ServiceManager } from '@jupyterlab/services';
 
+import { ITranslator, nullTranslator } from '@jupyterlab/translation';
+
 import { PageConfig } from '@jupyterlab/coreutils';
 
 import { LogLevels, logMessage } from './logger';
@@ -43,19 +45,22 @@ export function activateRSPPDFExportExtension(
   mainMenu: IMainMenu,
   docManager: IDocumentManager,
   cfg: INubladoConfigResponse,
-  tracker: INotebookTracker
+  tracker: INotebookTracker,
+  translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, cfg, 'rsp-pdfexport: loading...');
 
+  const trans = (translator || nullTranslator).load('jupyterlab');
   const svcManager = app.serviceManager;
 
   const { commands } = app;
 
   commands.addCommand(CommandIDs.pdfExport, {
-    label: 'Export current notebook to PDF (typst)',
-    caption: 'Export current notebook to PDF via typst',
+    label: trans.__('Export current notebook to PDF (typst)'),
+    caption: trans.__('Export current notebook to PDF via typst'),
+    describedBy: {},
     execute: () => {
-      pdfExport(docManager, svcManager, cfg, tracker);
+      pdfExport(docManager, svcManager, cfg, tracker, translator);
     }
   });
 
@@ -76,7 +81,8 @@ async function pdfExport(
   docManager: IDocumentManager,
   svcManager: ServiceManager.IManager,
   cfg: INubladoConfigResponse,
-  tracker: INotebookTracker
+  tracker: INotebookTracker,
+  translator: ITranslator | null
 ): Promise<void> {
   // Find current notebook
   if (!tracker) {
@@ -122,9 +128,9 @@ async function pdfExport(
       if (!error) {
         // This shouldn't happen; the backend checks that one of path or
         // error is present.
-        await PDFError('unknown error');
+        await PDFError('unknown error', translator);
       } else {
-        await PDFError(error);
+        await PDFError(error, translator);
       }
     }
   } catch (error) {
@@ -137,11 +143,15 @@ async function pdfExport(
   }
 }
 
-export async function PDFError(err: string): Promise<void> {
+export async function PDFError(
+  err: string,
+  translator: ITranslator | null
+): Promise<void> {
+  const trans = (translator || nullTranslator).load('jupyterlab');
   await showDialog({
-    title: 'PDF Conversion Error',
+    title: trans.__('PDF Conversion Error'),
     body: err,
-    buttons: [Dialog.warnButton({ label: 'OK' })]
+    buttons: [Dialog.warnButton({ label: trans.__('OK') })]
   });
 }
 
@@ -151,7 +161,9 @@ export async function PDFError(err: string): Promise<void> {
 const rspPDFExportExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPPDFExportExtension,
   id: token.PDFEXPORT_ID,
+  description: 'PDF export via typst for the RSP',
   requires: [IMainMenu, IDocumentManager, INotebookTracker],
+  optional: [ITranslator],
   autoStart: false
 };
 

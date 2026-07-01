@@ -16,6 +16,7 @@ async def test_config(
     assert response.code == 200
     payload = json.loads(response.body)
     assert payload == {
+        "collab_dir": "",
         "container_size": "Large (4.0 CPU, 16Gi RAM)",
         "debug": False,
         "enable_jobs_menu": False,
@@ -67,6 +68,7 @@ async def test_config_file(
 ) -> None:
     """Test `config` endpoint."""
     cfg = json.loads(labcfg)
+    assert cfg["collab_dir"] == "/collab"
     Path("/etc/nublado/config").mkdir()
     Path("/etc/nublado/config/lab-config.json").write_text(labcfg)
     response = await jp_fetch("rubin", "config")
