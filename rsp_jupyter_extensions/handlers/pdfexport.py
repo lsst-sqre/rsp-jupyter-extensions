@@ -1,13 +1,12 @@
 """Handler Module to provide an endpoint for PDF Export of a notebook."""
 
-import asyncio
-import contextlib
 import json
-import os
-import shutil
+from contextlib import chdir
 from pathlib import Path
+from textwrap import dedent
 
 import tornado
+import typst
 
 from ..models.pdfexport import PDFExportResponse
 from ._base import _BaseRSPAPIHandler
@@ -16,14 +15,13 @@ from ._base import _BaseRSPAPIHandler
 class PDFExportHandler(_BaseRSPAPIHandler):
     """Convert notebook to PDF.
 
-    The current approach relies on pandoc, which is fairly heavyweight, but
-    at least it does't require a full TeX stack or Chromium+Playwright
-    installation.
+    This approach relies on typst, which is a single (albeit hefty) binary
+    and a little bit of Python glue (pip-installable), and callisto, which
+    is a downloadable typst module.  If your notebook doesn't have access to
+    the internet, this is going to fail.
 
-    Typst is a single binary.  If we reach an agreement with CST about their
-    inline images (or figure out a preprocessing step to strip them), we could
-    use typst and let it download callisto to do our notebook rendering, which
-    would be very fast and lightweight.
+    We might be able to fix this at build time by downloading callisto and
+    shoving it someplace we know, and then importing from there.
     """
 
     def initialize(self) -> None:
@@ -62,18 +60,8 @@ class PDFExportHandler(_BaseRSPAPIHandler):
         return (await self._to_pdf_response(nb_path)).to_str()
 
     async def _to_pdf_response(self, nb_path: str) -> PDFExportResponse:
-        """Sanity-check the executables and inputs, make the PDF, report."""
+        """Sanity-check the inputs, make the PDF, report."""
         obj = PDFExportResponse()
-        typst = shutil.which("typst")
-        pandoc = shutil.which("pandoc")
-        if pandoc is None:
-            path = os.getenv("PATH", "")
-            obj.error = f"No executable 'pandoc' found on PATH ({path})"
-            return obj
-        if typst is None:
-            path = os.getenv("PATH", "")
-            obj.error = f"No executable 'typst' found on PATH ({path})"
-            return obj
         if self._root_dir is None:
             self._root_dir = await self._get_jupyter_server_root()
         nb = self._root_dir / nb_path
@@ -85,92 +73,31 @@ class PDFExportHandler(_BaseRSPAPIHandler):
             obj.error = f"File {nb} does not end with .ipynb; not a notebook"
             return obj
         try:
-            basename = nb.stem
-            with contextlib.chdir(nb.parent):
-                try:
-                    await self._try_callisto(basename)
-                except Exception:
-                    self.log.debug(
-                        f"PDF conversion (callisto) of {nb!s} failed;"
-                        " trying PDF conversion (pandoc)."
-                    )
-                    await self._try_pandoc(basename)
+            await self._try_callisto(nb)
         except Exception as exc:
             self.log.exception(f"PDF conversion of {nb!s} failed")
             obj.error = f"PDF conversion of {nb!s} failed: {exc!s}"
             return obj
         # Success: no error, path points to PDF.
-        pdf = nb.parent / f"{basename}.pdf"
+        pdf = nb.parent / f"{nb.stem}.pdf"
         obj.path = f"{pdf.relative_to(self._root_dir)!s}"
         return obj
 
-    async def _try_pandoc(self, basename: str) -> None:
-        # A pipe might be prettier than an intermediate file, but
-        # asyncio subprocess makes chaining commands pretty
-        # grotesque, alas.
-        cmd1 = [
-            "pandoc",
-            f"{basename}.ipynb",
-            "-w",
-            "typst",
-            "-o",
-            f"__{basename}.typ",
-        ]
-        cmd1str = " ".join(cmd1)
-        self.log.debug(f"Running '{cmd1str}'")
-        p1 = await asyncio.create_subprocess_exec(
-            *cmd1,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await p1.communicate()
-        if p1.returncode != 0:
-            raise RuntimeError(
-                f"'{cmd1str}' exited"
-                f" with rc={p1.returncode}\n"
-                f" stdout={stdout.decode()}\n"
-                f" stderr={stderr.decode()}"
-            )
-        cmd2 = ["typst", "compile", f"__{basename}.typ", f"{basename}.pdf"]
-        cmd2str = " ".join(cmd2)
-        self.log.debug(f"Running '{cmd2str}'")
-        p2 = await asyncio.create_subprocess_exec(
-            *cmd2,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await p2.communicate()
-        if p2.returncode != 0:
-            raise RuntimeError(
-                f"'{cmd2str}' exited"
-                f" with rc={p2.returncode}\n"
-                f" stdout={stdout.decode()}\n"
-                f" stderr={stderr.decode()}"
-            )
-        Path(f"__{basename}.typ").unlink()
-
-    async def _try_callisto(self, basename: str) -> None:
-        # This would be our preferred approach, but it dies with CST
-        # inline images.  If it works it's great and extremely lightweight,
-        # though.  Maybe we can reach a compromise with CST.
-        typ = Path(f"__{basename}.typ")
-        typtext = '#import "@preview/callisto:0.2.4"\n'
-        typtext += f'#callisto.render(nb: json("{basename}.ipynb"))\n'
-        typ.write_text(typtext)
-        cmd = ["typst", "compile", typ.name, f"{basename}.pdf"]
-        cmdstr = " ".join(cmd)
-        self.log.debug(f"Running '{cmdstr}'")
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"'{cmdstr}' exited"
-                f" with rc={proc.returncode}\n"
-                f" stdout={stdout.decode()}\n"
-                f" stderr={stderr.decode()}"
-            )
-        typ.unlink()
+    async def _try_callisto(self, nb: Path) -> None:
+        # Callisto works with CST inline images as of 0.3.0.
+        # Create a tiny typst wrapper pointing at the notebook.
+        cconfig = f'callisto.config(nb: path("{nb.stem}.ipynb"))'
+        typbytes = dedent(
+            f"""
+            #import "@preview/callisto:0.3.0"
+            #let (render, Cell, In, Out) = {cconfig}
+            #render()
+            """
+        ).encode()
+        with chdir(nb.parent):
+            op = f"{nb.stem}.pdf"
+            # The Input type var *should* be able to be bytes:
+            # see https://github.com/messense/typst-py/blob/\
+            #  03f4bc454153e9c532f6122ca440cc9006a833ff/python/typst/\
+            #  __init__.pyi#L6
+            typst.compile(typbytes, output=op)  # type: ignore [type-var]

@@ -1,9 +1,7 @@
-"""Test PDF export functionality, kind of.
+"""Test PDF export functionality.
 
-We don't really want to enforce that typst be installed in the environment,
-but on the other hand we don't need to really do the conversion.  So
-we will install a fake typst that appears to run correctly, but doesn't
-really convert anything.
+Typst is now pip-installable, so we can guarantee it is available in the
+environment.
 """
 
 import contextlib
@@ -25,9 +23,8 @@ def _fake_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
     """Simulate an RSP filesystem.  We cannot use pyfakefs because
-    asyncio.subprocess gets very upset (C library calls are not
-    patched, and the process spawn gets mad, because the working
-    directory only exists in memory).
+    typst does a subprocess exec under the hood, and the fakefs only
+    exists in the memory of the parent Python process.
     """
     monkeypatch.setenv(
         "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
@@ -35,34 +32,22 @@ def _fake_root(
     data_dir = Path(__file__).parent.parent.parent / "data"
     for directory in ("home", "usr"):
         shutil.copytree(data_dir / directory, tmp_path / directory)
+    old_home = os.getenv("HOME")
+    assert old_home is not None
     t_home = tmp_path / "home" / "irian"
     homedir = str(t_home)
     monkeypatch.setenv("HOME", homedir)
-    exp_path = tmp_path / "usr" / "local" / "bin"
-    # Make that the first thing in PATH
-    path = os.getenv("PATH", "")
-    monkeypatch.setenv("PATH", f"{exp_path!s}:{path}")
     yield
     # Pretend we have some cleanup to make linter happy
-    typst = exp_path / "typst"
-    if typst.exists():
-        _ = os.getenv("PATH", "")
-        if typst.is_dir():
-            typst.rmdir()
-        else:
-            typst.unlink()
-    pandoc = exp_path / "pandoc"
-    if pandoc.exists():
-        if pandoc.is_dir():
-            pandoc.rmdir()
-        else:
-            pandoc.unlink()
+    monkeypatch.setenv("HOME", old_home)
 
 
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_export() -> None:
+    """Test PDF export via typst/callisto."""
     homedir = Path(os.environ["HOME"])
+    refdir = Path(__file__).parent.parent.parent / "data" / "output"
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -70,15 +55,31 @@ async def test_export() -> None:
                 connection=_FakeConnect()
             ),
         )
-
-        # Happy path
-        bindir = Path(homedir).parent.parent / "usr" / "local" / "bin"
-        pathdir = os.getenv("PATH", "").split(":")[0]
-        assert pathdir == str(bindir)
-        resp = await handler._to_pdf_response("nb.ipynb")
-        assert resp.path == "nb.pdf"
-        pdf = Path(homedir) / "nb.pdf"
-        assert (pdf).read_text() == "Ceci pas un PDF document."
+        # We have multiple files to test here.  One is a minimal notebook,
+        # and the other uses an embedded image as CST tutorials do.
+        for fn in homedir.glob("*.ipynb"):
+            # Happy path
+            resp = await handler._to_pdf_response(fn.name)
+            assert resp.path == f"{fn.stem}.pdf"
+            pdf = homedir / f"{fn.stem}.pdf"
+            ref = refdir / f"{fn.stem}.pdf"
+            assert pdf.exists()
+            assert ref.exists()
+            # They are not identical, because the PDF generation encodes
+            # the timestamp and a unique ID in the file; however, that's
+            # towards the end.
+            #
+            # For our two initial files, of 11096 and 115933 bytes, the
+            # divergence is at 1903 bytes and 2408 bytes from the end,
+            # respectively.
+            #
+            # We're going to say the last 4K might vary, which gives us 7K
+            # identical even on the trivial file; if everything before that
+            # point is the same, we say that's good enough.
+            #
+            # We may need to revise this if we ever test with large PDF files.
+            if pdf.stat().st_size > 4096:
+                assert pdf.read_bytes()[:-4096] == ref.read_bytes()[:-4096]
 
 
 @pytest.mark.usefixtures("_fake_root")
@@ -143,49 +144,3 @@ async def test_input_is_not_notebook() -> None:
         assert resp.error.endswith(
             "nope.txt does not end with .ipynb; not a notebook"
         )
-
-
-@pytest.mark.usefixtures("_fake_root")
-@pytest.mark.asyncio
-async def test_no_typst() -> None:
-    homedir = Path(os.environ["HOME"])
-    with contextlib.chdir(homedir):
-        handler = PDFExportHandler(
-            tornado.web.Application(),
-            request=tornado.httputil.HTTPServerRequest(
-                connection=_FakeConnect()
-            ),
-        )
-
-        # No typst
-        (
-            Path(homedir).parent.parent / "usr" / "local" / "bin" / "typst"
-        ).unlink()
-        if shutil.which("typst") is not None:
-            pytest.skip("typst is really installed")
-        resp = await handler._to_pdf_response("nb.ipynb")
-        assert resp.error is not None
-        assert resp.error.startswith("No executable 'typst'")
-
-
-@pytest.mark.usefixtures("_fake_root")
-@pytest.mark.asyncio
-async def test_no_pandoc() -> None:
-    homedir = Path(os.environ["HOME"])
-    with contextlib.chdir(homedir):
-        handler = PDFExportHandler(
-            tornado.web.Application(),
-            request=tornado.httputil.HTTPServerRequest(
-                connection=_FakeConnect()
-            ),
-        )
-
-        # No pandoc
-        (
-            Path(homedir).parent.parent / "usr" / "local" / "bin" / "pandoc"
-        ).unlink()
-        if shutil.which("pandoc") is not None:
-            pytest.skip("pandoc is really installed")
-        resp = await handler._to_pdf_response("nb.ipynb")
-        assert resp.error is not None
-        assert resp.error.startswith("No executable 'pandoc'")
