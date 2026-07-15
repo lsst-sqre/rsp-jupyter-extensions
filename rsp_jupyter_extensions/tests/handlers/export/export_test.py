@@ -23,8 +23,9 @@ def _fake_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
     """Simulate an RSP filesystem.  We cannot use pyfakefs because
-    typst does a subprocess exec under the hood, and the fakefs only
-    exists in the memory of the parent Python process.
+    typst-py is a native Rust extension bound with PyO3, and it uses real
+    syscalls.  The fakefs patches Python's 'io', and so works at a level
+    above where typst-py hooks in to the filesystem.
     """
     monkeypatch.setenv(
         "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
@@ -57,7 +58,9 @@ async def test_export() -> None:
         )
         # We have multiple files to test here.  One is a minimal notebook,
         # and the other uses an embedded image as CST tutorials do.
-        for fn in homedir.glob("*.ipynb"):
+        nbs = list(homedir.glob("*.ipynb"))
+        assert nbs  # We better have at least one.
+        for fn in nbs:
             # Happy path
             resp = await handler._to_pdf_response(fn.name)
             assert resp.path == f"{fn.stem}.pdf"
@@ -71,15 +74,22 @@ async def test_export() -> None:
             # have installed and other stuff; notably, Mac and Linux do
             # not produce particularly similar results.
             #
-            # So we're going to compare the first 1K of each file, and test
-            # whether the file sizes are within 10% of each other, and
-            # call it a day.  Which is indeed not very exact, but, well, it
-            # generated something.
+            # So we're going to ensure that each file is at least 1K,
+            # that it starts with "%PDF-", that the file sizes are within
+            # 10% of each other, and call it a day.
+            # Which is indeed not very exact, but, well, it
+            # generated something substantial.
             #
-            assert ref.read_bytes()[:1024] == pdf.read_bytes()[:1024]
             psize = pdf.stat().st_size
-            rsize = pdf.stat().st_size
+            rsize = ref.stat().st_size
             delta = abs(psize - rsize)
+            assert psize > 1024
+            assert rsize > 1024
+            with pdf.open("rb") as f:
+                p5 = f.read(5)
+            with ref.open("rb") as f:
+                r5 = f.read(5)
+            assert p5 == r5 == b"%PDF-"
             assert 10 * delta < psize
 
 
@@ -144,4 +154,24 @@ async def test_input_is_not_notebook() -> None:
         assert resp.error is not None
         assert resp.error.endswith(
             "nope.txt does not end with .ipynb; not a notebook"
+        )
+
+
+@pytest.mark.usefixtures("_fake_root")
+@pytest.mark.asyncio
+async def test_bad_notebook() -> None:
+    homedir = Path(os.environ["HOME"])
+    with contextlib.chdir(homedir):
+        handler = PDFExportHandler(
+            tornado.web.Application(),
+            request=tornado.httputil.HTTPServerRequest(
+                connection=_FakeConnect()
+            ),
+        )
+        # Named like a notebook, but not a notebook structure.
+        (Path(homedir) / "nope.ipynb").write_text("Not a notebook")
+        resp = await handler._to_pdf_response("nope.ipynb")
+        assert resp.error is not None
+        assert resp.error.endswith(
+            "failed to parse JSON (expected value at line 1 column 1)"
         )

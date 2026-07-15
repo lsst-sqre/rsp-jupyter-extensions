@@ -16,7 +16,7 @@ init:
 .PHONY: update
 update:
 	pip install --upgrade uv
-	prek update
+	prek auto-update
 	uv pip install --editable '.[test]' jupyterlab
 
 .PHONY: typing
