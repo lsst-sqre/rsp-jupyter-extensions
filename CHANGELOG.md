@@ -29,6 +29,7 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 - Removed unnecessary version pins and cleaned up stale commentary.
 
 <a id='changelog-0.26.0'></a>
+
 ## 0.26.0 (2026-07-15)
 
 - Add collab_dir to config and generate second filebrowser from it.
