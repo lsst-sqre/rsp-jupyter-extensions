@@ -172,6 +172,11 @@ async def test_bad_notebook() -> None:
         (Path(homedir) / "nope.ipynb").write_text("Not a notebook")
         resp = await handler._to_pdf_response("nope.ipynb")
         assert resp.error is not None
-        assert resp.error.endswith(
-            "failed to parse JSON (expected value at line 1 column 1)"
-        )
+        assert resp.error.startswith("PDF conversion of ")
+        # Find the end of our part of the error message
+        f_msg = "nope.ipynb failed: "
+        f_pos = resp.error.find(f_msg)
+        assert f_pos > -1
+        # Check that there's more error after that.  Since it's not ours,
+        # it might change.
+        assert len(resp.error) > f_pos + 1 + len(f_msg)
