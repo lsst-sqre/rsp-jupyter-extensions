@@ -1,7 +1,6 @@
 """Fixture for test suite."""
-import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 from pyfakefs.fake_filesystem import FakeFilesystem

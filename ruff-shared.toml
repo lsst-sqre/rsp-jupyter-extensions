@@ -116,12 +116,8 @@ select = ["ALL"]
     "PGH003",  # Superclass request() is not well typed
 ]
 
-"rsp_jupyter_extensions/tests/support/fakehome/git/tutorial-notebooks/*" = [
+"rsp_jupyter_extensions/**/*.ipynb" = [
     "T201",    # Notebooks can use print()
-]
-
-"rsp_jupyter_extensions/tests/data/*" = [
-    "T201",    # Our fake executables use print()
 ]
 
 # These are too useful as attributes or methods to allow the conflict with the
