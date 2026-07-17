@@ -80,9 +80,6 @@ def rsp_fs(
         _add_real_directory(fs, dd)
     with monkeypatch.context() as mc:
         mc.setenv("HOME", "/home/irian")
-        env_p=os.getenv("PATH", "/bin:/usr/bin")
-        env_p=f"/usr/local/bin:{env_p}"
-        mc.setenv("PATH", env_p)
         yield fs
 
 @pytest.fixture
