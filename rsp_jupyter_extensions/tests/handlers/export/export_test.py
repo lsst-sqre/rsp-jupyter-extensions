@@ -31,8 +31,7 @@ def _fake_root(
         "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
     )
     data_dir = Path(__file__).parent.parent.parent / "data"
-    for directory in ("home", "usr"):
-        shutil.copytree(data_dir / directory, tmp_path / directory)
+    shutil.copytree(data_dir / "home", tmp_path / "home")
     old_home = os.getenv("HOME")
     assert old_home is not None
     t_home = tmp_path / "home" / "irian"
@@ -43,6 +42,12 @@ def _fake_root(
     monkeypatch.setenv("HOME", old_home)
 
 
+# Note that the CI environment must have network access to download the
+# callisto module.  While this is fine for local development and for
+# GitHub Actions (which is where this code lives as of July 2026), it might
+# not be fine some other places.
+# Figuring out how to vendor the callisto installation is something we
+# may want to consider.
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_export() -> None:
@@ -60,6 +65,10 @@ async def test_export() -> None:
         # and the other uses an embedded image as CST tutorials do.
         nbs = list(homedir.glob("*.ipynb"))
         assert nbs  # We better have at least one.
+        # It is a little silly to carry around fairly large PDFs just to
+        # loosely verify their size, but the CST embedded image, specifically,
+        # has caused us pain in the past, so we will keep it to make sure that
+        # the CST-specific incantation does not break our PDF conversion.
         for fn in nbs:
             # Happy path
             resp = await handler._to_pdf_response(fn.name)

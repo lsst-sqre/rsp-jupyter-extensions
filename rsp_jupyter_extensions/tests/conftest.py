@@ -76,7 +76,7 @@ def rsp_fs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[FakeFilesystem]:
     """Simulate enough of an RSP filesystem to run tests."""
-    for dd in ("etc", "home", "usr", "collab"):
+    for dd in ("etc", "home", "collab"):
         _add_real_directory(fs, dd)
     with monkeypatch.context() as mc:
         mc.setenv("HOME", "/home/irian")

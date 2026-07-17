@@ -1,7 +1,6 @@
 """Handler Module to provide an endpoint for PDF Export of a notebook."""
 
 import json
-from contextlib import chdir
 from pathlib import Path
 from textwrap import dedent
 
@@ -95,22 +94,21 @@ class PDFExportHandler(_BaseRSPAPIHandler):
         typbytes = dedent(
             f"""
             #import "@preview/callisto:0.3.0"
-            #let (render, Cell, In, Out) = {cconfig}
+            #let (render, ..) = {cconfig}
             #render()
             """
         ).encode()
         output = f"{nb.stem}.pdf"
         ioloop = tornado.ioloop.IOLoop.current()
 
-        def _typst_compile(inp: bytes, op: str) -> None:
-            """Wrap and turn output kwarg into positional parameter."""
+        def _typst_compile(inp: bytes, op: str, root: Path) -> None:
+            """Wrap and turn kwargs into positional parameters."""
             # The Input type var *should* be able to be bytes:
             # see https://github.com/messense/typst-py/blob/\
             #  03f4bc454153e9c532f6122ca440cc9006a833ff/python/typst/\
             #  __init__.pyi#L6
-            typst.compile(inp, output=op)  # type:ignore [type-var]
+            typst.compile(inp, output=op, root=root)  # type:ignore [type-var]
 
-        with chdir(nb.parent):
-            await ioloop.run_in_executor(
-                None, _typst_compile, typbytes, output
-            )
+        await ioloop.run_in_executor(
+            None, _typst_compile, typbytes, nb.parent / output, nb.parent
+        )
