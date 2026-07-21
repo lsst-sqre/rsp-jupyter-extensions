@@ -12,6 +12,8 @@ import {
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 
+import { IDocumentManager } from '@jupyterlab/docmanager';
+
 import { PageConfig } from '@jupyterlab/coreutils';
 
 import { ServerConnection } from '@jupyterlab/services';
@@ -29,6 +31,7 @@ import { getServiceInfo } from './serviceinfo';
  */
 export namespace CommandIDs {
   export const justQuit = 'justquit:justquit';
+  export const saveQuit = 'savequit:savequit';
   export const quitLogout = 'quitlogout:quitlogout';
 }
 
@@ -44,6 +47,7 @@ export function activateRSPQuitExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   cfg: INubladoConfigResponse,
+  docManager: IDocumentManager,
   translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'rsp-quit: loading...');
@@ -51,34 +55,73 @@ export function activateRSPQuitExtension(
   const { commands } = app;
   const trans = (translator || nullTranslator).load('jupyterlab');
 
-  commands.addCommand(CommandIDs.justQuit, {
-    label: trans.__('Autosave and Exit'),
+  const autosave = app.hasPlugin('@jupyter-ai-contrib/server-documents:plugin');
+
+  if (!autosave) {
+    commands.addCommand(CommandIDs.justQuit, {
+      label: trans.__('Exit without Saving'),
+      caption: trans.__('Destroy container without saving'),
+      describedBy: {},
+      execute: () => {
+        justQuit(app, QuitDisposition.Quit, cfg, translator);
+      }
+    });
+  }
+
+  let quitLabel = trans.__('Save All and Exit');
+  if (autosave) {
+    quitLabel = trans.__('Autosave and Exit');
+  }
+  commands.addCommand(CommandIDs.saveQuit, {
+    label: quitLabel,
     caption: trans.__('Destroy container'),
     describedBy: {},
     execute: () => {
-      justQuit(app, QuitDisposition.Quit, cfg, translator);
+      performQuit(
+        app,
+        QuitDisposition.Quit,
+        cfg,
+        docManager,
+        translator,
+        autosave
+      );
     }
   });
-
+  let logoutLabel = trans.__('Save, Exit, and Log Out');
+  if (autosave) {
+    logoutLabel = trans.__('Autosave, Exit, and Log Out');
+  }
   commands.addCommand(CommandIDs.quitLogout, {
-    label: trans.__('Autosave, Exit, and Log Out'),
+    label: logoutLabel,
     caption: trans.__('Destroy container and log out'),
     describedBy: {},
     execute: () => {
-      justQuit(app, QuitDisposition.Logout, cfg, translator);
+      performQuit(
+        app,
+        QuitDisposition.Logout,
+        cfg,
+        docManager,
+        translator,
+        autosave
+      );
     }
   });
 
-  // Add commands and menu itmes.
-  const menu: Menu.IItemOptions[] = [
-    { command: CommandIDs.justQuit },
-    { command: CommandIDs.quitLogout }
-  ];
+  // Add commands and menu items.
+  const menu: Menu.IItemOptions[] = [];
+  if (!autosave) {
+    menu.push({ command: CommandIDs.justQuit });
+  }
+  menu.push({ command: CommandIDs.saveQuit });
+  menu.push({ command: CommandIDs.quitLogout });
   // Put it at the bottom of file menu
   const rank = 150;
-  mainMenu.fileMenu.addGroup(menu, rank);
-
-  logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
+  try {
+    mainMenu.fileMenu.addGroup(menu, rank);
+    logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
+  } catch (error) {
+    logMessage(LogLevels.WARNING, cfg, `rsp-quit failed to load: ${error}`);
+  }
 }
 
 async function hubDeleteRequest(
@@ -93,6 +136,88 @@ async function hubDeleteRequest(
   };
   logMessage(LogLevels.DEBUG, cfg, `quit: hubRequest URL: ${endpoint}`);
   return ServerConnection.makeRequest(endpoint, init, settings);
+}
+
+async function saveAll(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  cfg: INubladoConfigResponse,
+  autosave: boolean
+): Promise<any> {
+  if (autosave) {
+    logMessage(
+      LogLevels.INFO,
+      cfg,
+      'Autosave is enabled; no need to explicitly save'
+    );
+    return null;
+  }
+  const promises: Promise<any>[] = [];
+  for (const widget of app.shell.widgets('main')) {
+    if (widget) {
+      const context = docManager.contextForWidget(widget);
+      if (context) {
+        logMessage(
+          LogLevels.DEBUG,
+          cfg,
+          `Saving context for widget: ${widget.id}`
+        );
+        promises.push(context.save());
+      } else {
+        logMessage(
+          LogLevels.WARNING,
+          cfg,
+          `No context for widget: ${widget.id}`
+        );
+      }
+    }
+  }
+  logMessage(
+    LogLevels.DEBUG,
+    cfg,
+    'Waiting for all save-document promises to resolve.'
+  );
+  try {
+    await Promise.all(promises);
+  } catch (error) {
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `Save-document promise(s) failed: ${error}`
+    );
+  }
+}
+
+async function performQuit(
+  app: JupyterFrontEnd,
+  disposition: QuitDisposition,
+  cfg: INubladoConfigResponse,
+  docManager: IDocumentManager,
+  translator: ITranslator | null,
+  autosave: boolean
+): Promise<any> {
+  const trans = (translator || nullTranslator).load('jupyterlab');
+
+  if (!autosave) {
+    try {
+      await saveAll(app, docManager, cfg, autosave);
+      logMessage(LogLevels.INFO, cfg, 'performQuit: all documents saved.');
+    } catch (error) {
+      logMessage(
+        LogLevels.WARNING,
+        cfg,
+        `performQuit: saveAll failed: ${error}`
+      );
+      const options = {
+        title: trans.__('Saving documents failed'),
+        body: trans.__('Saving documents failed: ${error}.'),
+        buttons: [Dialog.okButton({ label: trans.__('OK') })]
+      };
+      await showDialog(options);
+      return null;
+    }
+  }
+  return justQuit(app, disposition, cfg, translator);
 }
 
 async function justQuit(
@@ -162,7 +287,7 @@ const rspQuitExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPQuitExtension,
   id: token.QUIT_ID,
   description: 'Shut down JupyterLab by communicating with the Hub',
-  requires: [IMainMenu],
+  requires: [IDocumentManager, IMainMenu],
   optional: [ITranslator],
   autoStart: false
 };

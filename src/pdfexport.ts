@@ -72,9 +72,16 @@ export function activateRSPPDFExportExtension(
   const menu: Menu.IItemOptions[] = [{ command: CommandIDs.pdfExport }];
   // Put it near the bottom of File menu
   const rank = 140;
-  mainMenu.fileMenu.addGroup(menu, rank);
-
-  logMessage(LogLevels.INFO, cfg, 'rsp-pdfexport: ...loaded.');
+  try {
+    mainMenu.fileMenu.addGroup(menu, rank);
+    logMessage(LogLevels.INFO, cfg, 'rsp-pdfexport: ...loaded.');
+  } catch (error) {
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `rsp-pdfexport failed to load: ${error}`
+    );
+  }
 }
 
 async function pdfExport(

@@ -105,7 +105,7 @@ async function activateIndividualExtensions(
   /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
   try {
-    activateRSPQuitExtension(app, mainMenu, cfg, translator);
+    activateRSPQuitExtension(app, mainMenu, cfg, docManager, translator);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
@@ -234,7 +234,7 @@ const rspExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPExtension,
   id: token.PLUGIN_ID,
   description: 'Collection of JupyterLab extensions for the RSP',
-  requires: [IMainMenu, IDocumentManager, IStatusBar, INotebookTracker],
+  requires: [IDocumentManager, IMainMenu, IStatusBar, INotebookTracker],
   optional: [IFileBrowserFactory, ITranslator],
   autoStart: true
 };
