@@ -55,7 +55,8 @@ export function activateRSPQuitExtension(
   const { commands } = app;
   const trans = (translator || nullTranslator).load('jupyterlab');
 
-  const autosave = app.hasPlugin('@jupyter-ai-contrib/server-documents:plugin');
+  // const autosave = app.hasPlugin('@jupyter-ai-contrib/server-documents:plugin');
+  const autosave = false;
 
   if (!autosave) {
     commands.addCommand(CommandIDs.justQuit, {
@@ -116,12 +117,8 @@ export function activateRSPQuitExtension(
   menu.push({ command: CommandIDs.quitLogout });
   // Put it at the bottom of file menu
   const rank = 150;
-  try {
-    mainMenu.fileMenu.addGroup(menu, rank);
-    logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
-  } catch (error) {
-    logMessage(LogLevels.WARNING, cfg, `rsp-quit failed to load: ${error}`);
-  }
+  mainMenu.fileMenu.addGroup(menu, rank);
+  logMessage(LogLevels.INFO, cfg, 'rsp-quit: ...loaded.');
 }
 
 async function hubDeleteRequest(
