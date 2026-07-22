@@ -12,6 +12,8 @@ import {
   JupyterFrontEndPlugin
 } from '@jupyterlab/application';
 
+import { IDocumentManager } from '@jupyterlab/docmanager';
+
 import { PageConfig } from '@jupyterlab/coreutils';
 
 import { ServerConnection } from '@jupyterlab/services';
@@ -29,6 +31,7 @@ import { getServiceInfo } from './serviceinfo';
  */
 export namespace CommandIDs {
   export const justQuit = 'justquit:justquit';
+  export const saveQuit = 'savequit:savequit';
   export const quitLogout = 'quitlogout:quitlogout';
 }
 
@@ -44,6 +47,7 @@ export function activateRSPQuitExtension(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
   cfg: INubladoConfigResponse,
+  docManager: IDocumentManager,
   translator: ITranslator | null
 ): void {
   logMessage(LogLevels.INFO, null, 'rsp-quit: loading...');
@@ -60,12 +64,21 @@ export function activateRSPQuitExtension(
     }
   });
 
-  commands.addCommand(CommandIDs.quitLogout, {
-    label: trans.__('Exit and Log Out'),
-    caption: trans.__('Destroy container and log out'),
+  commands.addCommand(CommandIDs.saveQuit, {
+    label: trans.__('Save and Exit'),
+    caption: trans.__('Save open files and destroy container'),
     describedBy: {},
     execute: () => {
-      justQuit(app, QuitDisposition.Logout, cfg, translator);
+      saveQuit(app, QuitDisposition.Quit, cfg, docManager, translator);
+    }
+  });
+
+  commands.addCommand(CommandIDs.quitLogout, {
+    label: trans.__('Save, Exit and Log Out'),
+    caption: trans.__('Save open files, destroy container, and log out'),
+    describedBy: {},
+    execute: () => {
+      saveQuit(app, QuitDisposition.Logout, cfg, docManager, translator);
     }
   });
 
@@ -95,12 +108,64 @@ async function hubDeleteRequest(
   return ServerConnection.makeRequest(endpoint, init, settings);
 }
 
+async function saveAll(
+  app: JupyterFrontEnd,
+  docManager: IDocumentManager,
+  cfg: INubladoConfigResponse
+): Promise<any> {
+  const promises: Promise<any>[] = [];
+  for (const widget of app.shell.widgets('main')) {
+    if (widget) {
+      const context = docManager.contextForWidget(widget);
+      if (context) {
+        logMessage(
+          LogLevels.DEBUG,
+          cfg,
+          `Saving context for widget: ${widget.id}`
+        );
+        promises.push(context.save());
+      } else {
+        logMessage(
+          LogLevels.WARNING,
+          cfg,
+          `No context for widget: ${widget.id}`
+        );
+      }
+    }
+  }
+  logMessage(
+    LogLevels.DEBUG,
+    cfg,
+    'Waiting for all save-document promises to resolve.'
+  );
+  try {
+    await Promise.all(promises);
+  } catch (error) {
+    logMessage(
+      LogLevels.WARNING,
+      cfg,
+      `Save-document promise(s) failed: ${error}`
+    );
+  }
+}
+
+async function saveQuit(
+  app: JupyterFrontEnd,
+  disposition: QuitDisposition,
+  cfg: INubladoConfigResponse,
+  docManager: IDocumentManager,
+  translator: ITranslator | null
+): Promise<void> {
+  await saveAll(app, docManager, cfg);
+  justQuit(app, disposition, cfg, translator);
+}
+
 async function justQuit(
   app: JupyterFrontEnd,
   disposition: QuitDisposition,
   cfg: INubladoConfigResponse,
   translator: ITranslator | null
-): Promise<any> {
+): Promise<void> {
   // Don't await infoDialog(): if we navigate away before the user
   // acknowledges, that's OK.
   try {
@@ -135,7 +200,7 @@ async function justQuit(
     await hubDeleteRequest(app, cfg);
     logMessage(LogLevels.INFO, cfg, 'Quit complete.');
     window.location.replace(targetEndpoint);
-    return null;
+    return;
   } catch (error) {
     logMessage(LogLevels.WARNING, cfg, `exit: exit failed: ${error}`);
   }
@@ -162,7 +227,7 @@ const rspQuitExtension: JupyterFrontEndPlugin<void> = {
   activate: activateRSPQuitExtension,
   id: token.QUIT_ID,
   description: 'Shut down JupyterLab by communicating with the Hub',
-  requires: [IMainMenu],
+  requires: [IMainMenu, IDocumentManager],
   optional: [ITranslator],
   autoStart: false
 };

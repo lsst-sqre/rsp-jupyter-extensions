@@ -105,7 +105,7 @@ async function activateIndividualExtensions(
   /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
   try {
-    activateRSPQuitExtension(app, mainMenu, cfg, translator);
+    activateRSPQuitExtension(app, mainMenu, cfg, docManager, translator);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(
