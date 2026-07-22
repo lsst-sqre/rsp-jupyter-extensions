@@ -52,7 +52,7 @@ export function activateRSPQuitExtension(
   const trans = (translator || nullTranslator).load('jupyterlab');
 
   commands.addCommand(CommandIDs.justQuit, {
-    label: trans.__('Autosave and Exit'),
+    label: trans.__('Exit'),
     caption: trans.__('Destroy container'),
     describedBy: {},
     execute: () => {
@@ -61,7 +61,7 @@ export function activateRSPQuitExtension(
   });
 
   commands.addCommand(CommandIDs.quitLogout, {
-    label: trans.__('Autosave, Exit, and Log Out'),
+    label: trans.__('Exit and Log Out'),
     caption: trans.__('Destroy container and log out'),
     describedBy: {},
     execute: () => {
