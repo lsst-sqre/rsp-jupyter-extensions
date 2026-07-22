@@ -67,9 +67,10 @@ export function activateRSPQuitExtension(
       }
     });
   }
+  const savestr = autosave ? 'Autosave' : 'Save';
   commands.addCommand(CommandIDs.saveQuit, {
-    label: trans.__('Save and Exit'),
-    caption: trans.__('Save open files and destroy container'),
+    label: trans.__(`${savestr} and Exit`),
+    caption: trans.__(`${savestr} open files and destroy container`),
     describedBy: {},
     execute: () => {
       saveQuit(
@@ -84,8 +85,8 @@ export function activateRSPQuitExtension(
   });
 
   commands.addCommand(CommandIDs.quitLogout, {
-    label: trans.__('Save, Exit and Log Out'),
-    caption: trans.__('Save open files, destroy container, and log out'),
+    label: trans.__(`${savestr}, Exit and Log Out`),
+    caption: trans.__(`${savestr} open files, destroy container, and log out`),
     describedBy: {},
     execute: () => {
       saveQuit(
