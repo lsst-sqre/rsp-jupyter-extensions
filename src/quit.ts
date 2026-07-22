@@ -55,7 +55,7 @@ export function activateRSPQuitExtension(
   const { commands } = app;
   const trans = (translator || nullTranslator).load('jupyterlab');
   const autosave = app.hasPlugin('@jupyter-ai-contrib/server-documents:plugin');
-  logMessage(LogLevels.INFO, null, `rsp-quit: autosave ${autosave}`);
+  logMessage(LogLevels.INFO, null, `...autosave ${autosave}...`);
 
   if (!autosave) {
     commands.addCommand(CommandIDs.justQuit, {
@@ -68,6 +68,7 @@ export function activateRSPQuitExtension(
     });
   }
   const savestr = autosave ? 'Autosave' : 'Save';
+
   commands.addCommand(CommandIDs.saveQuit, {
     label: trans.__(`${savestr} and Exit`),
     caption: trans.__(`${savestr} open files and destroy container`),
@@ -101,10 +102,13 @@ export function activateRSPQuitExtension(
   });
 
   // Add commands and menu itmes.
-  const menu: Menu.IItemOptions[] = [
-    { command: CommandIDs.justQuit },
-    { command: CommandIDs.quitLogout }
-  ];
+  const menu: Menu.IItemOptions[] = autosave
+    ? [{ command: CommandIDs.justQuit }, { command: CommandIDs.quitLogout }]
+    : [
+        { command: CommandIDs.justQuit },
+        { command: CommandIDs.saveQuit },
+        { command: CommandIDs.quitLogout }
+      ];
   // Put it at the bottom of file menu
   const rank = 150;
   mainMenu.fileMenu.addGroup(menu, rank);
