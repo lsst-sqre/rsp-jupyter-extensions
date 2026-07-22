@@ -54,22 +54,32 @@ export function activateRSPQuitExtension(
 
   const { commands } = app;
   const trans = (translator || nullTranslator).load('jupyterlab');
+  const autosave = app.hasPlugin('@jupyter-ai-contrib/server-documents:plugin');
+  logMessage(LogLevels.INFO, null, `rsp-quit: autosave ${autosave}`);
 
-  commands.addCommand(CommandIDs.justQuit, {
-    label: trans.__('Exit'),
-    caption: trans.__('Destroy container'),
-    describedBy: {},
-    execute: () => {
-      justQuit(app, QuitDisposition.Quit, cfg, translator);
-    }
-  });
-
+  if (!autosave) {
+    commands.addCommand(CommandIDs.justQuit, {
+      label: trans.__('Exit'),
+      caption: trans.__('Destroy container'),
+      describedBy: {},
+      execute: () => {
+        justQuit(app, QuitDisposition.Quit, cfg, translator);
+      }
+    });
+  }
   commands.addCommand(CommandIDs.saveQuit, {
     label: trans.__('Save and Exit'),
     caption: trans.__('Save open files and destroy container'),
     describedBy: {},
     execute: () => {
-      saveQuit(app, QuitDisposition.Quit, cfg, docManager, translator);
+      saveQuit(
+        app,
+        QuitDisposition.Quit,
+        cfg,
+        docManager,
+        translator,
+        autosave
+      );
     }
   });
 
@@ -78,7 +88,14 @@ export function activateRSPQuitExtension(
     caption: trans.__('Save open files, destroy container, and log out'),
     describedBy: {},
     execute: () => {
-      saveQuit(app, QuitDisposition.Logout, cfg, docManager, translator);
+      saveQuit(
+        app,
+        QuitDisposition.Logout,
+        cfg,
+        docManager,
+        translator,
+        autosave
+      );
     }
   });
 
@@ -154,9 +171,12 @@ async function saveQuit(
   disposition: QuitDisposition,
   cfg: INubladoConfigResponse,
   docManager: IDocumentManager,
-  translator: ITranslator | null
+  translator: ITranslator | null,
+  autosave: boolean
 ): Promise<void> {
-  await saveAll(app, docManager, cfg);
+  if (!autosave) {
+    await saveAll(app, docManager, cfg);
+  }
   justQuit(app, disposition, cfg, translator);
 }
 
