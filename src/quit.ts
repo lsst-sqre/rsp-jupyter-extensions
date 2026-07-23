@@ -71,8 +71,8 @@ export function activateRSPQuitExtension(
 
   // "Save and Exit" runs saveAll first, so it is only meaningful when there
   // is no server-side autosave.  That's gated on whether the
-  // @jupyter-ai-contrib/server-documents is loaded (server-documents
-  // brings in autosave and disables manual saving).
+  // @jupyter-ai-contrib/server-documents plugin is loaded
+  // (server-documents brings in autosave and disables manual saving).
   if (!autosave) {
     commands.addCommand(CommandIDs.saveQuit, {
       label: trans.__('Save and Exit'),
