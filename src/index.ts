@@ -91,6 +91,18 @@ function activateRSPExtension(
   });
 }
 
+/*
+ * This single plugin (`rspExtension`) is the only one JupyterLab registers;
+ * it declares all the shared tokens (IMainMenu, IDocumentManager, IStatusBar,
+ * ...) in its `requires`/`optional`. The individual RSP extensions are then
+ * activated manually below by calling their `activateRSP*Extension` functions
+ * and passing those injected services along by hand. Each extension module
+ * also default-exports a standalone JupyterFrontEndPlugin object, but those
+ * are NOT registered on their own, so the `requires`/`optional` arrays on them
+ * are not an active injection path -- this function is. Any service a
+ * sub-extension needs must be added to `rspExtension` and threaded through
+ * here.
+ */
 async function activateIndividualExtensions(
   app: JupyterFrontEnd,
   mainMenu: IMainMenu,
@@ -105,7 +117,7 @@ async function activateIndividualExtensions(
   /* Do this first so we have quit menu items even in abnormal startup. */
   logMessage(LogLevels.INFO, cfg, '...activating quit extension...');
   try {
-    activateRSPQuitExtension(app, mainMenu, cfg, translator);
+    activateRSPQuitExtension(app, mainMenu, cfg, docManager, translator);
     logMessage(LogLevels.INFO, cfg, '...activated...');
   } catch (error) {
     logMessage(

@@ -6,6 +6,30 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.27.0'></a>
+
+## 0.27.0 (2026-07-23)
+
+### Backwards-incompatible changes
+
+- Pulled out jupyter-server-documents and jupyter-collaboration; added manual saving back.
+
+### Other changes
+
+- Removed unnecessary version pins and cleaned up stale commentary.
+
+<a id='changelog-0.26.0'></a>
+
+## 0.26.0 (2026-06-30)
+
+### New features
+
+- Add collab_dir to config and generate second filebrowser from it.
+
+### Other changes
+
+- Modernize build machinery.
+
 <a id='changelog-v0.25.0'></a>
 
 ## v0.25.0 (2026-05-26)
