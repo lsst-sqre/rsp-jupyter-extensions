@@ -57,37 +57,47 @@ export function activateRSPQuitExtension(
   const autosave = app.hasPlugin('@jupyter-ai-contrib/server-documents:plugin');
   logMessage(LogLevels.INFO, null, `...autosave ${autosave}...`);
 
-  if (!autosave) {
-    commands.addCommand(CommandIDs.justQuit, {
-      label: trans.__('Exit'),
-      caption: trans.__('Destroy container'),
-      describedBy: {},
-      execute: () => {
-        justQuit(app, QuitDisposition.Quit, cfg, translator);
-      }
-    });
-  }
-  const savestr = autosave ? 'Autosave' : 'Save';
-
-  commands.addCommand(CommandIDs.saveQuit, {
-    label: trans.__(`${savestr} and Exit`),
-    caption: trans.__(`${savestr} open files and destroy container`),
+  // Plain exit: destroy the container. Under autosave the server has already
+  // persisted open documents, so this reads "Autosave and Exit"; without
+  // autosave it is a deliberate quit-without-saving, hence just "Exit".
+  commands.addCommand(CommandIDs.justQuit, {
+    label: autosave ? trans.__('Autosave and Exit') : trans.__('Exit'),
+    caption: trans.__('Destroy container'),
     describedBy: {},
     execute: () => {
-      saveQuit(
-        app,
-        QuitDisposition.Quit,
-        cfg,
-        docManager,
-        translator,
-        autosave
-      );
+      justQuit(app, QuitDisposition.Quit, cfg, translator);
     }
   });
 
+  // "Save and Exit" runs saveAll first, so it is only meaningful when there
+  // is no server-side autosave.  That's gated on whether the
+  // @jupyter-ai-contrib/server-documents is loaded (server-documents
+  // brings in autosave and disables manual saving).
+  if (!autosave) {
+    commands.addCommand(CommandIDs.saveQuit, {
+      label: trans.__('Save and Exit'),
+      caption: trans.__('Save open files and destroy container'),
+      describedBy: {},
+      execute: () => {
+        saveQuit(
+          app,
+          QuitDisposition.Quit,
+          cfg,
+          docManager,
+          translator,
+          autosave
+        );
+      }
+    });
+  }
+
   commands.addCommand(CommandIDs.quitLogout, {
-    label: trans.__(`${savestr}, Exit and Log Out`),
-    caption: trans.__(`${savestr} open files, destroy container, and log out`),
+    label: autosave
+      ? trans.__('Autosave, Exit, and Log Out')
+      : trans.__('Save, Exit, and Log Out'),
+    caption: autosave
+      ? trans.__('Destroy container and log out')
+      : trans.__('Save open files, destroy container, and log out'),
     describedBy: {},
     execute: () => {
       saveQuit(
@@ -130,28 +140,53 @@ async function hubDeleteRequest(
   return ServerConnection.makeRequest(endpoint, init, settings);
 }
 
+/**
+ * Save every open document. Returns true if all saves succeeded, false if
+ * any failed.  The user must then decide whether it is safe to proceed
+ * with destroying the container.
+ */
 async function saveAll(
   app: JupyterFrontEnd,
   docManager: IDocumentManager,
   cfg: INubladoConfigResponse
-): Promise<any> {
-  const promises: Promise<any>[] = [];
+): Promise<boolean> {
+  // Each save resolves to true on success or false on failure, so that one
+  // failed save neither hides the others nor aborts them mid-flight.
+  const promises: Promise<boolean>[] = [];
   for (const widget of app.shell.widgets('main')) {
     if (widget) {
       const context = docManager.contextForWidget(widget);
       if (context) {
+        if (!context.model.dirty || context.model.readOnly) {
+          // Nothing to persist (clean) or nothing we can persist (read-only);
+          // skip it rather than issuing a needless save.
+          logMessage(
+            LogLevels.DEBUG,
+            cfg,
+            `Skipping save for widget ${widget.id} (dirty=${context.model.dirty}, readOnly=${context.model.readOnly})`
+          );
+          continue;
+        }
         logMessage(
           LogLevels.DEBUG,
           cfg,
           `Saving context for widget: ${widget.id}`
         );
-        promises.push(context.save());
-      } else {
-        logMessage(
-          LogLevels.WARNING,
-          cfg,
-          `No context for widget: ${widget.id}`
+        promises.push(
+          context.save().then(
+            () => true,
+            error => {
+              logMessage(
+                LogLevels.WARNING,
+                cfg,
+                `Save failed for widget ${widget.id}: ${error}`
+              );
+              return false;
+            }
+          )
         );
+      } else {
+        logMessage(LogLevels.DEBUG, cfg, `No context for widget: ${widget.id}`);
       }
     }
   }
@@ -160,15 +195,8 @@ async function saveAll(
     cfg,
     'Waiting for all save-document promises to resolve.'
   );
-  try {
-    await Promise.all(promises);
-  } catch (error) {
-    logMessage(
-      LogLevels.WARNING,
-      cfg,
-      `Save-document promise(s) failed: ${error}`
-    );
-  }
+  const results = await Promise.all(promises);
+  return results.every(ok => ok);
 }
 
 async function saveQuit(
@@ -180,9 +208,27 @@ async function saveQuit(
   autosave: boolean
 ): Promise<void> {
   if (!autosave) {
-    await saveAll(app, docManager, cfg);
+    const saved = await saveAll(app, docManager, cfg);
+    if (!saved) {
+      // Saving failed: don't silently destroy the container and lose the
+      // user's work. Let them decide whether to quit anyway.
+      const proceed = await saveFailedDialog(cfg, translator);
+      if (!proceed) {
+        logMessage(
+          LogLevels.INFO,
+          cfg,
+          'Quit aborted after save failure at user request.'
+        );
+        return;
+      }
+      logMessage(
+        LogLevels.WARNING,
+        cfg,
+        'Proceeding with quit despite save failure at user request.'
+      );
+    }
   }
-  justQuit(app, disposition, cfg, translator);
+  await justQuit(app, disposition, cfg, translator);
 }
 
 async function justQuit(
@@ -243,6 +289,36 @@ async function infoDialog(
   };
   await showDialog(options);
   logMessage(LogLevels.DEBUG, cfg, 'Info dialog panel displayed');
+}
+
+/**
+ * Warn the user that one or more documents failed to save, and ask whether
+ * they want to quit anyway (losing those changes) or cancel the quit.
+ * Returns true if the user chose to proceed with quitting.
+ */
+async function saveFailedDialog(
+  cfg: INubladoConfigResponse,
+  translator: ITranslator | null
+): Promise<boolean> {
+  const trans = (translator || nullTranslator).load('jupyterlab');
+  const options = {
+    title: trans.__('Some files could not be saved'),
+    body: trans.__(
+      'One or more open documents failed to save. If you exit now, ' +
+        'those unsaved changes will be lost. Exit anyway?'
+    ),
+    buttons: [
+      Dialog.cancelButton({ label: trans.__('Cancel') }),
+      Dialog.warnButton({ label: trans.__('Exit without saving') })
+    ]
+  };
+  const result = await showDialog(options);
+  logMessage(
+    LogLevels.DEBUG,
+    cfg,
+    `Save-failed dialog result: accepted=${result.button.accept}`
+  );
+  return result.button.accept;
 }
 
 /**

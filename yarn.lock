@@ -9094,7 +9094,6 @@ __metadata:
     typescript: ~5.5.4
     typescript-eslint: ^8.0.0
     vscode-languageserver-protocol: ~3.17.0
-    yjs: ^13.5.0
   languageName: unknown
   linkType: soft
 
@@ -10522,7 +10521,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yjs@npm:^13.5.0, yjs@npm:^13.5.40":
+"yjs@npm:^13.5.40":
   version: 13.6.31
   resolution: "yjs@npm:13.6.31"
   dependencies:
