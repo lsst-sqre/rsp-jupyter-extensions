@@ -7,17 +7,15 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 <!-- scriv-insert-here -->
 
 <a id='changelog-0.27.1'></a>
+
 ## 0.27.1 (2026-08-10)
 
 ### New features
 
 - Simplified PDF export handling; no pandoc, only Callisto >= 0.3.0
 
-### Other changes
-
-- Modernize build machinery.
-
 <a id='changelog-0.27.0'></a>
+
 ## 0.27.0 (2026-07-23)
 
 ### Backwards-incompatible changes
@@ -32,7 +30,13 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 
 ## 0.26.0 (2026-07-15)
 
+### New features
+
 - Add collab_dir to config and generate second filebrowser from it.
+
+### Other changes
+
+- Modernize build machinery.
 
 <a id='changelog-v0.25.0'></a>
 
