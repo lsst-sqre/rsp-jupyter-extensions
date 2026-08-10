@@ -29,6 +29,7 @@ dependencies = [
     "pydantic",
     "requests",
     "rubin-repertoire",
+    "typst",
     "xmltodict"
 ]
 dynamic = ["version", "description", "authors", "urls", "keywords"]
@@ -37,7 +38,7 @@ dynamic = ["version", "description", "authors", "urls", "keywords"]
 test = [
     "coverage",
     "mypy",
-    "pre-commit",
+    "prek",
     "pyfakefs",
     "pytest",
     "pytest-asyncio",

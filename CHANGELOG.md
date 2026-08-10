@@ -6,6 +6,14 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-0.27.1'></a>
+
+## 0.27.1 (2026-08-10)
+
+### New features
+
+- Simplified PDF export handling; no pandoc, only Callisto >= 0.3.0
+
 <a id='changelog-0.27.0'></a>
 
 ## 0.27.0 (2026-07-23)
@@ -20,7 +28,7 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 
 <a id='changelog-0.26.0'></a>
 
-## 0.26.0 (2026-06-30)
+## 0.26.0 (2026-07-15)
 
 ### New features
 

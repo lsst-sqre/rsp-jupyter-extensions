@@ -13,6 +13,12 @@ init:
 	uv pip install --editable '.[test]' jupyterlab
 	prek install
 
+.PHONY: update
+update:
+	pip install --upgrade uv
+	prek auto-update
+	uv pip install --editable '.[test]' jupyterlab
+
 .PHONY: typing
 typing:
 	jlpm run build

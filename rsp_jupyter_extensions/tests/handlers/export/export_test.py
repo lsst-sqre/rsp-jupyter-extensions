@@ -1,9 +1,7 @@
-"""Test PDF export functionality, kind of.
+"""Test PDF export functionality.
 
-We don't really want to enforce that typst be installed in the environment,
-but on the other hand we don't need to really do the conversion.  So
-we will install a fake typst that appears to run correctly, but doesn't
-really convert anything.
+Typst is now pip-installable, so we can guarantee it is available in the
+environment.
 """
 
 import contextlib
@@ -25,44 +23,37 @@ def _fake_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[None]:
     """Simulate an RSP filesystem.  We cannot use pyfakefs because
-    asyncio.subprocess gets very upset (C library calls are not
-    patched, and the process spawn gets mad, because the working
-    directory only exists in memory).
+    typst-py is a native Rust extension bound with PyO3, and it uses real
+    syscalls.  The fakefs patches Python's 'io', and so works at a level
+    above where typst-py hooks in to the filesystem.
     """
     monkeypatch.setenv(
         "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
     )
     data_dir = Path(__file__).parent.parent.parent / "data"
-    for directory in ("home", "usr"):
-        shutil.copytree(data_dir / directory, tmp_path / directory)
+    shutil.copytree(data_dir / "home", tmp_path / "home")
+    old_home = os.getenv("HOME")
+    assert old_home is not None
     t_home = tmp_path / "home" / "irian"
     homedir = str(t_home)
     monkeypatch.setenv("HOME", homedir)
-    exp_path = tmp_path / "usr" / "local" / "bin"
-    # Make that the first thing in PATH
-    path = os.getenv("PATH", "")
-    monkeypatch.setenv("PATH", f"{exp_path!s}:{path}")
     yield
     # Pretend we have some cleanup to make linter happy
-    typst = exp_path / "typst"
-    if typst.exists():
-        _ = os.getenv("PATH", "")
-        if typst.is_dir():
-            typst.rmdir()
-        else:
-            typst.unlink()
-    pandoc = exp_path / "pandoc"
-    if pandoc.exists():
-        if pandoc.is_dir():
-            pandoc.rmdir()
-        else:
-            pandoc.unlink()
+    monkeypatch.setenv("HOME", old_home)
 
 
+# Note that the CI environment must have network access to download the
+# callisto module.  While this is fine for local development and for
+# GitHub Actions (which is where this code lives as of July 2026), it might
+# not be fine some other places.
+# Figuring out how to vendor the callisto installation is something we
+# may want to consider.
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
 async def test_export() -> None:
+    """Test PDF export via typst/callisto."""
     homedir = Path(os.environ["HOME"])
+    refdir = Path(__file__).parent.parent.parent / "data" / "output"
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
             tornado.web.Application(),
@@ -70,15 +61,45 @@ async def test_export() -> None:
                 connection=_FakeConnect()
             ),
         )
-
-        # Happy path
-        bindir = Path(homedir).parent.parent / "usr" / "local" / "bin"
-        pathdir = os.getenv("PATH", "").split(":")[0]
-        assert pathdir == str(bindir)
-        resp = await handler._to_pdf_response("nb.ipynb")
-        assert resp.path == "nb.pdf"
-        pdf = Path(homedir) / "nb.pdf"
-        assert (pdf).read_text() == "Ceci pas un PDF document."
+        # We have multiple files to test here.  One is a minimal notebook,
+        # and the other uses an embedded image as CST tutorials do.
+        nbs = list(homedir.glob("*.ipynb"))
+        assert nbs  # We better have at least one.
+        # It is a little silly to carry around fairly large PDFs just to
+        # loosely verify their size, but the CST embedded image, specifically,
+        # has caused us pain in the past, so we will keep it to make sure that
+        # the CST-specific incantation does not break our PDF conversion.
+        for fn in nbs:
+            # Happy path
+            resp = await handler._to_pdf_response(fn.name)
+            assert resp.path == f"{fn.stem}.pdf"
+            pdf = homedir / f"{fn.stem}.pdf"
+            ref = refdir / f"{fn.stem}.pdf"
+            assert pdf.exists()
+            assert ref.exists()
+            # The files are not identical; not only do the things you'd
+            # expect to differ, like the timestamp and unique document ID
+            # vary, but the output also depends on what system fonts you
+            # have installed and other stuff; notably, Mac and Linux do
+            # not produce particularly similar results.
+            #
+            # So we're going to ensure that each file is at least 1K,
+            # that it starts with "%PDF-", that the file sizes are within
+            # 10% of each other, and call it a day.
+            # Which is indeed not very exact, but, well, it
+            # generated something substantial.
+            #
+            psize = pdf.stat().st_size
+            rsize = ref.stat().st_size
+            delta = abs(psize - rsize)
+            assert psize > 1024
+            assert rsize > 1024
+            with pdf.open("rb") as f:
+                p5 = f.read(5)
+            with ref.open("rb") as f:
+                r5 = f.read(5)
+            assert p5 == r5 == b"%PDF-"
+            assert 10 * delta < psize
 
 
 @pytest.mark.usefixtures("_fake_root")
@@ -147,7 +168,7 @@ async def test_input_is_not_notebook() -> None:
 
 @pytest.mark.usefixtures("_fake_root")
 @pytest.mark.asyncio
-async def test_no_typst() -> None:
+async def test_bad_notebook() -> None:
     homedir = Path(os.environ["HOME"])
     with contextlib.chdir(homedir):
         handler = PDFExportHandler(
@@ -156,36 +177,15 @@ async def test_no_typst() -> None:
                 connection=_FakeConnect()
             ),
         )
-
-        # No typst
-        (
-            Path(homedir).parent.parent / "usr" / "local" / "bin" / "typst"
-        ).unlink()
-        if shutil.which("typst") is not None:
-            pytest.skip("typst is really installed")
-        resp = await handler._to_pdf_response("nb.ipynb")
+        # Named like a notebook, but not a notebook structure.
+        (Path(homedir) / "nope.ipynb").write_text("Not a notebook")
+        resp = await handler._to_pdf_response("nope.ipynb")
         assert resp.error is not None
-        assert resp.error.startswith("No executable 'typst'")
-
-
-@pytest.mark.usefixtures("_fake_root")
-@pytest.mark.asyncio
-async def test_no_pandoc() -> None:
-    homedir = Path(os.environ["HOME"])
-    with contextlib.chdir(homedir):
-        handler = PDFExportHandler(
-            tornado.web.Application(),
-            request=tornado.httputil.HTTPServerRequest(
-                connection=_FakeConnect()
-            ),
-        )
-
-        # No pandoc
-        (
-            Path(homedir).parent.parent / "usr" / "local" / "bin" / "pandoc"
-        ).unlink()
-        if shutil.which("pandoc") is not None:
-            pytest.skip("pandoc is really installed")
-        resp = await handler._to_pdf_response("nb.ipynb")
-        assert resp.error is not None
-        assert resp.error.startswith("No executable 'pandoc'")
+        assert resp.error.startswith("PDF conversion of ")
+        # Find the end of our part of the error message
+        f_msg = "nope.ipynb failed: "
+        f_pos = resp.error.find(f_msg)
+        assert f_pos > -1
+        # Check that there's more error after that.  Since it's not ours,
+        # it might change.
+        assert len(resp.error) > f_pos + 1 + len(f_msg)

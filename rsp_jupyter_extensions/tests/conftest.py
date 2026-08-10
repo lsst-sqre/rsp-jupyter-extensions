@@ -1,7 +1,6 @@
 """Fixture for test suite."""
-import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 from pyfakefs.fake_filesystem import FakeFilesystem
@@ -76,13 +75,10 @@ def rsp_fs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[FakeFilesystem]:
     """Simulate enough of an RSP filesystem to run tests."""
-    for dd in ("etc", "home", "usr", "collab"):
+    for dd in ("etc", "home", "collab"):
         _add_real_directory(fs, dd)
     with monkeypatch.context() as mc:
         mc.setenv("HOME", "/home/irian")
-        env_p=os.getenv("PATH", "/bin:/usr/bin")
-        env_p=f"/usr/local/bin:{env_p}"
-        mc.setenv("PATH", env_p)
         yield fs
 
 @pytest.fixture
