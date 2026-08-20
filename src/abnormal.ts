@@ -106,19 +106,19 @@ function getSupplementalBody(
   translator: ITranslator | null,
   homedir: string
 ): string {
-  if (homedir !== '') {
-    homedir = ' (' + homedir + ')';
-  }
   const trans = (translator || nullTranslator).load('jupyterlab');
   const no_trust =
     ' ' + trans.__('This Lab should not be trusted for work you want to keep.');
   const delete_something =
     ' ' +
-    trans.__(
-      'Try deleting unneeded .user_env directories and no-longer relevant large files in $NB_HOME'
-    ) +
-    homedir +
-    trans.__(', then shut down and restart the Lab.');
+    (homedir
+      ? trans.__(
+          'Try deleting unneeded .user_env directories and no-longer relevant large files in $NB_HOME (%1), then shut down and restart the Lab.',
+          homedir
+        )
+      : trans.__(
+          'Try deleting unneeded .user_env directories and no-longer relevant large files, then shut down and restart the Lab.'
+        ));
   const no_storage =
     trans.__('You have run out of filesystem space.') + delete_something;
   const no_quota =

@@ -1,4 +1,6 @@
-"""Report any environment variables starting with ABNORMAL_STARTUP."""
+"""Report any environment variables starting with ABNORMAL_STARTUP, and
+NB_HOME if and only if ABNORMAL_STARTUP_* are set.
+"""
 
 import json
 import os
@@ -12,7 +14,8 @@ class AbnormalStartupHandler(_BaseRSPAPIHandler):
     """
     Abnormal Startup Handler.  If any environment variables beginning with
     ABNORMAL_STARTUP are found, return them as JSON where the key is the
-    variable name and the value is its value.
+    variable name and the value is its value.  If any such are found, also
+    return NB_HOME.
     """
 
     @tornado.web.authenticated
@@ -28,6 +31,8 @@ class AbnormalStartupHandler(_BaseRSPAPIHandler):
                 y for y in os.environ if y.startswith("ABNORMAL_STARTUP")
             ]
         }
-        if abn:
-            abn["NB_HOME"] = os.environ.get("NB_HOME", "")
+        # Only report NB_HOME if we have an abnormal startup; if everything is
+        # fine, return the empty dict.
+        if abn and (nb_home := os.environ.get("NB_HOME")):
+            abn["NB_HOME"] = nb_home
         return abn
