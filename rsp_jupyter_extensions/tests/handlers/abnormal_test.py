@@ -19,7 +19,9 @@ async def test_abnormal(
     assert payload == {}
 
     monkeypatch.setenv("ABNORMAL_STARTUP", "TRUE")
+    monkeypatch.setenv("NB_HOME", "/home/hambone")
     response = await jp_fetch("rubin", "abnormal")
     assert response.code == 200
     payload = json.loads(response.body)
     assert payload["ABNORMAL_STARTUP"] == "TRUE"
+    assert payload["NB_HOME"] == "/home/hambone"

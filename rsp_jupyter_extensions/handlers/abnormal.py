@@ -1,5 +1,5 @@
 """Report any environment variables starting with ABNORMAL_STARTUP, and
-NB_HOME if and only if ABNORMAL_STARTUP_* are set.
+NB_HOME, if set, when any of those are present.
 """
 
 import json
