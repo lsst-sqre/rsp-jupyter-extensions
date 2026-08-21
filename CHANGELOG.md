@@ -6,6 +6,14 @@ Find changes for the upcoming release in the project's [changelog.d](https://git
 
 <!-- scriv-insert-here -->
 
+<a id='changelog-v0.27.2'></a>
+
+## v0.27.2 (2026-08-21)
+
+### New features
+
+- Add information about NB_HOME to quota/out-of-space message, if we have it.
+
 <a id='changelog-0.27.1'></a>
 
 ## 0.27.1 (2026-08-10)
