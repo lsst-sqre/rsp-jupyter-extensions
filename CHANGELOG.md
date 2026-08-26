@@ -4,11 +4,15 @@ rsp-jupyter-extensions is versioned with [semver](https://semver.org/). Dependen
 
 Find changes for the upcoming release in the project's [changelog.d](https://github.com/lsst-sqre/rsp-jupyter-extensions/tree/main/changelog.d/).
 
-<!-- scriv-insert-here -->
+<a id='changelog-0.27.3'></a>
 
-<a id='changelog-v0.27.2'></a>
+## 0.27.3 (2026-08-26)
 
-## v0.27.2 (2026-08-21)
+### New features
+
+- Add ENOWRITEABLESERVERROOT to errors.
+
+<a id='changelog-0.27.2'></a>
 
 ### New features
 

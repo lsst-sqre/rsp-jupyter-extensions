@@ -137,6 +137,17 @@ function getSupplementalBody(
     ) +
     ' ' +
     no_idea;
+  const no_writeable_server_root =
+    trans.__('You cannot write to your home directory or any scratch path.') +
+    ' ' +
+    delete_something +
+    ' ' +
+    trans.__(
+      'If that fails to get you a working Lab, then something else is wrong.'
+    ) +
+    ' ' +
+    no_idea;
+
   switch (errorcode) {
     case 'EACCES':
       return no_permission;
@@ -148,6 +159,8 @@ function getSupplementalBody(
       return no_quota;
     case 'EBADENV':
       return no_environment;
+    case 'ENOWRITEABLESERVERROOT':
+      return no_writeable_server_root;
     default:
       return no_idea;
   }
