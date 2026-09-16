@@ -1,14 +1,9 @@
 """Test execution handler functionality."""
 
-import json
-import logging
-import shutil
-from collections.abc import Callable, Generator
-from pathlib import Path
+from collections.abc import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
-from nbconvert.preprocessors import CellExecutionError
 
 
 @pytest.fixture

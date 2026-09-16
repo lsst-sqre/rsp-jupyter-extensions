@@ -1,6 +1,5 @@
-import jupyterlab
 import jupyter_server
-
+import jupyterlab
 from jupyter_server.utils import url_path_join as ujoin
 
 from .handlers.abnormal import AbnormalStartupHandler
@@ -8,7 +7,6 @@ from .handlers.config import ConfigHandler
 from .handlers.execution import ExecutionHandler
 from .handlers.ghostwriter import GhostwriterHandler
 from .handlers.hub import HubHandler
-from .handlers.pdfexport import PDFExportHandler
 from .handlers.serviceinfo import ServiceInfoHandler
 from .handlers.tapquery import TAPQueryHandler
 from .handlers.tutorials import TutorialsMenuHandler
@@ -23,12 +21,12 @@ except ImportError:
 
     warnings.warn(
         "Importing 'rsp_jupyter_extensions' outside a proper installation.",
-        stacklevel=2
+        stacklevel=2,
     )
     __version__ = "dev"
 
 
-def _jupyter_labextension_paths() -> list[dict[str,str]]:
+def _jupyter_labextension_paths() -> list[dict[str, str]]:
     return [{"src": "labextension", "dest": "rsp-jupyter-extensions"}]
 
 
@@ -36,8 +34,7 @@ def _jupyter_server_extension_points() -> list[dict[str, str]]:
     return [{"module": "rsp_jupyter_extensions"}]
 
 
-def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
-                    ) -> None:
+def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp) -> None:
     """Sets up the route handlers to call the appropriate functionality."""
     web_app = server_app.web_app
     extmap = {
@@ -46,7 +43,6 @@ def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
         r"/rubin/execution": ExecutionHandler,
         r"/rubin/ghostwriter($|/$|/.*)": GhostwriterHandler,
         r"/rubin/hub": HubHandler,
-        r"/rubin/pdfexport": PDFExportHandler,
         r"/rubin/queries($|/$|.*)": TAPQueryHandler,
         r"/rubin/serviceinfo": ServiceInfoHandler,
         r"/rubin/tutorials": TutorialsMenuHandler,
@@ -63,7 +59,7 @@ def _setup_handlers(server_app: jupyter_server.serverapp.ServerApp
 
 
 def _load_jupyter_server_extension(
-        server_app: jupyter_server.serverapp.ServerApp
+    server_app: jupyter_server.serverapp.ServerApp,
 ) -> None:  # type: ignore
     """Registers the API handler to receive HTTP requests from the frontend
     extension.

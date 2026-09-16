@@ -39,6 +39,7 @@ ignore = [
     "ASYNC109", # many async functions use asyncio.timeout internally
     "ASYNC240", # we don't want to run filesystem operations on threads
     "BLE001",   # we want to catch and report Exception in background tasks
+    "CPY001",   # we don't need each file to have its own copyright notice
     "C414",     # nested sorted is how you sort by multiple keys with reverse
     "D102",     # sometimes we use docstring inheritence
     "D104",     # don't see the point of documenting every package
@@ -54,6 +55,7 @@ ignore = [
     "RET505",   # disagree that omitting else always makes code more readable
     "PLR0911",  # often many returns is clearer and simpler style
     "PLR0913",  # factory pattern uses constructors with many arguments
+    "PLR0917",  # factory pattern uses constructors with many arguments
     "PLR2004",  # too aggressive about magic values
     "PLW0603",  # yes global is discouraged but if needed, it's needed
     "S105",     # good idea but too many false positives on non-passwords

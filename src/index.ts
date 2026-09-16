@@ -21,8 +21,6 @@ import { getServerConfig, INubladoConfigResponse } from './config';
 
 import { activateRSPStatusBarExtension } from './statusbar';
 
-import { activateRSPPDFExportExtension } from './pdfexport';
-
 import { activateRSPTAPQueriesExtension } from './tapqueries';
 
 import { activateRSPQuitExtension } from './quit';
@@ -148,24 +146,6 @@ async function activateIndividualExtensions(
       LogLevels.ERROR,
       cfg,
       `Error activating displayversion extension: ${error}`
-    );
-  }
-  logMessage(LogLevels.INFO, cfg, '...activating pdfexport extension...');
-  try {
-    activateRSPPDFExportExtension(
-      app,
-      mainMenu,
-      docManager,
-      cfg,
-      tracker,
-      translator
-    );
-    logMessage(LogLevels.INFO, cfg, '...activated...');
-  } catch (error) {
-    logMessage(
-      LogLevels.ERROR,
-      cfg,
-      `Error activating pdfexport extension: ${error}`
     );
   }
   if (cfg.enable_jobs_menu) {

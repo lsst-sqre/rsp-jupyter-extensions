@@ -1,18 +1,21 @@
 """Fixture for test suite."""
+
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-from pyfakefs.fake_filesystem import FakeFilesystem
 import respx
-
+from pyfakefs.fake_filesystem import FakeFilesystem
 from rubin.repertoire import Discovery, register_mock_discovery
+
 from rsp_jupyter_extensions.handlers.config_generator import ConfigGenerator
+
 
 @pytest.fixture(autouse=True)
 def reset_config_instance() -> None:
     """Reset ConfigGenerator -- in actual operation it's a singleton, but
-    we want to reset it for each test."""
+    we want to reset it for each test.
+    """
     cg = ConfigGenerator()
     if hasattr(cg, "_initialized"):
         del cg._initialized
@@ -25,20 +28,20 @@ def rsp_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         mc.setenv("CONTAINER_SIZE", "Large (4.0 CPU, 16Gi RAM)")
         mc.setenv("IMAGE_DESCRIPTION", "Daily 2026_03_31")
         mc.setenv(
-        "IMAGE_DIGEST",
-        ("ae3bfaed76677dc396f0924085481f38d6a2510da3d03fd5c9710009e50b6f28"),
-    )
+            "IMAGE_DIGEST",
+            (
+                "ae3bfaed76677dc396f0924085481f38d6a2510da3d03fd5c9710009e50b6f28"
+            ),
+        )
         mc.setenv(
-        "JUPYTER_IMAGE_SPEC",
-        (
-            "us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/"
-            "sciplat-lab:d_2026_03_31@sha256:"
-            "ae3bfaed76677dc396f0924085481f38d6a2510da3d03fd5c9710009e50b6f28"
-        ),
-    )
-        mc.setenv(
-        "JUPYTERLAB_CONFIG_DIR", "/opt/lsst/software/jupyterlab"
-    )
+            "JUPYTER_IMAGE_SPEC",
+            (
+                "us-central1-docker.pkg.dev/rubin-shared-services-71ec/sciplat/"
+                "sciplat-lab:d_2026_03_31@sha256:"
+                "ae3bfaed76677dc396f0924085481f38d6a2510da3d03fd5c9710009e50b6f28"
+            ),
+        )
+        mc.setenv("JUPYTERLAB_CONFIG_DIR", "/opt/lsst/software/jupyterlab")
         mc.setenv("NUBLADO_RUNTIME_MOUNTS_DIR", "/etc/nublado")
         mc.setenv("CPU_LIMIT", "4.0")
         mc.setenv("CPU_GUARANTEE", "1.0")
@@ -47,27 +50,33 @@ def rsp_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         mc.setenv("JUPYTERHUB_HOST", "https://nb.example.lsst.cloud")
         yield
 
+
 @pytest.fixture(autouse=True)
 def mock_discovery(
     respx_mock: respx.Router, monkeypatch: pytest.MonkeyPatch
 ) -> Iterator[Discovery]:
     """Mock out service discovery."""
     with monkeypatch.context() as mc:
-        mc.setenv("REPERTOIRE_BASE_URL",
-                           "https://example.lsst.cloud/repertoire")
-        path = (Path(__file__).parent / "data" / "etc" / "nublado"
-                / "discovery_v1.json")
+        mc.setenv(
+            "REPERTOIRE_BASE_URL", "https://example.lsst.cloud/repertoire"
+        )
+        path = (
+            Path(__file__).parent
+            / "data"
+            / "etc"
+            / "nublado"
+            / "discovery_v1.json"
+        )
         yield register_mock_discovery(respx_mock, path)
 
-def _add_real_directory(
-    fs:FakeFilesystem,
-    pathname: str
-) -> None:
+
+def _add_real_directory(fs: FakeFilesystem, pathname: str) -> None:
     datadir = Path(__file__).parent / "data"
     fs.add_real_directory(
         datadir / pathname,
-        target_path = f"/{pathname}",
+        target_path=f"/{pathname}",
     )
+
 
 @pytest.fixture
 def rsp_fs(
@@ -81,8 +90,9 @@ def rsp_fs(
         mc.setenv("HOME", "/home/irian")
         yield fs
 
+
 @pytest.fixture
-def tutorial_env(tmp_path:Path) -> Path:
+def tutorial_env(tmp_path: Path) -> Path:
     """Environment for tutorial tests; pyfakefs doesn't work here
     because setting up the handler internally uses subprocess and the
     in-memory fake filesystem doesn't persist across the spawned
@@ -102,6 +112,7 @@ def tutorial_env(tmp_path:Path) -> Path:
     (tmp_path / ".git").mkdir()
 
     return tmp_path
+
 
 @pytest.fixture
 def labcfg() -> str:

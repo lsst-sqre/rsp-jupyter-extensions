@@ -26,10 +26,10 @@ dependencies = [
     "jupyterlab",
     "jupyter_server>=2.0.1,<3",
     "jupyterlab>=4,<5",
+    "jupyterlite-pdf-exporter",
     "pydantic",
     "requests",
     "rubin-repertoire",
-    "typst",
     "xmltodict"
 ]
 dynamic = ["version", "description", "authors", "urls", "keywords"]
