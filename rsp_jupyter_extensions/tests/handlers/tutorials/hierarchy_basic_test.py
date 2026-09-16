@@ -7,10 +7,7 @@ import pytest
 import tornado
 
 import rsp_jupyter_extensions.handlers.tutorials as t
-from rsp_jupyter_extensions.models.tutorials import (
-    Actions,
-    Hierarchy,
-)
+from rsp_jupyter_extensions.models.tutorials import Actions, Hierarchy
 
 from ..._fake import _FakeConnect
 

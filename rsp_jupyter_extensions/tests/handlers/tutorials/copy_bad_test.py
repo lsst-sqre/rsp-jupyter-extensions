@@ -8,9 +8,7 @@ import pytest
 import tornado
 from pyfakefs.fake_filesystem import FakeFilesystem
 
-from rsp_jupyter_extensions.exceptions import (
-    HierarchyError,
-)
+from rsp_jupyter_extensions.exceptions import HierarchyError
 from rsp_jupyter_extensions.handlers.tutorials import TutorialsMenuHandler
 
 from ..._fake import _FakeConnect

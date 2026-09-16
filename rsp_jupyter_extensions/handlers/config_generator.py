@@ -33,7 +33,7 @@ class ConfigGenerator:
     (for now) and will eventually use config.json.
     """
 
-    _instance: None | Self = None
+    _instance: Self | None = None
 
     def __new__(cls, *args: Any, **kwargs: Any) -> Self:
         if cls._instance is None:
