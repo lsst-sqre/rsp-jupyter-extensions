@@ -4,6 +4,20 @@ rsp-jupyter-extensions is versioned with [semver](https://semver.org/). Dependen
 
 Find changes for the upcoming release in the project's [changelog.d](https://github.com/lsst-sqre/rsp-jupyter-extensions/tree/main/changelog.d/).
 
+<!-- scriv-insert-here -->
+
+<a id='changelog-v0.28.0'></a>
+
+## v0.28.0 (2026-09-16)
+
+### Backwards-incompatible changes
+
+- Remove typst PDF export, replacing with jupyterlite-pdf-exporter.
+
+### New features
+
+- Add jupyterlite-pdf-exporter, typst+Callisto export in the browser.
+
 <a id='changelog-0.27.3'></a>
 
 ## 0.27.3 (2026-08-26)
